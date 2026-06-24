@@ -1,0 +1,6 @@
+{
+  "name": "AgendaZap",
+  "description": "Sistema moderno de agendamento online para salões de cabeleireiro, barbearias, esmalterias e profissionais autônomos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
