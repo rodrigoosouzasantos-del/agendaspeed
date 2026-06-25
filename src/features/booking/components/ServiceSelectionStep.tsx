@@ -3,20 +3,15 @@
  *
  * Responsável por:
  * - listar categorias de serviços;
- * - permitir busca por serviço;
  * - listar serviços disponíveis de forma direta;
  * - avançar diretamente para escolha do profissional.
  */
 
-import React, {
-  useMemo,
-  useState
-} from 'react';
+import React from 'react';
 
 import {
   ChevronRight,
   Clock,
-  Search,
   WalletCards
 } from 'lucide-react';
 
@@ -50,42 +45,9 @@ export default function ServiceSelectionStep({
   onChangeCategory,
   onSelectService
 }: ServiceSelectionStepProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const visibleServices = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return services;
-    }
-
-    return services.filter((service) => {
-      return (
-        service.name.toLowerCase().includes(normalizedSearch) ||
-        service.description.toLowerCase().includes(normalizedSearch) ||
-        service.category.toLowerCase().includes(normalizedSearch)
-      );
-    });
-  }, [
-    services,
-    searchTerm
-  ]);
-
   return (
-    <section className="mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-5">
+    <section className="mx-auto max-w-5xl px-4 py-3 sm:px-6 sm:py-4">
       <div className="sticky top-0 z-20 -mx-4 border-b border-neutral-200/80 bg-neutral-50/95 px-4 pb-3 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="relative mb-3">
-          <Search className="absolute left-4 top-3.5 h-4 w-4 text-neutral-400" />
-
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Procurar serviço..."
-            className="w-full rounded-2xl border border-neutral-200 bg-white py-3 pl-11 pr-4 text-sm font-bold text-neutral-800 outline-none shadow-sm transition placeholder:text-neutral-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
-          />
-        </div>
-
         <div className="flex gap-2 overflow-x-auto pb-1">
           {categories.map((category) => {
             const isActive = activeCategory === category;
@@ -108,19 +70,19 @@ export default function ServiceSelectionStep({
         </div>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {visibleServices.length === 0 ? (
+      <div className="mt-3 space-y-3">
+        {services.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-8 text-center">
             <p className="text-sm font-black text-neutral-800">
-              Nenhum serviço encontrado.
+              Nenhum serviço disponível.
             </p>
 
             <p className="mt-1 text-xs font-semibold text-neutral-400">
-              Tente buscar por outro nome ou escolha outra categoria.
+              O estabelecimento ainda não possui serviços ativos para agendamento.
             </p>
           </div>
         ) : (
-          visibleServices.map((service) => (
+          services.map((service) => (
             <button
               key={service.id}
               type="button"
