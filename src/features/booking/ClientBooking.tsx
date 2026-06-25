@@ -62,19 +62,25 @@ interface PublicBookingContextRow {
 function getPublicBookingSlug(): string {
   const parts = window.location.pathname.split('/').filter(Boolean);
   const firstPart = parts[0] || '';
+  const secondPart = parts[1] || '';
+  const urlParams = new URLSearchParams(window.location.search);
+  const querySlug = urlParams.get('slug') || urlParams.get('empresa') || '';
 
-  if (!firstPart || firstPart === 'agendar') {
-    return '';
+  const reservedRoutes = [
+    'login',
+    'cadastro',
+    'owner',
+    'profissional',
+    'primeiro-acesso',
+    'master'
+  ];
+
+  if (firstPart === 'agendar') {
+    return secondPart || querySlug;
   }
 
-  if (
-    firstPart === 'login' ||
-    firstPart === 'cadastro' ||
-    firstPart === 'owner' ||
-    firstPart === 'profissional' ||
-    firstPart === 'primeiro-acesso'
-  ) {
-    return '';
+  if (!firstPart || reservedRoutes.includes(firstPart)) {
+    return querySlug;
   }
 
   return firstPart;
