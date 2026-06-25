@@ -105,14 +105,14 @@ export default function BookingHeader({
                   onError={() => setLogoHasError(true)}
                 />
               ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-950 text-lg font-black text-white shadow-sm sm:h-20 sm:w-20">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-950 text-lg font-extrabold text-white shadow-sm sm:h-20 sm:w-20">
                   {getInitials(companyName)}
                 </div>
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <h1 className="break-words text-xl font-black leading-tight tracking-[-0.03em] text-neutral-800 sm:text-2xl">
+              <h1 className="break-words text-xl font-extrabold leading-tight tracking-[-0.03em] text-neutral-800 sm:text-2xl">
                 {companyName}
               </h1>
 

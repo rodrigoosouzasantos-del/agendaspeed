@@ -57,7 +57,7 @@ export default function ServiceSelectionStep({
                 key={category}
                 type="button"
                 onClick={() => onChangeCategory(category)}
-                className={`shrink-0 rounded-full border px-4 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                className={`shrink-0 rounded-full border px-4 py-2.5 text-[11px] font-bold uppercase tracking-tight transition ${
                   isActive
                     ? 'border-neutral-950 bg-neutral-950 text-white shadow-lg shadow-neutral-900/15'
                     : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-100'
@@ -73,11 +73,11 @@ export default function ServiceSelectionStep({
       <div className="mt-3 space-y-3">
         {services.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-8 text-center">
-            <p className="text-sm font-black text-neutral-800">
+            <p className="text-sm font-extrabold text-neutral-800">
               Nenhum serviço disponível.
             </p>
 
-            <p className="mt-1 text-xs font-semibold text-neutral-400">
+            <p className="mt-1 text-xs font-medium text-neutral-400">
               O estabelecimento ainda não possui serviços ativos para agendamento.
             </p>
           </div>
@@ -91,15 +91,15 @@ export default function ServiceSelectionStep({
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <span className="mb-2 inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 ring-1 ring-orange-100">
+                  <span className="mb-2 inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-700 ring-1 ring-orange-100">
                     {service.category}
                   </span>
 
-                  <h3 className="text-lg font-black leading-tight tracking-[-0.03em] text-neutral-950 sm:text-xl">
+                  <h3 className="text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950 sm:text-xl">
                     {service.name}
                   </h3>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-black text-neutral-600">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-extrabold text-neutral-600">
                     <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1">
                       <Clock className="h-3.5 w-3.5 text-orange-600" />
                       {formatDuration(service.duration)}
@@ -113,18 +113,18 @@ export default function ServiceSelectionStep({
                     )}
                   </div>
 
-                  <p className="mt-3 line-clamp-2 text-sm font-semibold leading-relaxed text-neutral-500">
+                  <p className="mt-3 line-clamp-2 text-sm font-medium leading-relaxed text-neutral-500">
                     {service.description || 'Serviço disponível para agendamento.'}
                   </p>
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-3">
                   <div className="rounded-2xl bg-neutral-950 px-4 py-3 text-right text-white shadow-lg shadow-neutral-900/10">
-                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-orange-300">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-orange-300">
                       A partir de
                     </span>
 
-                    <span className="block text-base font-black leading-none tracking-tight">
+                    <span className="block text-base font-extrabold leading-none tracking-tight">
                       {formatCurrency(service.price)}
                     </span>
                   </div>

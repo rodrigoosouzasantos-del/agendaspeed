@@ -1,5 +1,5 @@
 /**
- * Etapa de seleção de data e horário - AgendaZap.
+ * Etapa de seleção de data e horário - AgendaSpeed.
  *
  * Responsável por:
  * - listar datas disponíveis;
@@ -42,7 +42,7 @@ export default function DateTimeSelectionStep({
         </button>
 
         <div>
-          <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 tracking-tight">
             Escolha a data e o horário
           </h2>
 
@@ -56,7 +56,7 @@ export default function DateTimeSelectionStep({
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-orange-600" />
 
-          <h3 className="text-sm font-black text-neutral-950">
+          <h3 className="text-sm font-extrabold text-neutral-950">
             Escolha uma data
           </h3>
         </div>
@@ -91,14 +91,14 @@ export default function DateTimeSelectionStep({
                   }`}
                 >
                   <span
-                    className={`text-[10px] font-black uppercase tracking-widest font-mono block ${
+                    className={`text-[10px] font-bold uppercase tracking-widest block ${
                       isSelected ? 'text-orange-600' : 'text-neutral-400'
                     }`}
                   >
                     {option.dayOfWeekStr}
                   </span>
 
-                  <span className="text-sm font-black text-neutral-950 block mt-1">
+                  <span className="text-sm font-extrabold text-neutral-950 block mt-1">
                     {option.label}
                   </span>
 
@@ -118,7 +118,7 @@ export default function DateTimeSelectionStep({
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-orange-600" />
 
-          <h3 className="text-sm font-black text-neutral-950">
+          <h3 className="text-sm font-extrabold text-neutral-950">
             Escolha um horário
           </h3>
         </div>
@@ -154,7 +154,7 @@ export default function DateTimeSelectionStep({
                   type="button"
                   disabled={!slot.available}
                   onClick={() => onChangeTime(slot.time)}
-                  className={`rounded-xl border px-3 py-3 text-xs font-black transition ${
+                  className={`rounded-xl border px-3 py-3 text-xs font-extrabold transition ${
                     isSelected
                       ? 'border-orange-600 bg-orange-600 text-white shadow-sm'
                       : slot.available
@@ -175,7 +175,7 @@ export default function DateTimeSelectionStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-3 rounded-xl text-xs font-black border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
+            className="px-4 py-3 rounded-xl text-xs font-extrabold border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
@@ -185,7 +185,7 @@ export default function DateTimeSelectionStep({
             type="button"
             onClick={onNextStep}
             disabled={!canContinue}
-            className={`px-5 py-3 rounded-xl text-xs font-black transition ${
+            className={`px-5 py-3 rounded-xl text-xs font-extrabold transition ${
               canContinue
                 ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm'
                 : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'

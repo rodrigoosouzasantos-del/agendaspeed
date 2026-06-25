@@ -1,5 +1,5 @@
 /**
- * Etapa de revisão e finalização do agendamento - AgendaZap.
+ * Etapa de revisão e finalização do agendamento - AgendaSpeed.
  *
  * Responsável por:
  * - mostrar o resumo final do agendamento;
@@ -59,7 +59,7 @@ export default function BookingReviewStep({
         </button>
 
         <div>
-          <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 tracking-tight">
             Resumo do agendamento
           </h2>
 
@@ -78,12 +78,12 @@ export default function BookingReviewStep({
             <div className="flex items-center gap-2 text-orange-600">
               <Scissors className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Serviço
               </span>
             </div>
 
-            <h3 className="text-sm font-black text-neutral-950">
+            <h3 className="text-sm font-extrabold text-neutral-950">
               {selectedService.name}
             </h3>
 
@@ -91,7 +91,7 @@ export default function BookingReviewStep({
               {selectedService.duration} minutos
             </p>
 
-            <p className="text-base font-black text-neutral-950">
+            <p className="text-base font-extrabold text-neutral-950">
               {formatCurrency(selectedService.price)}
             </p>
           </div>
@@ -100,7 +100,7 @@ export default function BookingReviewStep({
             <div className="flex items-center gap-2 text-orange-600">
               <UserCheck className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Profissional
               </span>
             </div>
@@ -114,7 +114,7 @@ export default function BookingReviewStep({
               />
 
               <div className="min-w-0">
-                <h3 className="text-sm font-black text-neutral-950 truncate">
+                <h3 className="text-sm font-extrabold text-neutral-950 truncate">
                   {selectedProfessional.name}
                 </h3>
 
@@ -131,12 +131,12 @@ export default function BookingReviewStep({
             <div className="flex items-center gap-2 text-orange-700">
               <CalendarDays className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Data
               </span>
             </div>
 
-            <span className="text-sm font-black text-neutral-950 block mt-2">
+            <span className="text-sm font-extrabold text-neutral-950 block mt-2">
               {formattedDate}
             </span>
           </div>
@@ -145,12 +145,12 @@ export default function BookingReviewStep({
             <div className="flex items-center gap-2 text-orange-700">
               <Clock className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Horário
               </span>
             </div>
 
-            <span className="text-sm font-black text-neutral-950 block mt-2">
+            <span className="text-sm font-extrabold text-neutral-950 block mt-2">
               {selectedTime}
             </span>
           </div>
@@ -160,13 +160,13 @@ export default function BookingReviewStep({
           <div className="flex items-center gap-2 text-orange-600">
             <User className="w-4 h-4" />
 
-            <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+            <span className="text-[10px] font-bold uppercase tracking-widest">
               Cliente
             </span>
           </div>
 
           <div className="space-y-1">
-            <p className="text-sm font-black text-neutral-950">
+            <p className="text-sm font-extrabold text-neutral-950">
               {clientName}
             </p>
 
@@ -196,7 +196,7 @@ export default function BookingReviewStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-3 rounded-xl text-xs font-black border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
+            className="px-4 py-3 rounded-xl text-xs font-extrabold border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
@@ -204,7 +204,7 @@ export default function BookingReviewStep({
 
           <button
             type="submit"
-            className="px-5 py-3 rounded-xl text-xs font-black bg-orange-600 hover:bg-orange-700 text-white shadow-sm transition"
+            className="px-5 py-3 rounded-xl text-xs font-extrabold bg-orange-600 hover:bg-orange-700 text-white shadow-sm transition"
           >
             Finalizar agendamento
           </button>

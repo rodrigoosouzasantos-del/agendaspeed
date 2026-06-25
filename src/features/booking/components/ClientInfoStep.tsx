@@ -1,5 +1,5 @@
 /**
- * Etapa de dados do cliente - AgendaZap.
+ * Etapa de dados do cliente - AgendaSpeed.
  *
  * Responsável por:
  * - coletar nome do cliente;
@@ -72,7 +72,7 @@ export default function ClientInfoStep({
         </button>
 
         <div>
-          <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 tracking-tight">
             Dados do cliente
           </h2>
 
@@ -86,7 +86,7 @@ export default function ClientInfoStep({
         <div className="space-y-1">
           <label
             htmlFor="booking-client-name"
-            className="text-[10px] font-black text-neutral-600 uppercase tracking-widest font-mono block"
+            className="text-[10px] font-extrabold text-neutral-600 uppercase tracking-widest block"
           >
             Nome completo
           </label>
@@ -108,7 +108,7 @@ export default function ClientInfoStep({
         <div className="space-y-1">
           <label
             htmlFor="booking-client-phone"
-            className="text-[10px] font-black text-neutral-600 uppercase tracking-widest font-mono block"
+            className="text-[10px] font-extrabold text-neutral-600 uppercase tracking-widest block"
           >
             WhatsApp
           </label>
@@ -137,7 +137,7 @@ export default function ClientInfoStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-3 rounded-xl text-xs font-black border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
+            className="px-4 py-3 rounded-xl text-xs font-extrabold border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
@@ -147,7 +147,7 @@ export default function ClientInfoStep({
             type="button"
             onClick={handleContinue}
             disabled={!canContinue}
-            className={`px-5 py-3 rounded-xl text-xs font-black transition ${
+            className={`px-5 py-3 rounded-xl text-xs font-extrabold transition ${
               canContinue
                 ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm'
                 : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'

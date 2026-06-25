@@ -1,5 +1,5 @@
 /**
- * Etapa de escolha do profissional - AgendaZap.
+ * Etapa de escolha do profissional - AgendaSpeed.
  *
  * Responsável por:
  * - listar somente profissionais habilitados para o serviço;
@@ -76,7 +76,7 @@ export default function ProfessionalSelectionStep({
         </button>
 
         <div>
-          <h2 className="text-2xl sm:text-3xl font-black text-neutral-950 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 tracking-tight">
             Escolha o profissional
           </h2>
 
@@ -90,7 +90,7 @@ export default function ProfessionalSelectionStep({
         <div className="flex items-center gap-2 px-1 pb-1">
           <UserCheck className="w-4 h-4 text-orange-600" />
 
-          <h3 className="text-sm font-black text-neutral-950">
+          <h3 className="text-sm font-extrabold text-neutral-950">
             Profissionais disponíveis
           </h3>
         </div>
@@ -133,7 +133,7 @@ export default function ProfessionalSelectionStep({
                   />
 
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-[15px] font-black text-neutral-950 truncate">
+                    <h4 className="text-[15px] font-extrabold text-neutral-950 truncate">
                       {professional.name}
                     </h4>
 
@@ -142,7 +142,7 @@ export default function ProfessionalSelectionStep({
                     </p>
 
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className="rounded-full bg-orange-50 border border-orange-100 px-2.5 py-1 text-[11px] font-black text-orange-800">
+                      <span className="rounded-full bg-orange-50 border border-orange-100 px-2.5 py-1 text-[11px] font-extrabold text-orange-800">
                         {formatCurrency(finalPrice)}
                       </span>
                     </div>

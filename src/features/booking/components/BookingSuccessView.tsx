@@ -1,5 +1,5 @@
 /**
- * Tela de sucesso do agendamento público - AgendaZap.
+ * Tela de sucesso do agendamento público - AgendaSpeed.
  *
  * Responsável por:
  * - confirmar visualmente que o horário foi registrado;
@@ -56,11 +56,11 @@ export default function BookingSuccessView({
         </div>
 
         <div>
-          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest font-mono">
+          <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
             Agendamento registrado
           </span>
 
-          <h2 className="text-2xl font-black text-neutral-950 tracking-tight mt-1">
+          <h2 className="text-2xl font-extrabold text-neutral-950 tracking-tight mt-1">
             Horário solicitado com sucesso!
           </h2>
 
@@ -73,7 +73,7 @@ export default function BookingSuccessView({
           href={whatsappUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-5 py-3 rounded-2xl transition shadow-sm"
+          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold px-5 py-3 rounded-2xl transition shadow-sm"
         >
           <MessageCircle className="w-4 h-4" />
           Enviar confirmação pelo WhatsApp
@@ -81,7 +81,7 @@ export default function BookingSuccessView({
       </div>
 
       <div className="bg-white border rounded-3xl p-5 shadow-xs space-y-4">
-        <h3 className="text-sm font-black text-neutral-950">
+        <h3 className="text-sm font-extrabold text-neutral-950">
           Resumo do agendamento
         </h3>
 
@@ -91,12 +91,12 @@ export default function BookingSuccessView({
             <div className="flex items-center gap-2 text-orange-600 mb-2">
               <Scissors className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Serviço
               </span>
             </div>
 
-            <h4 className="text-sm font-black text-neutral-950">
+            <h4 className="text-sm font-extrabold text-neutral-950">
               {selectedService?.name || 'Serviço selecionado'}
             </h4>
 
@@ -111,7 +111,7 @@ export default function BookingSuccessView({
             <div className="flex items-center gap-2 text-orange-600 mb-2">
               <UserCheck className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Profissional
               </span>
             </div>
@@ -126,7 +126,7 @@ export default function BookingSuccessView({
                 />
 
                 <div className="min-w-0">
-                  <h4 className="text-sm font-black text-neutral-950 truncate">
+                  <h4 className="text-sm font-extrabold text-neutral-950 truncate">
                     {selectedProfessional.name}
                   </h4>
 
@@ -136,7 +136,7 @@ export default function BookingSuccessView({
                 </div>
               </div>
             ) : (
-              <h4 className="text-sm font-black text-neutral-950">
+              <h4 className="text-sm font-extrabold text-neutral-950">
                 Profissional selecionado
               </h4>
             )}
@@ -146,12 +146,12 @@ export default function BookingSuccessView({
             <div className="flex items-center gap-2 text-orange-700 mb-2">
               <CalendarDays className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Data
               </span>
             </div>
 
-            <h4 className="text-sm font-black text-neutral-950">
+            <h4 className="text-sm font-extrabold text-neutral-950">
               {formattedDate}
             </h4>
           </div>
@@ -160,12 +160,12 @@ export default function BookingSuccessView({
             <div className="flex items-center gap-2 text-orange-700 mb-2">
               <Clock className="w-4 h-4" />
 
-              <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+              <span className="text-[10px] font-bold uppercase tracking-widest">
                 Horário
               </span>
             </div>
 
-            <h4 className="text-sm font-black text-neutral-950">
+            <h4 className="text-sm font-extrabold text-neutral-950">
               {selectedTime}
             </h4>
           </div>
@@ -176,12 +176,12 @@ export default function BookingSuccessView({
           <div className="flex items-center gap-2 text-neutral-600 mb-2">
             <MapPin className="w-4 h-4 text-orange-600" />
 
-            <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+            <span className="text-[10px] font-bold uppercase tracking-widest">
               Local
             </span>
           </div>
 
-          <h4 className="text-sm font-black text-neutral-950">
+          <h4 className="text-sm font-extrabold text-neutral-950">
             {companyName}
           </h4>
 
@@ -195,7 +195,7 @@ export default function BookingSuccessView({
         <button
           type="button"
           onClick={onNavigateBack}
-          className="px-5 py-3 rounded-xl text-xs font-black border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition"
+          className="px-5 py-3 rounded-xl text-xs font-extrabold border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition"
         >
           Voltar para o estabelecimento
         </button>
