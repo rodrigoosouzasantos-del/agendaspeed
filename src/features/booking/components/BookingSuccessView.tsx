@@ -3,28 +3,21 @@
  *
  * Responsável por:
  * - confirmar visualmente que o horário foi registrado;
- * - exibir resumo do agendamento;
- * - abrir WhatsApp com mensagem pré-configurada;
- * - permitir voltar para a página do estabelecimento.
+ * - orientar o cliente a solicitar o link de acompanhamento pelo WhatsApp;
+ * - manter a tela objetiva, sem resumo longo e sem botão de saída.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  MapPin,
   MessageCircle,
-  Scissors,
-  UserCheck
+  Scissors
 } from 'lucide-react';
 
 import { BookingSuccessViewProps } from '../booking.types';
-
-function formatCurrency(value: number): string {
-  return `R$ ${value.toFixed(2)}`;
-}
 
 function formatDateBr(dateStr: string): string {
   if (!dateStr || !dateStr.includes('-')) {
@@ -34,173 +27,143 @@ function formatDateBr(dateStr: string): string {
   return dateStr.split('-').reverse().join('/');
 }
 
+function buildTrackingMessage(params: {
+  companyName: string;
+  selectedServiceName?: string;
+  selectedDate: string;
+  selectedTime: string;
+}): string {
+  const {
+    companyName,
+    selectedServiceName,
+    selectedDate,
+    selectedTime
+  } = params;
+
+  const serviceLine = selectedServiceName
+    ? `Serviço: ${selectedServiceName}\n`
+    : '';
+
+  return [
+    `Olá, ${companyName},`,
+    '',
+    'Horário marcado com sucesso! 😊',
+    '',
+    serviceLine
+      ? `${serviceLine}Data: ${formatDateBr(selectedDate)}\nHorário: ${selectedTime}`
+      : `Data: ${formatDateBr(selectedDate)}\nHorário: ${selectedTime}`,
+    '',
+    'Por favor, envie meu link de acompanhamento para que eu possa confirmar presença, remarcar ou cancelar, caso necessário.'
+  ].join('\n');
+}
+
+function buildWhatsAppUrlWithMessage(
+  whatsappUrl: string,
+  message: string
+): string {
+  if (!whatsappUrl) {
+    return '#';
+  }
+
+  try {
+    const parsedUrl = new URL(whatsappUrl);
+    parsedUrl.searchParams.set('text', message);
+    return parsedUrl.toString();
+  } catch {
+    const separator = whatsappUrl.includes('?') ? '&' : '?';
+    return `${whatsappUrl}${separator}text=${encodeURIComponent(message)}`;
+  }
+}
+
 export default function BookingSuccessView({
   selectedService,
-  selectedProfessional,
   selectedDate,
   selectedTime,
-  clientName,
   companyName,
-  companyAddress,
-  whatsappUrl,
-  onNavigateBack
+  whatsappUrl
 }: BookingSuccessViewProps) {
   const formattedDate = formatDateBr(selectedDate);
 
+  const trackingMessage = useMemo(() => {
+    return buildTrackingMessage({
+      companyName,
+      selectedServiceName: selectedService?.name,
+      selectedDate,
+      selectedTime
+    });
+  }, [
+    companyName,
+    selectedDate,
+    selectedService?.name,
+    selectedTime
+  ]);
+
+  const trackingWhatsappUrl = useMemo(() => {
+    return buildWhatsAppUrlWithMessage(whatsappUrl, trackingMessage);
+  }, [
+    trackingMessage,
+    whatsappUrl
+  ]);
+
   return (
-    <section className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-      
-      <div className="bg-white border rounded-3xl p-6 sm:p-8 shadow-xs text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-9 h-9" />
+    <section className="flex min-h-[calc(100vh-24px)] items-center justify-center bg-neutral-50 px-4 py-5">
+      <div className="w-full max-w-xl rounded-[2rem] border border-neutral-200 bg-white p-6 text-center shadow-sm sm:p-8">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-8 ring-emerald-50/60">
+          <CheckCircle2 className="h-11 w-11" />
         </div>
 
-        <div>
-          <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
+        <div className="mt-5">
+          <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600">
             Agendamento registrado
           </span>
 
-          <h2 className="text-2xl font-extrabold text-neutral-950 tracking-tight mt-1">
-            Horário solicitado com sucesso!
+          <h2 className="mt-3 text-3xl font-extrabold leading-tight tracking-[-0.04em] text-neutral-950 sm:text-4xl">
+            Horário marcado com sucesso!
           </h2>
 
-          <p className="text-sm text-neutral-500 leading-relaxed mt-2 max-w-md mx-auto">
-            {clientName}, seu horário foi registrado. Agora envie a mensagem pelo WhatsApp para o estabelecimento confirmar o atendimento.
+          <p className="mx-auto mt-3 max-w-md text-base font-medium leading-relaxed text-neutral-500">
+            Clique no botão abaixo para receber no WhatsApp o link de acompanhamento do seu horário.
           </p>
+        </div>
+
+        <div className="mt-5 rounded-3xl border border-neutral-200 bg-neutral-50 p-4 text-left">
+          <div className="flex items-start gap-3">
+            <Scissors className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-extrabold text-neutral-950">
+                {selectedService?.name || 'Serviço selecionado'}
+              </p>
+
+              <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-neutral-600">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-neutral-200">
+                  <CalendarDays className="h-3.5 w-3.5 text-orange-600" />
+                  {formattedDate}
+                </span>
+
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-neutral-200">
+                  <Clock className="h-3.5 w-3.5 text-orange-600" />
+                  {selectedTime}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <a
-          href={whatsappUrl}
+          href={trackingWhatsappUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold px-5 py-3 rounded-2xl transition shadow-sm"
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-600 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-emerald-700/20 transition hover:bg-emerald-700"
         >
-          <MessageCircle className="w-4 h-4" />
-          Enviar confirmação pelo WhatsApp
+          <MessageCircle className="h-5 w-5" />
+          Receber link no WhatsApp
         </a>
+
+        <p className="mx-auto mt-4 max-w-md text-xs font-medium leading-relaxed text-neutral-400">
+          Com esse link você poderá acompanhar seu horário e, quando permitido pelo estabelecimento, solicitar remarcação ou cancelamento.
+        </p>
       </div>
-
-      <div className="bg-white border rounded-3xl p-5 shadow-xs space-y-4">
-        <h3 className="text-sm font-extrabold text-neutral-950">
-          Resumo do agendamento
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          
-          <div className="bg-neutral-50 border rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-orange-600 mb-2">
-              <Scissors className="w-4 h-4" />
-
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                Serviço
-              </span>
-            </div>
-
-            <h4 className="text-sm font-extrabold text-neutral-950">
-              {selectedService?.name || 'Serviço selecionado'}
-            </h4>
-
-            {selectedService && (
-              <p className="text-xs text-neutral-500 mt-1">
-                {selectedService.duration} minutos • {formatCurrency(selectedService.price)}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-neutral-50 border rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-orange-600 mb-2">
-              <UserCheck className="w-4 h-4" />
-
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                Profissional
-              </span>
-            </div>
-
-            {selectedProfessional ? (
-              <div className="flex items-center gap-3">
-                <img
-                  src={selectedProfessional.avatar}
-                  alt={selectedProfessional.name}
-                  className="w-11 h-11 rounded-2xl object-cover border bg-white shrink-0"
-                  referrerPolicy="no-referrer"
-                />
-
-                <div className="min-w-0">
-                  <h4 className="text-sm font-extrabold text-neutral-950 truncate">
-                    {selectedProfessional.name}
-                  </h4>
-
-                  <p className="text-xs text-neutral-500 truncate">
-                    {selectedProfessional.role}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <h4 className="text-sm font-extrabold text-neutral-950">
-                Profissional selecionado
-              </h4>
-            )}
-          </div>
-
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-orange-700 mb-2">
-              <CalendarDays className="w-4 h-4" />
-
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                Data
-              </span>
-            </div>
-
-            <h4 className="text-sm font-extrabold text-neutral-950">
-              {formattedDate}
-            </h4>
-          </div>
-
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-orange-700 mb-2">
-              <Clock className="w-4 h-4" />
-
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                Horário
-              </span>
-            </div>
-
-            <h4 className="text-sm font-extrabold text-neutral-950">
-              {selectedTime}
-            </h4>
-          </div>
-
-        </div>
-
-        <div className="bg-neutral-50 border rounded-2xl p-4">
-          <div className="flex items-center gap-2 text-neutral-600 mb-2">
-            <MapPin className="w-4 h-4 text-orange-600" />
-
-            <span className="text-[10px] font-bold uppercase tracking-widest">
-              Local
-            </span>
-          </div>
-
-          <h4 className="text-sm font-extrabold text-neutral-950">
-            {companyName}
-          </h4>
-
-          <p className="text-xs text-neutral-500 mt-1">
-            {companyAddress || 'Endereço não informado.'}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={onNavigateBack}
-          className="px-5 py-3 rounded-xl text-xs font-extrabold border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition"
-        >
-          Voltar para o estabelecimento
-        </button>
-      </div>
-
     </section>
   );
 }
