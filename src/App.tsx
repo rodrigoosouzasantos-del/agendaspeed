@@ -71,6 +71,56 @@ function getProfessionalAccessTokenFromPath(): string {
   return parts[accessIndex + 1] ?? '';
 }
 
+const RESERVED_PUBLIC_PATHS = new Set([
+  'login',
+  'cadastro',
+  'owner',
+  'master',
+  'profissional',
+  'profissional-acesso',
+  'primeiro-acesso',
+]);
+
+function getPathParts(): string[] {
+  return window.location.pathname.split('/').filter(Boolean);
+}
+
+function isPublicBookingPath(): boolean {
+  const parts = getPathParts();
+  const firstPart = parts[0] || '';
+
+  if (!firstPart) {
+    return false;
+  }
+
+  if (firstPart === 'agendar') {
+    return true;
+  }
+
+  return !RESERVED_PUBLIC_PATHS.has(firstPart);
+}
+
+function normalizePublicSlug(value?: string | null): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+|\/+$/g, '');
+}
+
+function getPublicBookingPath(slug?: string | null): string {
+  const normalizedSlug = normalizePublicSlug(slug);
+
+  if (!normalizedSlug) {
+    return '/agendar';
+  }
+
+  return `/${normalizedSlug}`;
+}
+
+function getPublicBookingUrl(slug?: string | null): string {
+  return `${window.location.origin}${getPublicBookingPath(slug)}`;
+}
+
 function getInitialViewFromPath(): AppView {
   const pathname = window.location.pathname;
 
@@ -98,7 +148,7 @@ function getInitialViewFromPath(): AppView {
     return 'professional-dashboard';
   }
 
-  if (pathname === '/agendar' || pathname === '/domcabelo') {
+  if (isPublicBookingPath()) {
     return 'client-booking';
   }
 
@@ -394,6 +444,24 @@ export default function App() {
     navigateTo('landing', '/');
   };
 
+  const getActiveTenantSlug = (): string => {
+    return normalizePublicSlug(
+      ownerContext?.tenant_slug ||
+        sessionUser?.tenantSlug ||
+        ''
+    );
+  };
+
+  const handleOpenPublicBookingLink = () => {
+    const publicBookingUrl = getPublicBookingUrl(getActiveTenantSlug());
+
+    window.open(
+      publicBookingUrl,
+      '_blank',
+      'noopener,noreferrer',
+    );
+  };
+
   const handleResetData = () => {
     if (confirm('Tem certeza de que deseja restaurar as tabelas simulação para o formato padrão do sistema? Todos os novos registros serão reiniciados.')) {
       const defaultState = resetLocalState();
@@ -471,7 +539,7 @@ export default function App() {
           <OwnerDashboard
             state={appState}
             onUpdateState={handleUpdateState}
-            onNavigateToClient={() => navigateTo('client-booking', '/agendar')}
+            onNavigateToClient={handleOpenPublicBookingLink}
             onLogOut={handleLogOut}
           />
         )}
