@@ -1,5 +1,5 @@
 /**
- * Página pública da Vitrine de agendamento - AgendaSpeed.
+ * Página pública da Vitrine de agendamento - AgendaZap.
  *
  * Este arquivo coordena o fluxo público usado pelo cliente final.
  *
@@ -11,7 +11,7 @@
  * - selecionar data e horário;
  * - coletar dados do cliente;
  * - criar agendamento;
- * - abrir WhatsApp com mensagem pré-configurada;
+ * - preparar mensagem do WhatsApp para o cliente enviar manualmente;
  * - exibir tela de sucesso.
  */
 
@@ -34,7 +34,6 @@ import {
 } from './booking.types';
 
 import {
-  buildBookingWhatsAppUrl,
   calculateBookingCommission,
   filterServicesByCategory,
   generateDateOptions,
@@ -62,25 +61,19 @@ interface PublicBookingContextRow {
 function getPublicBookingSlug(): string {
   const parts = window.location.pathname.split('/').filter(Boolean);
   const firstPart = parts[0] || '';
-  const secondPart = parts[1] || '';
-  const urlParams = new URLSearchParams(window.location.search);
-  const querySlug = urlParams.get('slug') || urlParams.get('empresa') || '';
 
-  const reservedRoutes = [
-    'login',
-    'cadastro',
-    'owner',
-    'profissional',
-    'primeiro-acesso',
-    'master'
-  ];
-
-  if (firstPart === 'agendar') {
-    return secondPart || querySlug;
+  if (!firstPart || firstPart === 'agendar') {
+    return '';
   }
 
-  if (!firstPart || reservedRoutes.includes(firstPart)) {
-    return querySlug;
+  if (
+    firstPart === 'login' ||
+    firstPart === 'cadastro' ||
+    firstPart === 'owner' ||
+    firstPart === 'profissional' ||
+    firstPart === 'primeiro-acesso'
+  ) {
+    return '';
   }
 
   return firstPart;
@@ -184,14 +177,7 @@ function mergeConfigWithFallback(
     ...remoteConfig,
     name: String(remoteConfig.name || fallbackConfig.name || ''),
     logo: String(remoteConfig.logo || fallbackConfig.logo || ''),
-    coverImage: String(
-      remoteConfig.coverImage ||
-      remoteConfig.coverUrl ||
-      remoteConfig.cover_url ||
-      remoteConfig.cover ||
-      fallbackConfig.coverImage ||
-      ''
-    ),
+    coverImage: String(remoteConfig.coverImage || fallbackConfig.coverImage || ''),
     address: String(remoteConfig.address || fallbackConfig.address || ''),
     phone: String(remoteConfig.phone || fallbackConfig.phone || ''),
     instagram: String(remoteConfig.instagram || fallbackConfig.instagram || ''),
@@ -264,6 +250,68 @@ function isPastBookingDateTime(
   return selectedTime <= getLocalTimeStr();
 }
 
+function formatDateBr(dateStr: string): string {
+  if (!dateStr || !dateStr.includes('-')) {
+    return dateStr;
+  }
+
+  return dateStr.split('-').reverse().join('/');
+}
+
+function normalizeWhatsappNumber(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.startsWith('55')) {
+    return digits;
+  }
+
+  return `55${digits}`;
+}
+
+function buildClientFollowUpLink(token: string): string {
+  const safeToken = encodeURIComponent(token);
+
+  return `${window.location.origin}/meus-agendamentos/${safeToken}`;
+}
+
+function buildClientFollowUpWhatsappUrl(params: {
+  companyPhone: string;
+  companyName: string;
+  clientName: string;
+  serviceName: string;
+  professionalName: string;
+  selectedDate: string;
+  selectedTime: string;
+  followUpLink: string;
+}): string {
+  const phone = normalizeWhatsappNumber(params.companyPhone);
+
+  if (!phone) {
+    return '';
+  }
+
+  const message = [
+    `Olá, ${params.companyName},`,
+    '',
+    'Horário marcado com sucesso! 😊',
+    '',
+    `Cliente: ${params.clientName}`,
+    `Serviço: ${params.serviceName}`,
+    `Profissional: ${params.professionalName}`,
+    `Data: ${formatDateBr(params.selectedDate)}`,
+    `Horário: ${params.selectedTime}`,
+    '',
+    'Segue meu link de acompanhamento para confirmar presença, remarcar ou cancelar, caso necessário:',
+    params.followUpLink
+  ].join('\n');
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
 function ClientBookingFeedbackModal({
   title,
   description,
@@ -322,23 +370,15 @@ export default function ClientBooking({
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
   }, [state.config, remoteBookingContext]);
 
-  // Em produção, a Vitrine pública deve usar somente dados reais do tenant carregado pelo slug.
-  // Nunca usamos os dados locais/demo como fallback quando o cliente acessa um link público.
-  const services = remoteBookingContext
+  const services = remoteBookingContext?.services?.length
     ? remoteBookingContext.services
-    : publicSlug
-      ? []
-      : [];
+    : state.services;
 
-  const professionals = remoteBookingContext
+  const professionals = remoteBookingContext?.professionals?.length
     ? remoteBookingContext.professionals
-    : publicSlug
-      ? []
-      : [];
+    : state.professionals;
 
-  const appointments = remoteBookingContext
-    ? remoteBookingContext.appointments
-    : [];
+  const appointments = remoteBookingContext?.appointments || state.appointments;
 
   const [currentStep, setCurrentStep] = useState<BookingStep>(1);
 
@@ -414,14 +454,6 @@ export default function ClientBooking({
   }, [publicSlug]);
 
 
-  useEffect(() => {
-    if (!publicSlug) {
-      setRemoteContextError('Link de agendamento inválido. Solicite o link correto ao estabelecimento.');
-      setLoadingRemoteContext(false);
-    }
-  }, [publicSlug]);
-
-
   const categories = useMemo(() => {
     return getActiveServiceCategories(services);
   }, [services]);
@@ -479,22 +511,14 @@ export default function ClientBooking({
     selectedDate
   ]);
 
-  const coverUrl = String(
-    (config as unknown as Record<string, unknown>).coverImage ||
-    (config as unknown as Record<string, unknown>).coverUrl ||
-    (config as unknown as Record<string, unknown>).cover_url ||
-    (config as unknown as Record<string, unknown>).cover ||
-    ''
-  );
+  const coverUrl =
+    'cover' in config
+      ? String(config.cover || '')
+      : 'coverUrl' in config
+        ? String(config.coverUrl || '')
+        : '';
 
-  const whatsappUrl = createdWhatsappUrl || buildBookingWhatsAppUrl({
-    config,
-    selectedService,
-    selectedProfessional,
-    selectedDate,
-    selectedTime,
-    clientName
-  });
+  const whatsappUrl = createdWhatsappUrl;
 
   const showFeedbackMessage = (
     title: string,
@@ -656,14 +680,6 @@ export default function ClientBooking({
       .filter(Boolean)
       .join(' | ');
 
-    const fallbackWhatsappUrl = buildBookingWhatsAppUrl({
-      config,
-      selectedService,
-      selectedProfessional,
-      selectedDate,
-      selectedTime,
-      clientName: clientName.trim()
-    });
 
     setSubmittingBooking(true);
 
@@ -730,13 +746,22 @@ export default function ClientBooking({
         };
       });
 
-      const nextWhatsappUrl = firstRow.whatsapp_url || fallbackWhatsappUrl;
+      const followUpToken = firstRow.client_id || firstRow.appointment_id;
+      const followUpLink = buildClientFollowUpLink(followUpToken);
+      const nextWhatsappUrl = buildClientFollowUpWhatsappUrl({
+        companyPhone: config.phone,
+        companyName: config.name || 'estabelecimento',
+        clientName: clientName.trim(),
+        serviceName: selectedService.name,
+        professionalName: selectedProfessional.name,
+        selectedDate,
+        selectedTime,
+        followUpLink
+      });
 
       setCreatedWhatsappUrl(nextWhatsappUrl);
       setCurrentStep(5);
       setSubmittingBooking(false);
-
-      window.open(nextWhatsappUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       showFeedbackMessage(
         'Erro inesperado',
@@ -765,6 +790,13 @@ export default function ClientBooking({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-black text-red-600">!</div>
           <h1 className="text-xl font-black text-neutral-950">Vitrine indisponível</h1>
           <p className="mt-2 text-sm leading-relaxed text-neutral-600">{remoteContextError}</p>
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="mt-6 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-black text-white hover:bg-orange-700"
+          >
+            Voltar
+          </button>
         </div>
       </div>
     );
