@@ -190,7 +190,7 @@ export default function AuthPage({
             <div className="bg-orange-600 text-white p-1 rounded-lg">
               <Zap className="w-5 h-5 fill-current" />
             </div>
-            <span className="text-lg font-bold tracking-tight">Agenda<span className="text-orange-600">Zap</span></span>
+            <span className="text-lg font-bold tracking-tight">Agenda<span className="text-orange-600">Speed</span></span>
           </div>
         </div>
       </header>
@@ -203,7 +203,7 @@ export default function AuthPage({
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-black text-neutral-950">
-                  {mode === 'login' ? 'Acesse o AgendaZap' : 'Solicitar criação da empresa'}
+                  {mode === 'login' ? 'Acesse o AgendaSpeed' : 'Solicitar criação da empresa'}
                 </h2>
                 <p className="text-sm text-neutral-500 mt-1">
                   {mode === 'login'
@@ -237,7 +237,7 @@ export default function AuthPage({
                           placeholder="Ex: Salão da Paty, Barbearia Silva"
                           value={salonName}
                           onChange={(event) => setSalonName(event.target.value)}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm outline-none transition"
+                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
                           required
                         />
                       </div>
@@ -253,7 +253,7 @@ export default function AuthPage({
                           placeholder="Ex: João da Silva"
                           value={ownerName}
                           onChange={(event) => setOwnerName(event.target.value)}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm outline-none transition"
+                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
                           required
                         />
                       </div>
@@ -269,7 +269,7 @@ export default function AuthPage({
                           placeholder="(99) 99999-9999"
                           value={phone}
                           onChange={(event) => setPhone(formatPhone(event.target.value))}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm outline-none transition"
+                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
                           required
                         />
                       </div>
@@ -287,7 +287,7 @@ export default function AuthPage({
                       placeholder="Ex: agendazap10@gmail.com"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm outline-none transition animate-none"
+                      className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light] animate-none"
                       required
                     />
                   </div>
@@ -314,7 +314,7 @@ export default function AuthPage({
                         placeholder="••••••••••••"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
-                        className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm outline-none transition"
+                        className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
                         required
                       />
                     </div>
@@ -422,7 +422,7 @@ export default function AuthPage({
                 <Info className="w-4 h-4 text-orange-500 shrink-0" />
                 <span>Login validado com <strong>Supabase Auth</strong>.</span>
               </div>
-              <p>Após o login, o AgendaZap busca a empresa vinculada ao usuário autenticado.</p>
+              <p>Após o login, o AgendaSpeed busca a empresa vinculada ao usuário autenticado.</p>
             </div>
           </div>
         </div>
@@ -430,7 +430,7 @@ export default function AuthPage({
 
       {/* Mini footer */}
       <footer className="py-6 border-t border-neutral-200 bg-white text-center text-xs text-neutral-400">
-        <p>© 2026 AgendaZap. Sistema seguro de agendamento de negócios de beleza.</p>
+        <p>© 2026 AgendaSpeed. Sistema seguro de agendamento de negócios de beleza.</p>
       </footer>
     </div>
   );
