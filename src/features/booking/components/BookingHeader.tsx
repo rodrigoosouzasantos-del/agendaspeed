@@ -8,12 +8,11 @@
  * - endereço;
  * - WhatsApp;
  * - Instagram;
- * - botão de voltar.
+ * - identificação visual sem botão de saída para o site institucional.
  */
 
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Instagram,
   MapPin,
   Phone
@@ -61,8 +60,7 @@ export default function BookingHeader({
   companyName,
   companyAddress,
   companyPhone,
-  instagram,
-  onNavigateBack
+  instagram
 }: ExtendedBookingHeaderProps) {
   const [coverHasError, setCoverHasError] = useState(false);
   const [logoHasError, setLogoHasError] = useState(false);
@@ -92,14 +90,6 @@ export default function BookingHeader({
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-black/10" />
         </div>
 
-        <button
-          type="button"
-          onClick={onNavigateBack}
-          className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-xs font-black text-neutral-900 shadow-lg shadow-black/15 transition hover:bg-neutral-100"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </button>
       </div>
 
       <div className="bg-white">

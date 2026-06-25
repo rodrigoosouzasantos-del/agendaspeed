@@ -316,15 +316,23 @@ export default function ClientBooking({
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
   }, [state.config, remoteBookingContext]);
 
-  const services = remoteBookingContext?.services?.length
+  // Em produção, a Vitrine pública deve usar somente dados reais do tenant carregado pelo slug.
+  // Nunca usamos os dados locais/demo como fallback quando o cliente acessa um link público.
+  const services = remoteBookingContext
     ? remoteBookingContext.services
-    : state.services;
+    : publicSlug
+      ? []
+      : [];
 
-  const professionals = remoteBookingContext?.professionals?.length
+  const professionals = remoteBookingContext
     ? remoteBookingContext.professionals
-    : state.professionals;
+    : publicSlug
+      ? []
+      : [];
 
-  const appointments = remoteBookingContext?.appointments || state.appointments;
+  const appointments = remoteBookingContext
+    ? remoteBookingContext.appointments
+    : [];
 
   const [currentStep, setCurrentStep] = useState<BookingStep>(1);
 
@@ -397,6 +405,14 @@ export default function ClientBooking({
     return () => {
       isMounted = false;
     };
+  }, [publicSlug]);
+
+
+  useEffect(() => {
+    if (!publicSlug) {
+      setRemoteContextError('Link de agendamento inválido. Solicite o link correto ao estabelecimento.');
+      setLoadingRemoteContext(false);
+    }
   }, [publicSlug]);
 
 
@@ -743,13 +759,6 @@ export default function ClientBooking({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-black text-red-600">!</div>
           <h1 className="text-xl font-black text-neutral-950">Vitrine indisponível</h1>
           <p className="mt-2 text-sm leading-relaxed text-neutral-600">{remoteContextError}</p>
-          <button
-            type="button"
-            onClick={onNavigateBack}
-            className="mt-6 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-black text-white hover:bg-orange-700"
-          >
-            Voltar
-          </button>
         </div>
       </div>
     );
