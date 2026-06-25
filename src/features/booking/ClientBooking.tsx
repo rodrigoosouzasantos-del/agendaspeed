@@ -1,5 +1,5 @@
 /**
- * Página pública da Vitrine de agendamento - AgendaZap.
+ * Página pública da Vitrine de agendamento - AgendaSpeed.
  *
  * Este arquivo coordena o fluxo público usado pelo cliente final.
  *
@@ -177,13 +177,7 @@ function mergeConfigWithFallback(
     ...fallbackConfig,
     ...remoteConfig,
     name: String(remoteConfig.name || fallbackConfig.name || ''),
-    logo: String(
-      remoteConfig.logo ||
-      remoteConfig.logoUrl ||
-      remoteConfig.logo_url ||
-      fallbackConfig.logo ||
-      ''
-    ),
+    logo: String(remoteConfig.logo || fallbackConfig.logo || ''),
     coverImage: String(
       remoteConfig.coverImage ||
       remoteConfig.coverUrl ||
@@ -463,14 +457,13 @@ export default function ClientBooking({
     selectedDate
   ]);
 
-  const coverUrl =
-    String(
-      (config as unknown as Record<string, unknown>).coverImage ||
-      (config as unknown as Record<string, unknown>).coverUrl ||
-      (config as unknown as Record<string, unknown>).cover_url ||
-      (config as unknown as Record<string, unknown>).cover ||
-      ''
-    );
+  const coverUrl = String(
+    (config as unknown as Record<string, unknown>).coverImage ||
+    (config as unknown as Record<string, unknown>).coverUrl ||
+    (config as unknown as Record<string, unknown>).cover_url ||
+    (config as unknown as Record<string, unknown>).cover ||
+    ''
+  );
 
   const whatsappUrl = createdWhatsappUrl || buildBookingWhatsAppUrl({
     config,
@@ -763,7 +756,7 @@ export default function ClientBooking({
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f5f2] text-neutral-900 font-sans">
+    <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans">
       {currentStep === 1 && (
         <BookingHeader
           logoUrl={config.logo}
