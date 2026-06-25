@@ -295,7 +295,7 @@ function buildClientFollowUpWhatsappUrl(params: {
   }
 
   const message = [
-    `Olá, ${params.companyName},`,
+    'Olá,',
     '',
     'Horário marcado com sucesso! 😊',
     '',

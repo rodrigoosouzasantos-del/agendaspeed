@@ -8,6 +8,7 @@ import { getLocalState, saveLocalState, resetLocalState, LocalState } from './da
 import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import ClientBooking from './features/booking/ClientBooking';
+import ClientAppointmentsPage from './features/client/ClientAppointmentsPage';
 import OwnerDashboard from './features/owner/OwnerDashboard';
 import ProfessionalDashboard from './features/professional/ProfessionalDashboard';
 import FirstAccessPage from './features/auth/FirstAccessPage';
@@ -23,6 +24,7 @@ type AppView =
   | 'owner-dashboard'
   | 'professional-dashboard'
   | 'client-booking'
+  | 'client-appointments'
   | 'first-access'
   | 'master-dashboard';
 
@@ -71,6 +73,16 @@ function getProfessionalAccessTokenFromPath(): string {
   return parts[accessIndex + 1] ?? '';
 }
 
+
+function getClientAppointmentsTokenFromPath(): string {
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  const appointmentsIndex = parts.findIndex((part) => part === 'meus-agendamentos');
+
+  if (appointmentsIndex === -1) return '';
+
+  return parts[appointmentsIndex + 1] ?? '';
+}
+
 const RESERVED_PUBLIC_PATHS = new Set([
   'login',
   'cadastro',
@@ -79,6 +91,7 @@ const RESERVED_PUBLIC_PATHS = new Set([
   'profissional',
   'profissional-acesso',
   'primeiro-acesso',
+  'meus-agendamentos',
 ]);
 
 function getPathParts(): string[] {
@@ -126,6 +139,10 @@ function getInitialViewFromPath(): AppView {
 
   if (pathname.startsWith('/primeiro-acesso/')) {
     return 'first-access';
+  }
+
+  if (pathname.startsWith('/meus-agendamentos/')) {
+    return 'client-appointments';
   }
 
   if (pathname === '/login') {
@@ -210,6 +227,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => getInitialSessionUser(initialView));
   const [ownerContext, setOwnerContext] = useState<OwnerContext | null>(null);
   const [professionalAccessToken] = useState<string>(() => getProfessionalAccessTokenFromPath());
+  const [clientAppointmentsToken] = useState<string>(() => getClientAppointmentsTokenFromPath());
   const [authChecking, setAuthChecking] = useState(true);
 
   // Preseed helper for redirecting directly to specific screens from header/landing CTAs.
@@ -517,6 +535,14 @@ export default function App() {
               setPreseedRole(null);
               navigateTo('landing', '/');
             }}
+          />
+        )}
+
+
+        {currentView === 'client-appointments' && (
+          <ClientAppointmentsPage
+            token={clientAppointmentsToken}
+            state={appState}
           />
         )}
 
