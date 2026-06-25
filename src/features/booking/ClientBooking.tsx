@@ -177,8 +177,21 @@ function mergeConfigWithFallback(
     ...fallbackConfig,
     ...remoteConfig,
     name: String(remoteConfig.name || fallbackConfig.name || ''),
-    logo: String(remoteConfig.logo || fallbackConfig.logo || ''),
-    coverImage: String(remoteConfig.coverImage || fallbackConfig.coverImage || ''),
+    logo: String(
+      remoteConfig.logo ||
+      remoteConfig.logoUrl ||
+      remoteConfig.logo_url ||
+      fallbackConfig.logo ||
+      ''
+    ),
+    coverImage: String(
+      remoteConfig.coverImage ||
+      remoteConfig.coverUrl ||
+      remoteConfig.cover_url ||
+      remoteConfig.cover ||
+      fallbackConfig.coverImage ||
+      ''
+    ),
     address: String(remoteConfig.address || fallbackConfig.address || ''),
     phone: String(remoteConfig.phone || fallbackConfig.phone || ''),
     instagram: String(remoteConfig.instagram || fallbackConfig.instagram || ''),
@@ -451,11 +464,13 @@ export default function ClientBooking({
   ]);
 
   const coverUrl =
-    'cover' in config
-      ? String(config.cover || '')
-      : 'coverUrl' in config
-        ? String(config.coverUrl || '')
-        : '';
+    String(
+      (config as unknown as Record<string, unknown>).coverImage ||
+      (config as unknown as Record<string, unknown>).coverUrl ||
+      (config as unknown as Record<string, unknown>).cover_url ||
+      (config as unknown as Record<string, unknown>).cover ||
+      ''
+    );
 
   const whatsappUrl = createdWhatsappUrl || buildBookingWhatsAppUrl({
     config,
@@ -748,7 +763,7 @@ export default function ClientBooking({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans">
+    <div className="min-h-screen bg-[#f7f5f2] text-neutral-900 font-sans">
       {currentStep === 1 && (
         <BookingHeader
           logoUrl={config.logo}
@@ -847,7 +862,7 @@ export default function ClientBooking({
           </span>
 
           <span className="text-lg font-black tracking-tight">
-            Agenda<span className="text-orange-600">Zap</span>
+            Agenda<span className="text-orange-600">Speed</span>
           </span>
         </div>
       </footer>
