@@ -18,11 +18,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
   Clock,
-  MessageCircle,
-  Scissors,
-  UserRoundCheck,
   UserRoundX,
   Users,
   X
@@ -53,6 +49,7 @@ interface DashboardHomeViewProps {
   financialSummary: OwnerFinancialSummary;
   onChangeTab: (tab: OwnerTab) => void;
   onOpenTodayAgenda: () => void;
+  onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => void;
 }
 
 type DashboardFilter =
@@ -209,6 +206,78 @@ function getAppointmentCardAccentClassName(status: AppointmentStatus): string {
   }
 
   return 'border-l-4 border-l-neutral-200';
+}
+
+function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
+  if (isConfirmedStatus(status)) {
+    return 'border-emerald-200 bg-emerald-50/75';
+  }
+
+  if (isPendingStatus(status)) {
+    return 'border-amber-200 bg-amber-50/85';
+  }
+
+  if (status === 'absent') {
+    return 'border-red-200 bg-red-50/80';
+  }
+
+  if (status === 'cancelled') {
+    return 'border-neutral-200 bg-neutral-100/90';
+  }
+
+  if (status === 'completed') {
+    return 'border-sky-200 bg-sky-50/75';
+  }
+
+  return 'border-neutral-200 bg-white';
+}
+
+function getAppointmentFooterStatusLabel(status: AppointmentStatus): string {
+  if (isConfirmedStatus(status)) {
+    return 'Cliente confirmou presença';
+  }
+
+  if (isPendingStatus(status)) {
+    return 'Aguardando confirmação';
+  }
+
+  if (status === 'cancelled') {
+    return 'Cancelado';
+  }
+
+  if (status === 'absent') {
+    return 'Faltou';
+  }
+
+  if (status === 'completed') {
+    return 'Atendimento finalizado';
+  }
+
+  return getAppointmentStatusLabel(status);
+}
+
+function getAppointmentFooterClassName(status: AppointmentStatus): string {
+  if (isConfirmedStatus(status)) {
+    return 'text-emerald-800';
+  }
+
+  if (isPendingStatus(status)) {
+    return 'text-amber-800';
+  }
+
+  if (status === 'cancelled') {
+    return 'text-neutral-600';
+  }
+
+  if (status === 'absent') {
+    return 'text-red-800';
+  }
+
+  if (status === 'completed') {
+    return 'text-sky-800';
+  }
+
+  return 'text-neutral-600';
 }
 
 function getNextBusinessDate(params: {
@@ -514,7 +583,8 @@ export default function DashboardHomeView({
   configWorkDays,
   financialSummary,
   onChangeTab,
-  onOpenTodayAgenda
+  onOpenTodayAgenda,
+  onUpdateAppointmentStatus
 }: DashboardHomeViewProps) {
   const [activeFilter, setActiveFilter] =
     useState<DashboardFilter>('all');
@@ -732,6 +802,19 @@ export default function DashboardHomeView({
     onChangeTab('agenda');
   };
 
+
+  const handleAppointmentStatusChange = (
+    appointmentId: string,
+    status: AppointmentStatus
+  ) => {
+    if (!onUpdateAppointmentStatus) {
+      handleOpenAgenda();
+      return;
+    }
+
+    onUpdateAppointmentStatus(appointmentId, status);
+  };
+
   const renderAppointmentList = (
     list: Appointment[],
     emptyMessage: string,
@@ -747,7 +830,7 @@ export default function DashboardHomeView({
           </p>
 
           <p className="text-xs text-neutral-400 mt-1">
-            Clique em “Abrir agenda” para visualizar as brechas de hoje por profissional e fazer agendamento manual.
+            Abra a Agenda Geral para visualizar as brechas por profissional e fazer agendamento manual.
           </p>
 
           <button
@@ -755,7 +838,7 @@ export default function DashboardHomeView({
             onClick={handleOpenAgenda}
             className="mt-4 rounded-xl bg-neutral-950 px-4 py-3 text-xs font-black text-white hover:bg-neutral-800 transition"
           >
-            Abrir agenda
+            Ver horários livres
           </button>
         </div>
       );
@@ -775,82 +858,104 @@ export default function DashboardHomeView({
           const service = services.find((item) => item.id === appointment.serviceId);
           const professional = professionals.find((item) => item.id === appointment.professionalId);
           const professionalName = professional?.name || 'Profissional';
-          const isPending = isPendingStatus(appointment.status);
+          const appointmentTime = getAppointmentTime(appointment);
+          const isAlreadyConfirmed = isConfirmedStatus(appointment.status);
+          const isInactive = ['cancelled', 'absent', 'completed'].includes(appointment.status);
 
           return (
             <div
               key={appointment.id}
-              className={`bg-white border border-neutral-200 rounded-2xl px-4 py-3 shadow-sm hover:shadow-md transition ${getAppointmentCardAccentClassName(appointment.status)}`}
+              className={`rounded-2xl border px-4 py-4 shadow-sm transition ${getAppointmentCardSurfaceClassName(appointment.status)} ${getAppointmentCardAccentClassName(appointment.status)}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1.5">
-                  <div className="inline-flex items-center gap-1.5 text-sm font-black text-neutral-950 font-sans">
-                    <Clock className="w-4 h-4 text-slate-500" />
-                    {getAppointmentTime(appointment)}
-                  </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-mono text-lg font-black tracking-tight text-neutral-950">
+                        {appointmentTime}
+                      </span>
 
-                  <div>
-                    <h4 className="text-[15px] font-black text-neutral-950 leading-tight truncate">
-                      {appointment.clientName}
-                    </h4>
+                      <span className="hidden sm:block h-5 w-px bg-neutral-300" />
 
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-1.5 font-semibold">
-                      <Scissors className="w-3.5 h-3.5" />
+                      <h4 className="text-base font-black uppercase leading-tight tracking-tight text-neutral-950">
+                        CLIENTE: {appointment.clientName}
+                      </h4>
+                    </div>
 
-                      <span className="font-semibold">
+                    <div className="space-y-1.5 pl-0 sm:pl-0">
+                      <p className="text-[13px] font-extrabold leading-snug text-slate-800">
                         {service?.name || 'Serviço'}
-                      </span>
+                      </p>
 
-                      <span>•</span>
-
-                      <UserRoundCheck className="w-3.5 h-3.5" />
-
-                      <span>
-                        {professionalName}
-                      </span>
+                      <p className="text-[12px] font-bold uppercase tracking-wide text-slate-500">
+                        Profissional: {professionalName}
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div className="text-right shrink-0 space-y-2">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-tight ${getStatusBadgeClassName(appointment.status)}`}
-                  >
-                    {getAppointmentStatusLabel(appointment.status)}
-                  </span>
-
-                  <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400 font-semibold">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase tracking-wide shrink-0">
                     <CalendarDays className="w-3.5 h-3.5" />
                     {targetDateLabel}
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                {isPending && (
-                  <a
-                    href={buildWhatsAppConfirmationUrl({
-                      appointment,
-                      professionalName,
-                      targetDateLabel: targetDateLabel.toLowerCase()
-                    })}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-orange-700 transition"
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    disabled={isAlreadyConfirmed || isInactive}
+                    onClick={() => handleAppointmentStatusChange(appointment.id, 'confirmed')}
+                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                      isAlreadyConfirmed || isInactive
+                        ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                    }`}
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Confirmar horário
-                  </a>
-                )}
+                    {isAlreadyConfirmed ? 'Confirmado' : 'Confirmar'}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleOpenAgenda}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-black text-emerald-700 hover:bg-emerald-50 transition"
-                >
-                  {isPending ? 'Abrir agenda' : 'Ver agenda'}
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                  <button
+                    type="button"
+                    disabled={isInactive}
+                    onClick={handleOpenAgenda}
+                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                      isInactive
+                        ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                        : 'bg-orange-600 text-white hover:bg-orange-700 shadow-sm'
+                    }`}
+                  >
+                    Reagendar
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={appointment.status === 'cancelled'}
+                    onClick={() => handleAppointmentStatusChange(appointment.id, 'cancelled')}
+                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                      appointment.status === 'cancelled'
+                        ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
+                        : 'bg-neutral-800 text-white hover:bg-neutral-950 shadow-sm'
+                    }`}
+                  >
+                    Cancelou
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={appointment.status === 'absent'}
+                    onClick={() => handleAppointmentStatusChange(appointment.id, 'absent')}
+                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                      appointment.status === 'absent'
+                        ? 'bg-red-200 text-red-800 cursor-not-allowed'
+                        : 'bg-red-700 text-white hover:bg-red-800 shadow-sm'
+                    }`}
+                  >
+                    Faltou
+                  </button>
+                </div>
+
+                <div className={`border-t border-black/5 pt-2 text-[10px] font-black uppercase tracking-[0.16em] ${getAppointmentFooterClassName(appointment.status)}`}>
+                  {getAppointmentFooterStatusLabel(appointment.status)}
+                </div>
               </div>
             </div>
           );
@@ -920,7 +1025,7 @@ export default function DashboardHomeView({
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section className="bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white px-5 py-3.5 flex items-center justify-between gap-3">
+          <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 text-white px-5 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
 
@@ -944,7 +1049,7 @@ export default function DashboardHomeView({
         </section>
 
         <section className="bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 text-white px-5 py-3.5 flex items-center justify-between gap-3">
+          <div className="bg-gradient-to-r from-orange-600 to-orange-500 text-white px-5 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
 

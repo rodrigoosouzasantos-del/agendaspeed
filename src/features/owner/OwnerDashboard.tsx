@@ -2343,6 +2343,7 @@ ${result.link_local}`);
               financialSummary={financialSummary}
               onChangeTab={setActiveTab}
               onOpenTodayAgenda={openTodayAgenda}
+              onUpdateAppointmentStatus={handleModifyStatus}
             />
           )}
 
