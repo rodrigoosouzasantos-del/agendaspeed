@@ -194,7 +194,7 @@ function getAppointmentCardAccentClassName(status: AppointmentStatus): string {
   }
 
   if (isPendingStatus(status)) {
-    return 'border-l-4 border-l-orange-500';
+    return 'border-l-4 border-l-yellow-400';
   }
 
   if (status === 'absent') {
@@ -214,7 +214,7 @@ function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
   }
 
   if (isPendingStatus(status)) {
-    return 'border-amber-200 bg-amber-50/85';
+    return 'border-yellow-300 bg-yellow-50';
   }
 
   if (status === 'absent') {
@@ -262,7 +262,7 @@ function getAppointmentFooterClassName(status: AppointmentStatus): string {
   }
 
   if (isPendingStatus(status)) {
-    return 'text-amber-800';
+    return 'text-yellow-900';
   }
 
   if (status === 'cancelled') {
@@ -953,8 +953,28 @@ export default function DashboardHomeView({
                   </button>
                 </div>
 
-                <div className={`border-t border-black/5 pt-2 text-[10px] font-black uppercase tracking-[0.16em] ${getAppointmentFooterClassName(appointment.status)}`}>
-                  {getAppointmentFooterStatusLabel(appointment.status)}
+                <div className="border-t border-black/5 pt-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span className={`text-[10px] font-black uppercase tracking-[0.16em] ${getAppointmentFooterClassName(appointment.status)}`}>
+                      {getAppointmentFooterStatusLabel(appointment.status)}
+                    </span>
+
+                    {isPendingStatus(appointment.status) && (
+                      <a
+                        href={buildWhatsAppConfirmationUrl({
+                          appointment,
+                          professionalName,
+                          targetDateLabel: targetDateLabel.toLowerCase()
+                        })}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-tight text-orange-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Reenviar confirmação
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
