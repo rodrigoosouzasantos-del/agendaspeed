@@ -492,23 +492,41 @@ function countProfessionalSlotsForDate(params: {
   return Math.max(0, totalSlots - busyAppointments.length);
 }
 
+function buildClientAppointmentLink(appointment: Appointment): string {
+  const token = encodeURIComponent(appointment.id);
+
+  return `${window.location.origin}/meus-agendamentos/${token}`;
+}
+
 function buildWhatsAppConfirmationUrl(params: {
   appointment: Appointment;
   professionalName: string;
+  serviceName: string;
   targetDateLabel: string;
 }) {
   const {
     appointment,
     professionalName,
+    serviceName,
     targetDateLabel
   } = params;
 
   const phone = onlyDigits(appointment.clientPhone);
   const time = getAppointmentTime(appointment);
+  const appointmentLink = buildClientAppointmentLink(appointment);
 
-  const message = encodeURIComponent(
-    `Olá ${appointment.clientName}, passando para confirmar seu horário ${targetDateLabel} às ${time} com ${professionalName}. Responda 1 para confirmar.`
-  );
+  const message = encodeURIComponent([
+    `Olá, ${appointment.clientName}! 😊`,
+    '',
+    `Estamos passando para lembrar do seu horário ${targetDateLabel} às ${time}.`,
+    `Serviço: ${serviceName}`,
+    `Profissional: ${professionalName}`,
+    '',
+    'Para confirmar presença, remarcar ou cancelar, acesse o link abaixo:',
+    appointmentLink,
+    '',
+    'Assim o sistema atualiza automaticamente seu atendimento.'
+  ].join('\n'));
 
   return `https://api.whatsapp.com/send?phone=55${phone}&text=${message}`;
 }
@@ -965,6 +983,7 @@ export default function DashboardHomeView({
                         href={buildWhatsAppConfirmationUrl({
                           appointment,
                           professionalName,
+                          serviceName: service?.name || 'Serviço',
                           targetDateLabel: targetDateLabel.toLowerCase()
                         })}
                         target="_blank"
