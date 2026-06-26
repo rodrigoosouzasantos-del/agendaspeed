@@ -1,5 +1,5 @@
 /**
- * Menu lateral / menu horizontal mobile do Painel do Dono - AgendaZap.
+ * Menu lateral / menu mobile do Painel do Dono - AgendaSpeed.
  *
  * Responsável por navegar entre os módulos administrativos:
  * - Painel;
@@ -12,15 +12,17 @@
  * - Configurações.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BriefcaseBusiness,
   Calendar,
   DollarSign,
+  Menu,
   Settings,
   TrendingUp,
   Users,
-  WalletCards
+  WalletCards,
+  X
 } from 'lucide-react';
 
 import { OwnerTab } from '../owner.types';
@@ -43,6 +45,8 @@ export default function OwnerSidebar({
   onChangeTab,
   onOpenTodayAgenda
 }: OwnerSidebarProps) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   const sidebarItems: SidebarItem[] = [
     {
       tab: 'painel',
@@ -87,39 +91,75 @@ export default function OwnerSidebar({
     }
   ];
 
+  const handleItemClick = (item: SidebarItem) => {
+    if (item.onClick) {
+      item.onClick();
+    } else {
+      onChangeTab(item.tab);
+    }
+
+    setIsMobileMenuOpen(false);
+  };
+
+  const renderItems = (isMobile = false) => {
+    return sidebarItems.map((item) => {
+      const Icon = item.icon;
+      const isActive = activeTab === item.tab;
+
+      return (
+        <button
+          key={item.tab}
+          onClick={() => handleItemClick(item)}
+          className={`w-full rounded-xl px-3.5 py-2.5 text-left text-xs font-extrabold transition flex items-center gap-2.5 ${
+            isActive
+              ? 'bg-orange-600 text-white shadow-sm'
+              : isMobile
+                ? 'bg-white text-neutral-700 hover:bg-neutral-100'
+                : 'text-neutral-600 hover:bg-neutral-100'
+          }`}
+        >
+          <Icon className="h-4 w-4" />
+          <span>{item.label}</span>
+        </button>
+      );
+    });
+  };
+
   return (
-    <nav
-      id="admin-sidebar"
-      className="lg:w-60 border-r border-neutral-200/80 bg-white p-4 space-y-1.5 flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible shrink-0 gap-1 lg:gap-0 select-none"
-    >
-      {sidebarItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = activeTab === item.tab;
+    <>
+      <div className="sticky top-[65px] z-40 border-b border-neutral-200 bg-white px-4 py-3 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen((current) => !current)}
+          className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-extrabold text-neutral-900 shadow-sm"
+        >
+          <span className="flex items-center gap-2">
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5 text-orange-600" />
+            ) : (
+              <Menu className="h-5 w-5 text-orange-600" />
+            )}
+            Menu do painel
+          </span>
 
-        const handleClick = () => {
-          if (item.onClick) {
-            item.onClick();
-            return;
-          }
+          <span className="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-orange-700">
+            {sidebarItems.find((item) => item.tab === activeTab)?.label || 'Painel'}
+          </span>
+        </button>
 
-          onChangeTab(item.tab);
-        };
+        {isMobileMenuOpen && (
+          <div className="mt-3 grid gap-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg">
+            {renderItems(true)}
+          </div>
+        )}
+      </div>
 
-        return (
-          <button
-            key={item.tab}
-            onClick={handleClick}
-            className={`w-full text-left py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 shrink-0 ${
-              isActive
-                ? 'bg-orange-600 text-white'
-                : 'hover:bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
+      <nav
+        id="admin-sidebar"
+        className="hidden w-60 shrink-0 select-none space-y-1.5 border-r border-neutral-200/80 bg-white p-4 lg:block"
+      >
+        {renderItems(false)}
+      </nav>
+    </>
   );
 }

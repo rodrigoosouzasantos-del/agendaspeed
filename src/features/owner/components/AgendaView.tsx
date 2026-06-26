@@ -1447,13 +1447,40 @@ export default function AgendaView({
       })
       .sort((first, second) => getAppointmentTime(first).localeCompare(getAppointmentTime(second)));
 
-    const statusLabel = (status: Appointment['status']) => {
-      if (status === 'scheduled') return 'Agendado';
-      if (status === 'confirmed') return 'Confirmado';
-      if (status === 'completed') return 'Finalizado';
-      if (status === 'cancelled') return 'Cancelado';
-      if (status === 'absent') return 'Faltou';
-      return String(status);
+    const getAppointmentCardClassName = (status: Appointment['status']) => {
+      if (status === 'confirmed') {
+        return 'border-emerald-200 bg-emerald-50/80 shadow-emerald-950/5';
+      }
+
+      if (status === 'cancelled') {
+        return 'border-neutral-300 bg-neutral-100/90 shadow-neutral-950/5 opacity-90';
+      }
+
+      if (status === 'absent') {
+        return 'border-red-200 bg-red-50/85 shadow-red-950/5';
+      }
+
+      if (status === 'completed') {
+        return 'border-sky-200 bg-sky-50/80 shadow-sky-950/5';
+      }
+
+      return 'border-amber-200 bg-amber-50/85 shadow-amber-950/5';
+    };
+
+    const getAppointmentFooterLabel = (status: Appointment['status']) => {
+      if (status === 'confirmed') return 'CLIENTE CONFIRMOU PRESENÇA';
+      if (status === 'cancelled') return 'ATENDIMENTO CANCELADO';
+      if (status === 'absent') return 'CLIENTE FALTOU';
+      if (status === 'completed') return 'ATENDIMENTO FINALIZADO';
+      return 'AGUARDANDO CONFIRMAÇÃO';
+    };
+
+    const getAppointmentFooterClassName = (status: Appointment['status']) => {
+      if (status === 'confirmed') return 'text-emerald-800';
+      if (status === 'cancelled') return 'text-neutral-600';
+      if (status === 'absent') return 'text-red-800';
+      if (status === 'completed') return 'text-sky-800';
+      return 'text-amber-800';
     };
 
     const handleStatusAction = (appointmentId: string, status: Appointment['status']) => {
@@ -1463,54 +1490,56 @@ export default function AgendaView({
     };
 
     return (
-      <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-black text-neutral-950">
-              Agenda de {selectedProfessional?.name}
-            </h3>
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="border-b p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-base font-extrabold tracking-tight text-neutral-950">
+                Agenda de {selectedProfessional?.name}
+              </h3>
 
-            <p className="text-xs text-neutral-500 font-semibold mt-1">
-              Consulte os horários e atualize o atendimento da agenda individual.
-            </p>
-          </div>
+              <p className="mt-1 text-xs font-medium text-neutral-500">
+                Consulte os horários e tome ações rápidas no atendimento.
+              </p>
+            </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {dateOptions.map((dateOption) => {
-              const isSelected = selectedDate === dateOption;
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {dateOptions.map((dateOption) => {
+                const isSelected = selectedDate === dateOption;
 
-              return (
-                <button
-                  key={dateOption}
-                  type="button"
-                  onClick={() => setSelectedDate(dateOption)}
-                  className={`min-w-[78px] rounded-xl border px-3 py-2 text-center transition ${
-                    isSelected
-                      ? 'bg-orange-50 border-orange-500 text-orange-700'
-                      : 'bg-white border-neutral-200 text-neutral-600 hover:border-orange-300'
-                  }`}
-                >
-                  <span className="text-[10px] font-black uppercase block">
-                    {dateOption === todayStr ? 'Hoje' : getWeekDayShortLabel(dateOption)}
-                  </span>
+                return (
+                  <button
+                    key={dateOption}
+                    type="button"
+                    onClick={() => setSelectedDate(dateOption)}
+                    className={`min-w-[78px] rounded-xl border px-3 py-2 text-center transition ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-600 text-white shadow-sm'
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-300'
+                    }`}
+                  >
+                    <span className="block text-[10px] font-extrabold uppercase tracking-wider">
+                      {dateOption === todayStr ? 'Hoje' : getWeekDayShortLabel(dateOption)}
+                    </span>
 
-                  <strong className="text-xs font-black block mt-0.5">
-                    {formatDateBr(dateOption).slice(0, 5)}
-                  </strong>
-                </button>
-              );
-            })}
+                    <strong className="mt-0.5 block text-xs font-extrabold">
+                      {formatDateBr(dateOption).slice(0, 5)}
+                    </strong>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="space-y-3 p-4">
           {professionalAppointments.length === 0 ? (
-            <div className="bg-neutral-50 border border-dashed rounded-2xl p-8 text-center">
-              <p className="text-sm font-black text-neutral-800">
+            <div className="rounded-2xl border border-dashed bg-neutral-50 p-8 text-center">
+              <p className="text-sm font-extrabold text-neutral-800">
                 Nenhum atendimento nesta data.
               </p>
 
-              <p className="text-xs text-neutral-400 mt-1">
+              <p className="mt-1 text-xs text-neutral-400">
                 Escolha outra data acima ou volte para selecionar outro profissional.
               </p>
             </div>
@@ -1520,87 +1549,105 @@ export default function AgendaView({
               const disabledActions = !onUpdateAppointmentStatus;
 
               return (
-                <div key={appointment.id} className="rounded-2xl border border-neutral-200 p-4 bg-white">
-                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                <div
+                  key={appointment.id}
+                  className={`rounded-2xl border p-4 shadow-sm transition ${getAppointmentCardClassName(appointment.status)}`}
+                >
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-[96px_1fr_auto] xl:items-center">
+                    <div className="flex items-center gap-3 xl:block">
+                      <span className="block rounded-2xl bg-white/80 px-4 py-3 text-center font-mono text-2xl font-extrabold leading-none tracking-[-0.04em] text-neutral-950 shadow-sm ring-1 ring-black/5">
+                        {getAppointmentTime(appointment)}
+                      </span>
+                    </div>
+
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <strong className="text-base font-black text-neutral-950">
-                          {getAppointmentTime(appointment)}
-                        </strong>
-
-                        <span className="px-2 py-1 rounded-lg bg-neutral-100 text-neutral-700 text-[10px] font-black uppercase">
-                          {statusLabel(appointment.status)}
+                      <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
+                        Cliente:{' '}
+                        <span className="text-neutral-950">
+                          {appointment.clientName}
                         </span>
-                      </div>
-
-                      <p className="text-sm font-black text-neutral-950 mt-2">
-                        {appointment.clientName}
                       </p>
 
-                      <p className="text-xs font-semibold text-neutral-500 mt-1">
-                        {service?.name || 'Serviço não localizado'} • {appointment.clientPhone || 'Sem telefone'}
+                      <h4 className="mt-2 break-words text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950">
+                        {service?.name || 'Serviço não localizado'}
+                      </h4>
+
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">
+                        Profissional: {selectedProfessional?.name || 'Profissional'}
                       </p>
+
+                      {appointment.clientPhone && (
+                        <p className="mt-1 text-xs font-semibold text-neutral-500">
+                          WhatsApp: {appointment.clientPhone}
+                        </p>
+                      )}
 
                       {appointment.notes && (
-                        <p className="text-xs font-semibold text-neutral-500 mt-2 bg-neutral-50 rounded-xl px-3 py-2">
+                        <p className="mt-2 rounded-xl bg-white/65 px-3 py-2 text-xs font-medium leading-relaxed text-neutral-600 ring-1 ring-black/5">
                           {appointment.notes}
                         </p>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[460px]">
+                      <button
+                        type="button"
+                        disabled={disabledActions || appointment.status === 'confirmed'}
+                        onClick={() => handleStatusAction(appointment.id, 'confirmed')}
+                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                          disabledActions || appointment.status === 'confirmed'
+                            ? 'cursor-not-allowed bg-emerald-100 text-emerald-700'
+                            : 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+                        }`}
+                      >
+                        Confirmar
+                      </button>
+
                       <button
                         type="button"
                         disabled={!onOpenRescheduleAppointment}
                         onClick={() => onOpenRescheduleAppointment?.(appointment)}
-                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
                           onOpenRescheduleAppointment
-                            ? 'bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200'
-                            : 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed'
+                            ? 'bg-orange-600 text-white shadow-sm hover:bg-orange-700'
+                            : 'cursor-not-allowed bg-orange-100 text-orange-400'
                         }`}
                       >
-                        Remarcar
+                        Reagendar
                       </button>
 
                       <button
                         type="button"
-                        disabled={disabledActions}
+                        disabled={disabledActions || appointment.status === 'cancelled'}
                         onClick={() => handleStatusAction(appointment.id, 'cancelled')}
-                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
-                          disabledActions
-                            ? 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed'
-                            : 'bg-red-50 hover:bg-red-100 text-red-700 border-red-100'
+                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                          disabledActions || appointment.status === 'cancelled'
+                            ? 'cursor-not-allowed bg-neutral-200 text-neutral-500'
+                            : 'bg-neutral-800 text-white shadow-sm hover:bg-neutral-900'
                         }`}
                       >
-                        Cancelar
+                        Cancelou
                       </button>
 
                       <button
                         type="button"
-                        disabled={disabledActions}
+                        disabled={disabledActions || appointment.status === 'absent'}
                         onClick={() => handleStatusAction(appointment.id, 'absent')}
-                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
-                          disabledActions
-                            ? 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed'
-                            : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-100'
+                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                          disabledActions || appointment.status === 'absent'
+                            ? 'cursor-not-allowed bg-red-100 text-red-700'
+                            : 'bg-red-700 text-white shadow-sm hover:bg-red-800'
                         }`}
                       >
                         Faltou
                       </button>
-
-                      <button
-                        type="button"
-                        disabled={disabledActions}
-                        onClick={() => handleStatusAction(appointment.id, 'completed')}
-                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
-                          disabledActions
-                            ? 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed'
-                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-100'
-                        }`}
-                      >
-                        Finalizar
-                      </button>
                     </div>
+                  </div>
+
+                  <div
+                    className={`mt-3 border-t border-black/5 pt-3 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getAppointmentFooterClassName(appointment.status)}`}
+                  >
+                    {getAppointmentFooterLabel(appointment.status)}
                   </div>
                 </div>
               );
