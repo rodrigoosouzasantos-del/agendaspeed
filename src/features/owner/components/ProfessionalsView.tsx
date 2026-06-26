@@ -5,7 +5,6 @@
  * - listar profissionais cadastrados;
  * - permitir busca por profissional;
  * - exibir dados básicos de forma compacta;
- * - exibir regra simples de remuneração;
  * - abrir modal de edição;
  * - abrir modal de permissões;
  * - desativar colaborador.
@@ -24,7 +23,6 @@ import {
 
 import { Professional } from "../../../types";
 
-import { getRemunerationLabel } from "../owner.utils";
 
 interface ProfessionalsViewProps {
   professionals: Professional[];
@@ -168,8 +166,6 @@ export default function ProfessionalsView({
                       Ordem:{" "}
                       {displayOrder === 999 ? "Alfabética" : displayOrder}
                     </span>
-                    <span className="text-neutral-300">•</span>
-                    <span>{getRemunerationLabel(professional)}</span>
                   </div>
                 </div>
               </div>

@@ -1630,7 +1630,15 @@ export default function OwnerDashboard({
       message?: string;
     } | null;
 
-    if (!result?.success || !result.link_local) {
+    const productionOrigin = "https://agendaspeed.com.br";
+    const professionalAccessLink = result?.token
+      ? `${productionOrigin}/profissional-acesso/${result.token}`
+      : String(result?.link_futuro || result?.link_local || "").replace(
+          /^https?:\/\/localhost(?::\d+)?/i,
+          productionOrigin,
+        );
+
+    if (!result?.success || !professionalAccessLink) {
       alert(
         result?.message || "Não foi possível gerar o link do profissional.",
       );
@@ -1638,16 +1646,16 @@ export default function OwnerDashboard({
     }
 
     try {
-      await navigator.clipboard.writeText(result.link_local);
+      await navigator.clipboard.writeText(professionalAccessLink);
       alert(
         `Link do profissional copiado para a área de transferência:
 
-${result.link_local}`,
+${professionalAccessLink}`,
       );
     } catch {
       alert(`Link do profissional gerado:
 
-${result.link_local}`);
+${professionalAccessLink}`);
     }
   };
 

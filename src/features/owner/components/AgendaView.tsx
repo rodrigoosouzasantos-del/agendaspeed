@@ -654,6 +654,12 @@ export default function AgendaView({
 
   const handleSelectService = (service: Service) => {
     setSelectedServiceId(service.id);
+
+    if (mode === "professionalAgenda" && selectedProfessionalId && selectedDate && selectedTime) {
+      setCurrentStep("clientData");
+      return;
+    }
+
     setSelectedTime("");
 
     if (mode === "service") {
@@ -664,6 +670,11 @@ export default function AgendaView({
     }
 
     if (mode === "date") {
+      setCurrentStep("selectDateTime");
+      return;
+    }
+
+    if (mode === "professionalAgenda") {
       setCurrentStep("selectDateTime");
       return;
     }
@@ -1497,16 +1508,58 @@ export default function AgendaView({
   };
 
   const renderProfessionalAgenda = () => {
+    if (!selectedProfessional) {
+      return (
+        <div className="rounded-2xl border border-dashed bg-neutral-50 p-8 text-center">
+          <p className="text-sm font-extrabold text-neutral-800">
+            Profissional não selecionado.
+          </p>
+        </div>
+      );
+    }
+
+    const selectedDateSafe = selectedDate || todayStr;
+    const professionalRecord = selectedProfessional as Professional & {
+      noLunchBreak?: boolean;
+      defaultAppointmentDuration?: number;
+    };
+    const slotStepMinutes = Math.max(
+      15,
+      Number(professionalRecord.defaultAppointmentDuration) || 30,
+    );
+    const workStart = timeToMinutes(selectedProfessional.workHoursStart);
+    const workEnd = timeToMinutes(selectedProfessional.workHoursEnd);
+    const lunchStart = timeToMinutes(selectedProfessional.lunchStart);
+    const lunchEnd = timeToMinutes(selectedProfessional.lunchEnd);
+    const hasLunchBreak = !professionalRecord.noLunchBreak;
+
     const professionalAppointments = appointments
       .filter((appointment) => {
         return (
           appointment.professionalId === selectedProfessionalId &&
-          getAppointmentDate(appointment) === selectedDate
+          getAppointmentDate(appointment) === selectedDateSafe
         );
       })
       .sort((first, second) =>
         getAppointmentTime(first).localeCompare(getAppointmentTime(second)),
       );
+
+    const blockingAppointments = professionalAppointments.filter(
+      (appointment) => !["cancelled", "absent", "rescheduled"].includes(appointment.status),
+    );
+
+    const getAppointmentService = (appointment: Appointment) => {
+      return services.find((item) => item.id === appointment.serviceId);
+    };
+
+    const getAppointmentEndMinute = (appointment: Appointment) => {
+      const appointmentService = getAppointmentService(appointment);
+      return getAppointmentStartMinute(appointment) + (appointmentService?.duration || slotStepMinutes);
+    };
+
+    const getAppointmentStartMinute = (appointment: Appointment) => {
+      return timeToMinutes(getAppointmentTime(appointment));
+    };
 
     const getAppointmentCardClassName = (status: Appointment["status"]) => {
       if (status === "confirmed") {
@@ -1553,23 +1606,233 @@ export default function AgendaView({
       }
     };
 
+    const isTodayPastSlot = (slotStart: number) => {
+      return selectedDateSafe === todayStr && slotStart <= getCurrentTimeInMinutes();
+    };
+
+    const daySlots = [] as Array<{
+      key: string;
+      start: number;
+      end: number;
+      type: "appointment" | "occupied" | "lunch" | "free" | "past";
+      appointment?: Appointment;
+      occupyingAppointment?: Appointment;
+    }>;
+
+    for (let minute = workStart; minute < workEnd; minute += slotStepMinutes) {
+      const slotEnd = Math.min(minute + slotStepMinutes, workEnd);
+      const appointmentStartingHere = professionalAppointments.find(
+        (appointment) => getAppointmentStartMinute(appointment) === minute,
+      );
+      const blockingAppointmentStartingHere = blockingAppointments.find(
+        (appointment) => getAppointmentStartMinute(appointment) === minute,
+      );
+      const occupyingAppointment = blockingAppointments.find((appointment) => {
+        const appointmentStart = getAppointmentStartMinute(appointment);
+        const appointmentEnd = getAppointmentEndMinute(appointment);
+
+        return appointmentStart < slotEnd && appointmentEnd > minute;
+      });
+      const overlapsLunch = hasLunchBreak && minute < lunchEnd && slotEnd > lunchStart;
+
+      if (appointmentStartingHere) {
+        daySlots.push({
+          key: `appointment-${appointmentStartingHere.id}`,
+          start: minute,
+          end: getAppointmentEndMinute(appointmentStartingHere),
+          type: "appointment",
+          appointment: appointmentStartingHere,
+        });
+        continue;
+      }
+
+      if (occupyingAppointment && !blockingAppointmentStartingHere) {
+        daySlots.push({
+          key: `occupied-${occupyingAppointment.id}-${minute}`,
+          start: minute,
+          end: slotEnd,
+          type: "occupied",
+          occupyingAppointment,
+        });
+        continue;
+      }
+
+      if (overlapsLunch) {
+        daySlots.push({
+          key: `lunch-${minute}`,
+          start: minute,
+          end: slotEnd,
+          type: "lunch",
+        });
+        continue;
+      }
+
+      if (isTodayPastSlot(minute)) {
+        daySlots.push({
+          key: `past-${minute}`,
+          start: minute,
+          end: slotEnd,
+          type: "past",
+        });
+        continue;
+      }
+
+      daySlots.push({
+        key: `free-${minute}`,
+        start: minute,
+        end: slotEnd,
+        type: "free",
+      });
+    }
+
+    const confirmedCount = professionalAppointments.filter(
+      (appointment) => appointment.status === "confirmed",
+    ).length;
+    const pendingCount = professionalAppointments.filter(
+      (appointment) => appointment.status === "scheduled",
+    ).length;
+    const absentCount = professionalAppointments.filter(
+      (appointment) => appointment.status === "absent",
+    ).length;
+    const freeCount = daySlots.filter((slot) => slot.type === "free").length;
+    const blockedCount = daySlots.filter(
+      (slot) => slot.type === "lunch" || slot.type === "past",
+    ).length;
+
+    const handleCreateAppointmentFromFreeSlot = (startMinute: number) => {
+      setSelectedProfessionalId(selectedProfessional.id);
+      setSelectedDate(selectedDateSafe);
+      setSelectedTime(minutesToTime(startMinute));
+      setSelectedServiceId("");
+      setClientName("");
+      setClientPhone("");
+      setClientNotes("");
+      setCurrentStep("selectService");
+    };
+
+    const renderAppointmentSlot = (appointment: Appointment) => {
+      const service = getAppointmentService(appointment);
+      const disabledActions = !onUpdateAppointmentStatus;
+
+      return (
+        <div
+          key={appointment.id}
+          className={`rounded-2xl border p-4 shadow-sm transition ${getAppointmentCardClassName(appointment.status)}`}
+        >
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[96px_1fr_auto] xl:items-center">
+            <div className="flex items-center gap-3 xl:block">
+              <span className="block rounded-2xl bg-white/80 px-4 py-3 text-center font-mono text-2xl font-extrabold leading-none tracking-[-0.04em] text-neutral-950 shadow-sm ring-1 ring-black/5">
+                {getAppointmentTime(appointment)}
+              </span>
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
+                Cliente: <span className="text-neutral-950">{appointment.clientName}</span>
+              </p>
+
+              <h4 className="mt-2 break-words text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950">
+                {service?.name || "Serviço não localizado"}
+              </h4>
+
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">
+                Profissional: {selectedProfessional.name}
+              </p>
+
+              {appointment.clientPhone && (
+                <p className="mt-1 text-xs font-semibold text-neutral-500">
+                  WhatsApp: {appointment.clientPhone}
+                </p>
+              )}
+
+              {appointment.notes && (
+                <p className="mt-2 rounded-xl bg-white/65 px-3 py-2 text-xs font-medium leading-relaxed text-neutral-600 ring-1 ring-black/5">
+                  {appointment.notes}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[460px]">
+              <button
+                type="button"
+                disabled={disabledActions || appointment.status === "confirmed"}
+                onClick={() => handleStatusAction(appointment.id, "confirmed")}
+                className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                  disabledActions || appointment.status === "confirmed"
+                    ? "cursor-not-allowed bg-emerald-100 text-emerald-700"
+                    : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                }`}
+              >
+                Confirmar
+              </button>
+
+              <button
+                type="button"
+                disabled={!onOpenRescheduleAppointment}
+                onClick={() => onOpenRescheduleAppointment?.(appointment)}
+                className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                  onOpenRescheduleAppointment
+                    ? "bg-orange-600 text-white shadow-sm hover:bg-orange-700"
+                    : "cursor-not-allowed bg-orange-100 text-orange-400"
+                }`}
+              >
+                Reagendar
+              </button>
+
+              <button
+                type="button"
+                disabled={disabledActions || appointment.status === "cancelled"}
+                onClick={() => handleStatusAction(appointment.id, "cancelled")}
+                className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                  disabledActions || appointment.status === "cancelled"
+                    ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
+                    : "bg-neutral-800 text-white shadow-sm hover:bg-neutral-900"
+                }`}
+              >
+                Cancelou
+              </button>
+
+              <button
+                type="button"
+                disabled={disabledActions || appointment.status === "absent"}
+                onClick={() => handleStatusAction(appointment.id, "absent")}
+                className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+                  disabledActions || appointment.status === "absent"
+                    ? "cursor-not-allowed bg-red-100 text-red-700"
+                    : "bg-red-700 text-white shadow-sm hover:bg-red-800"
+                }`}
+              >
+                Faltou
+              </button>
+            </div>
+          </div>
+
+          <div
+            className={`mt-3 border-t border-black/5 pt-3 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getAppointmentFooterClassName(appointment.status)}`}
+          >
+            {getAppointmentFooterLabel(appointment.status)}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
         <div className="border-b p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-base font-extrabold tracking-tight text-neutral-950">
-                Agenda de {selectedProfessional?.name}
+                Agenda de {selectedProfessional.name}
               </h3>
 
               <p className="mt-1 text-xs font-medium text-neutral-500">
-                Consulte os horários e tome ações rápidas no atendimento.
+                Visualize horários livres, horários marcados e ações rápidas do dia.
               </p>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">
               {dateOptions.map((dateOption) => {
-                const isSelected = selectedDate === dateOption;
+                const isSelected = selectedDateSafe === dateOption;
 
                 return (
                   <button
@@ -1583,9 +1846,7 @@ export default function AgendaView({
                     }`}
                   >
                     <span className="block text-[10px] font-extrabold uppercase tracking-wider">
-                      {dateOption === todayStr
-                        ? "Hoje"
-                        : getWeekDayShortLabel(dateOption)}
+                      {dateOption === todayStr ? "Hoje" : getWeekDayShortLabel(dateOption)}
                     </span>
 
                     <strong className="mt-0.5 block text-xs font-extrabold">
@@ -1598,145 +1859,123 @@ export default function AgendaView({
           </div>
         </div>
 
-        <div className="space-y-3 p-4">
-          {professionalAppointments.length === 0 ? (
-            <div className="rounded-2xl border border-dashed bg-neutral-50 p-8 text-center">
-              <p className="text-sm font-extrabold text-neutral-800">
-                Nenhum atendimento nesta data.
-              </p>
-
-              <p className="mt-1 text-xs text-neutral-400">
-                Escolha outra data acima ou volte para selecionar outro
-                profissional.
-              </p>
+        <div className="border-b bg-neutral-50/70 p-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-700">Confirmados</span>
+              <strong className="mt-2 block text-2xl font-extrabold text-emerald-900">{confirmedCount}</strong>
             </div>
-          ) : (
-            professionalAppointments.map((appointment) => {
-              const service = services.find(
-                (item) => item.id === appointment.serviceId,
-              );
-              const disabledActions = !onUpdateAppointmentStatus;
 
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
+              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-amber-700">Não confirmados</span>
+              <strong className="mt-2 block text-2xl font-extrabold text-amber-900">{pendingCount}</strong>
+            </div>
+
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-3">
+              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-red-700">Faltas</span>
+              <strong className="mt-2 block text-2xl font-extrabold text-red-900">{absentCount}</strong>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-300 bg-white p-3">
+              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-neutral-500">Livres</span>
+              <strong className="mt-2 block text-2xl font-extrabold text-neutral-950">{freeCount}</strong>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-100 p-3">
+              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-neutral-500">Bloqueados</span>
+              <strong className="mt-2 block text-2xl font-extrabold text-neutral-950">{blockedCount}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2 p-4">
+          {daySlots.map((slot) => {
+            if (slot.type === "appointment" && slot.appointment) {
+              return renderAppointmentSlot(slot.appointment);
+            }
+
+            if (slot.type === "occupied" && slot.occupyingAppointment) {
+              const service = getAppointmentService(slot.occupyingAppointment);
               return (
-                <div
-                  key={appointment.id}
-                  className={`rounded-2xl border p-4 shadow-sm transition ${getAppointmentCardClassName(appointment.status)}`}
-                >
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-[96px_1fr_auto] xl:items-center">
-                    <div className="flex items-center gap-3 xl:block">
-                      <span className="block rounded-2xl bg-white/80 px-4 py-3 text-center font-mono text-2xl font-extrabold leading-none tracking-[-0.04em] text-neutral-950 shadow-sm ring-1 ring-black/5">
-                        {getAppointmentTime(appointment)}
-                      </span>
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
-                        Cliente:{" "}
-                        <span className="text-neutral-950">
-                          {appointment.clientName}
-                        </span>
-                      </p>
-
-                      <h4 className="mt-2 break-words text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950">
-                        {service?.name || "Serviço não localizado"}
-                      </h4>
-
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">
-                        Profissional:{" "}
-                        {selectedProfessional?.name || "Profissional"}
-                      </p>
-
-                      {appointment.clientPhone && (
-                        <p className="mt-1 text-xs font-semibold text-neutral-500">
-                          WhatsApp: {appointment.clientPhone}
-                        </p>
-                      )}
-
-                      {appointment.notes && (
-                        <p className="mt-2 rounded-xl bg-white/65 px-3 py-2 text-xs font-medium leading-relaxed text-neutral-600 ring-1 ring-black/5">
-                          {appointment.notes}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[460px]">
-                      <button
-                        type="button"
-                        disabled={
-                          disabledActions || appointment.status === "confirmed"
-                        }
-                        onClick={() =>
-                          handleStatusAction(appointment.id, "confirmed")
-                        }
-                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === "confirmed"
-                            ? "cursor-not-allowed bg-emerald-100 text-emerald-700"
-                            : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                        }`}
-                      >
-                        Confirmar
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={!onOpenRescheduleAppointment}
-                        onClick={() =>
-                          onOpenRescheduleAppointment?.(appointment)
-                        }
-                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          onOpenRescheduleAppointment
-                            ? "bg-orange-600 text-white shadow-sm hover:bg-orange-700"
-                            : "cursor-not-allowed bg-orange-100 text-orange-400"
-                        }`}
-                      >
-                        Reagendar
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          disabledActions || appointment.status === "cancelled"
-                        }
-                        onClick={() =>
-                          handleStatusAction(appointment.id, "cancelled")
-                        }
-                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === "cancelled"
-                            ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
-                            : "bg-neutral-800 text-white shadow-sm hover:bg-neutral-900"
-                        }`}
-                      >
-                        Cancelou
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          disabledActions || appointment.status === "absent"
-                        }
-                        onClick={() =>
-                          handleStatusAction(appointment.id, "absent")
-                        }
-                        className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === "absent"
-                            ? "cursor-not-allowed bg-red-100 text-red-700"
-                            : "bg-red-700 text-white shadow-sm hover:bg-red-800"
-                        }`}
-                      >
-                        Faltou
-                      </button>
-                    </div>
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-neutral-200 bg-neutral-100 p-3 opacity-80">
+                  <div className="font-mono">
+                    <strong className="block text-lg text-neutral-500">{minutesToTime(slot.start)}</strong>
+                    <span className="text-[11px] text-neutral-400">até {minutesToTime(slot.end)}</span>
                   </div>
-
-                  <div
-                    className={`mt-3 border-t border-black/5 pt-3 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getAppointmentFooterClassName(appointment.status)}`}
-                  >
-                    {getAppointmentFooterLabel(appointment.status)}
+                  <div>
+                    <strong className="text-sm font-extrabold text-neutral-600">Ocupado pelo atendimento anterior</strong>
+                    <p className="mt-1 text-xs font-medium text-neutral-500">
+                      {service?.name || "Atendimento"} ocupa este bloco de horário.
+                    </p>
                   </div>
                 </div>
               );
-            })
-          )}
+            }
+
+            if (slot.type === "lunch") {
+              return (
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-orange-100 bg-orange-50/70 p-3">
+                  <div className="font-mono">
+                    <strong className="block text-lg text-orange-700">{minutesToTime(slot.start)}</strong>
+                    <span className="text-[11px] text-orange-500">até {minutesToTime(slot.end)}</span>
+                  </div>
+                  <div>
+                    <strong className="text-sm font-extrabold text-orange-800">Intervalo de almoço</strong>
+                    <p className="mt-1 text-xs font-medium text-orange-700">Horário bloqueado pelo intervalo cadastrado.</p>
+                  </div>
+                </div>
+              );
+            }
+
+            if (slot.type === "past") {
+              return (
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 opacity-60">
+                  <div className="font-mono">
+                    <strong className="block text-lg text-neutral-500">{minutesToTime(slot.start)}</strong>
+                    <span className="text-[11px] text-neutral-400">até {minutesToTime(slot.end)}</span>
+                  </div>
+                  <div>
+                    <strong className="text-sm font-extrabold text-neutral-600">Horário passado</strong>
+                    <p className="mt-1 text-xs font-medium text-neutral-500">Este horário não pode mais receber agendamento.</p>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={slot.key} className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-200 bg-white p-3 sm:grid-cols-[90px_1fr_auto] sm:items-center">
+                <div className="font-mono">
+                  <strong className="block text-lg text-neutral-950">{minutesToTime(slot.start)}</strong>
+                  <span className="text-[11px] text-neutral-400">até {minutesToTime(slot.end)}</span>
+                </div>
+
+                <div>
+                  <strong className="text-sm font-extrabold text-neutral-800">Livre</strong>
+                  <p className="mt-1 text-xs font-medium text-neutral-500">Horário disponível para agendamento.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateAppointmentFromFreeSlot(slot.start)}
+                    className="rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition hover:bg-orange-700"
+                  >
+                    + Agendar
+                  </button>
+
+                  <button
+                    type="button"
+                    className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-extrabold text-neutral-700 transition hover:bg-neutral-50"
+                    title="Bloqueio manual de horário será ligado à regra definitiva de agenda aberta/fechada."
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <Lock className="h-3.5 w-3.5" /> Bloquear
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
