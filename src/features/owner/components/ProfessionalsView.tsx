@@ -11,25 +11,20 @@
  * - desativar colaborador.
  */
 
-import React, {
-  useMemo,
-  useState
-} from 'react';
+import React, { useMemo, useState } from "react";
 import {
+  CalendarDays,
   Edit2,
   Link2,
   Lock,
   Plus,
+  Power,
   Search,
-  Trash2
-} from 'lucide-react';
+} from "lucide-react";
 
-import { Professional } from '../../../types';
+import { Professional } from "../../../types";
 
-import {
-  getRemunerationLabel,
-  getWorkDaysFormatted
-} from '../owner.utils';
+import { getRemunerationLabel } from "../owner.utils";
 
 interface ProfessionalsViewProps {
   professionals: Professional[];
@@ -38,29 +33,14 @@ interface ProfessionalsViewProps {
   onDeleteProfessional: (professionalId: string) => void;
   onOpenPermissions: (professional: Professional) => void;
   onGenerateProfessionalLink: (professional: Professional) => void;
-}
-
-function professionalHasNoLunchBreak(professional: Professional): boolean {
-  const record = professional as unknown as Record<string, unknown>;
-
-  return (
-    record.noLunchBreak === true ||
-    record.hasNoLunchBreak === true ||
-    record.withoutLunchBreak === true ||
-    record.no_lunch_break === true ||
-    record.has_no_lunch_break === true ||
-    record.without_lunch_break === true ||
-    professional.lunchStart === professional.lunchEnd
-  );
+  onOpenProfessionalAgenda: (professional: Professional) => void;
 }
 
 function getProfessionalDisplayOrder(professional: Professional): number {
   const record = professional as unknown as Record<string, unknown>;
   const displayOrder = Number(record.displayOrder);
 
-  return Number.isFinite(displayOrder) && displayOrder > 0
-    ? displayOrder
-    : 999;
+  return Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : 999;
 }
 
 export default function ProfessionalsView({
@@ -69,9 +49,10 @@ export default function ProfessionalsView({
   onEditProfessional,
   onDeleteProfessional,
   onOpenPermissions,
-  onGenerateProfessionalLink
+  onGenerateProfessionalLink,
+  onOpenProfessionalAgenda,
 }: ProfessionalsViewProps) {
-  const [professionalSearch, setProfessionalSearch] = useState('');
+  const [professionalSearch, setProfessionalSearch] = useState("");
 
   const filteredProfessionals = useMemo(() => {
     const normalizedSearch = professionalSearch.trim().toLowerCase();
@@ -96,12 +77,12 @@ export default function ProfessionalsView({
           return firstOrder - secondOrder;
         }
 
-        return firstProfessional.name.localeCompare(secondProfessional.name, 'pt-BR');
+        return firstProfessional.name.localeCompare(
+          secondProfessional.name,
+          "pt-BR",
+        );
       });
-  }, [
-    professionals,
-    professionalSearch
-  ]);
+  }, [professionals, professionalSearch]);
 
   return (
     <div id="view-profissionais" className="space-y-5 text-left animate-none">
@@ -112,7 +93,8 @@ export default function ProfessionalsView({
           </h2>
 
           <p className="text-xs text-neutral-500 mt-0.5">
-            Cadastre colaboradores, defina comissão, ordem na Vitrine e permissões de acesso.
+            Cadastre colaboradores, defina comissão, ordem na Vitrine e
+            permissões de acesso.
           </p>
         </div>
 
@@ -138,117 +120,105 @@ export default function ProfessionalsView({
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {filteredProfessionals.map((professional) => {
-          const workDaysFormatted = getWorkDaysFormatted(professional.workDays);
           const displayOrder = getProfessionalDisplayOrder(professional);
 
           return (
             <div
               id={`prof-card-${professional.id}`}
               key={professional.id}
-              className={`bg-white border rounded-3xl p-4 shadow-xs space-y-3 relative ${
-                !professional.active ? 'opacity-50' : ''
+              className={`bg-white border border-neutral-200 rounded-3xl p-4 shadow-xs relative transition hover:shadow-md ${
+                !professional.active ? "opacity-60 bg-neutral-50" : ""
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={professional.avatar}
-                    alt={professional.name}
-                    className="w-12 h-12 rounded-2xl object-cover border shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
+              <div className="flex items-start gap-3">
+                <img
+                  src={professional.avatar}
+                  alt={professional.name}
+                  className="w-14 h-14 rounded-2xl object-cover border border-neutral-200 shrink-0 bg-neutral-100"
+                  referrerPolicy="no-referrer"
+                />
 
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-black text-neutral-900 leading-tight truncate">
-                      {professional.name}
-                    </h3>
+                <div className="min-w-0 flex-1 font-mono text-neutral-700">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-semibold text-neutral-800 leading-tight truncate tracking-tight">
+                        {professional.name}
+                      </h3>
 
-                    <span className="text-[10px] text-zinc-500 block mt-0.5 truncate">
-                      {professional.role}
-                    </span>
+                      <span className="text-[11px] text-neutral-500 block mt-1 truncate uppercase tracking-[0.08em]">
+                        {professional.role || "Cargo não informado"}
+                      </span>
+                    </div>
 
-                    <span className="text-[10px] text-neutral-400 font-mono block mt-1">
-                      Ordem: {displayOrder === 999 ? 'Alfabética' : displayOrder}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-[9px] uppercase font-bold text-neutral-400 font-mono block">
-                    Remuneração
-                  </span>
-
-                  <span className="text-xs font-black text-orange-600 block">
-                    {getRemunerationLabel(professional)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-neutral-50 p-3 rounded-2xl text-xs text-neutral-600">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                  <div>
-                    <strong className="text-neutral-850 font-bold block">
-                      Dias
-                    </strong>
-
-                    <span className="text-neutral-500 line-clamp-1">
-                      {workDaysFormatted || 'Não definido'}
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] ${
+                        professional.active
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          : "bg-neutral-100 text-neutral-500 border-neutral-200"
+                      }`}
+                    >
+                      {professional.active ? "Ativo" : "Inativo"}
                     </span>
                   </div>
 
-                  <div>
-                    <strong className="text-neutral-850 font-bold block">
-                      Horário
-                    </strong>
-
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-neutral-500">
                     <span>
-                      {professional.workHoursStart} - {professional.workHoursEnd}
+                      Ordem:{" "}
+                      {displayOrder === 999 ? "Alfabética" : displayOrder}
                     </span>
-                  </div>
-
-                  <div>
-                    <strong className="text-neutral-850 font-bold block">
-                      Almoço
-                    </strong>
-
-                    <span>
-                      {professionalHasNoLunchBreak(professional)
-                        ? 'Sem intervalo definido'
-                        : `${professional.lunchStart} - ${professional.lunchEnd}`}
-                    </span>
+                    <span className="text-neutral-300">•</span>
+                    <span>{getRemunerationLabel(professional)}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t pt-3 border-neutral-100">
-                <div className="flex items-center gap-2">
-                  <button
-                    id={`btn-perm-trigger-${professional.id}`}
-                    onClick={() => onOpenPermissions(professional)}
-                    className="text-xs bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer font-bold"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-zinc-500" />
-                    Permissões
-                  </button>
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
+                <button
+                  id={`btn-perm-trigger-${professional.id}`}
+                  onClick={() => onOpenPermissions(professional)}
+                  className="text-[11px] bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer font-semibold"
+                >
+                  <Lock className="w-3.5 h-3.5 text-zinc-500" />
+                  Permissões
+                </button>
 
-                  <button
-                    id={`btn-link-prof-${professional.id}`}
-                    onClick={() => onGenerateProfessionalLink(professional)}
-                    className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer font-bold"
-                    title="Gerar e copiar link de acesso do profissional"
-                  >
-                    <Link2 className="w-3.5 h-3.5 text-orange-600" />
-                    Enviar Link
-                  </button>
-                </div>
+                <button
+                  id={`btn-link-prof-${professional.id}`}
+                  onClick={() => onGenerateProfessionalLink(professional)}
+                  disabled={!professional.active}
+                  className="text-[11px] bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    professional.active
+                      ? "Gerar e copiar link de acesso do profissional"
+                      : "Profissional inativo não recebe link de acesso"
+                  }
+                >
+                  <Link2 className="w-3.5 h-3.5 text-orange-600" />
+                  Enviar Link
+                </button>
 
-                <div className="flex items-center gap-2">
+                <button
+                  id={`btn-agenda-prof-${professional.id}`}
+                  onClick={() => onOpenProfessionalAgenda(professional)}
+                  disabled={!professional.active}
+                  className="text-[11px] bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    professional.active
+                      ? "Abrir agenda deste profissional"
+                      : "Profissional inativo está sem acesso à agenda"
+                  }
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-neutral-600" />
+                  Agenda
+                </button>
+
+                <div className="ml-auto flex items-center gap-2">
                   <button
                     id={`btn-edit-prof-${professional.id}`}
                     onClick={() => onEditProfessional(professional)}
-                    className="p-2 text-neutral-500 hover:text-neutral-900 border rounded-xl hover:bg-neutral-50 transition cursor-pointer"
+                    className="p-2 text-neutral-500 hover:text-neutral-900 border border-neutral-200 rounded-xl hover:bg-neutral-50 transition cursor-pointer"
                     title="Editar profissional"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -257,10 +227,11 @@ export default function ProfessionalsView({
                   {professional.active && (
                     <button
                       onClick={() => onDeleteProfessional(professional.id)}
-                      className="p-2 text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition cursor-pointer"
-                      title="Desativar colaborador"
+                      className="px-3 py-2 text-[11px] text-red-700 border border-red-200 rounded-xl hover:bg-red-50 transition cursor-pointer flex items-center gap-1.5 font-semibold"
+                      title="Desativar colaborador e bloquear o link de acesso à agenda"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Power className="w-3.5 h-3.5" />
+                      Desativar
                     </button>
                   )}
                 </div>
@@ -269,7 +240,6 @@ export default function ProfessionalsView({
           );
         })}
       </div>
-
       {filteredProfessionals.length === 0 && (
         <div className="bg-white border rounded-2xl p-12 text-center text-neutral-500 space-y-3">
           <p className="text-sm font-semibold text-neutral-800">
@@ -277,7 +247,8 @@ export default function ProfessionalsView({
           </p>
 
           <p className="text-xs text-neutral-400">
-            Ajuste a busca ou clique em “Adicionar Colaborador” para cadastrar um novo profissional.
+            Ajuste a busca ou clique em “Adicionar Colaborador” para cadastrar
+            um novo profissional.
           </p>
         </div>
       )}

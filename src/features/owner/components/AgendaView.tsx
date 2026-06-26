@@ -11,12 +11,7 @@
  * misturando informações. Cada clique avança uma fase do agendamento.
  */
 
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ArrowLeft,
@@ -30,8 +25,8 @@ import {
   Briefcase,
   Search,
   UserRound,
-  UsersRound
-} from 'lucide-react';
+  UsersRound,
+} from "lucide-react";
 
 import {
   Appointment,
@@ -39,13 +34,10 @@ import {
   EstablishmentConfig,
   PaymentType,
   Professional,
-  Service
-} from '../../../types';
+  Service,
+} from "../../../types";
 
-import {
-  formatCurrency,
-  formatDateBr
-} from '../owner.utils';
+import { formatCurrency, formatDateBr } from "../owner.utils";
 
 interface AgendaCreateAppointmentPayload {
   clientName: string;
@@ -64,22 +56,31 @@ interface AgendaViewProps {
   services: Service[];
   config: EstablishmentConfig;
   clients?: Client[];
+  quickOpenProfessionalAgendaId?: string;
+  quickOpenProfessionalAgendaKey?: number;
   onCreateAppointment: (payload: AgendaCreateAppointmentPayload) => void;
-  onUpdateAppointmentStatus?: (appointmentId: string, status: Appointment['status']) => void;
+  onUpdateAppointmentStatus?: (
+    appointmentId: string,
+    status: Appointment["status"],
+  ) => void;
   onOpenRescheduleAppointment?: (appointment: Appointment) => void;
 }
 
-type AgendaStartMode = 'date' | 'service' | 'professional' | 'professionalAgenda';
+type AgendaStartMode =
+  | "date"
+  | "service"
+  | "professional"
+  | "professionalAgenda";
 
 type AgendaStep =
-  | 'start'
-  | 'selectDate'
-  | 'selectService'
-  | 'selectProfessional'
-  | 'selectDateTime'
-  | 'clientData'
-  | 'professionalAgenda'
-  | 'success';
+  | "start"
+  | "selectDate"
+  | "selectService"
+  | "selectProfessional"
+  | "selectDateTime"
+  | "clientData"
+  | "professionalAgenda"
+  | "success";
 
 interface AvailableSlot {
   professional: Professional;
@@ -91,7 +92,7 @@ interface AvailableSlot {
 const LOOKAHEAD_DAYS = 7;
 
 function padDatePart(value: number): string {
-  return String(value).padStart(2, '0');
+  return String(value).padStart(2, "0");
 }
 
 function formatLocalDateStr(date: Date): string {
@@ -120,13 +121,13 @@ function getTodayStr(): string {
 function getCurrentTimeInMinutes(): number {
   const now = new Date();
 
-  return (now.getHours() * 60) + now.getMinutes();
+  return now.getHours() * 60 + now.getMinutes();
 }
 
 function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
 
-  return (hours * 60) + minutes;
+  return hours * 60 + minutes;
 }
 
 function minutesToTime(minutes: number): string {
@@ -137,29 +138,29 @@ function minutesToTime(minutes: number): string {
 }
 
 function getWeekDayShortLabel(dateStr: string): string {
-  const labels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-  return labels[parseLocalDate(dateStr).getDay()] || '';
+  return labels[parseLocalDate(dateStr).getDay()] || "";
 }
 
 function getAppointmentDate(appointment: Appointment): string {
-  return appointment.dateTime.split('T')[0] || '';
+  return appointment.dateTime.split("T")[0] || "";
 }
 
 function getAppointmentTime(appointment: Appointment): string {
-  return appointment.dateTime.split('T')[1]?.slice(0, 5) || '';
+  return appointment.dateTime.split("T")[1]?.slice(0, 5) || "";
 }
 
 function normalizeText(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function normalizePhone(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 11);
+  return value.replace(/\D/g, "").slice(0, 11);
 }
 
 function formatPhoneInput(value: string): string {
@@ -215,14 +216,8 @@ function appointmentBlocksSlot(params: {
   slotEnd: number;
   services: Service[];
 }): boolean {
-  const {
-    appointment,
-    professionalId,
-    date,
-    slotStart,
-    slotEnd,
-    services
-  } = params;
+  const { appointment, professionalId, date, slotStart, slotEnd, services } =
+    params;
 
   if (appointment.professionalId !== professionalId) {
     return false;
@@ -232,7 +227,7 @@ function appointmentBlocksSlot(params: {
     return false;
   }
 
-  if (['cancelled', 'absent', 'rescheduled'].includes(appointment.status)) {
+  if (["cancelled", "absent", "rescheduled"].includes(appointment.status)) {
     return false;
   }
 
@@ -240,7 +235,8 @@ function appointmentBlocksSlot(params: {
   const appointmentService = services.find((service) => {
     return service.id === appointment.serviceId;
   });
-  const appointmentEnd = appointmentStart + (appointmentService?.duration || 30);
+  const appointmentEnd =
+    appointmentStart + (appointmentService?.duration || 30);
 
   return slotStart < appointmentEnd && slotEnd > appointmentStart;
 }
@@ -253,14 +249,7 @@ function isProfessionalAvailableForSlot(params: {
   services: Service[];
   appointments: Appointment[];
 }): boolean {
-  const {
-    professional,
-    service,
-    date,
-    time,
-    services,
-    appointments
-  } = params;
+  const { professional, service, date, time, services, appointments } = params;
 
   const weekDay = parseLocalDate(date).getDay();
 
@@ -291,8 +280,7 @@ function isProfessionalAvailableForSlot(params: {
   }
 
   const isPastToday =
-    date === getTodayStr() &&
-    slotStart <= getCurrentTimeInMinutes();
+    date === getTodayStr() && slotStart <= getCurrentTimeInMinutes();
 
   if (isPastToday) {
     return false;
@@ -305,7 +293,7 @@ function isProfessionalAvailableForSlot(params: {
       date,
       slotStart,
       slotEnd,
-      services
+      services,
     });
   });
 }
@@ -317,13 +305,7 @@ function generateSlotsForSelection(params: {
   services: Service[];
   appointments: Appointment[];
 }): AvailableSlot[] {
-  const {
-    professional,
-    service,
-    date,
-    services,
-    appointments
-  } = params;
+  const { professional, service, date, services, appointments } = params;
 
   const slots: AvailableSlot[] = [];
   const start = timeToMinutes(professional.workHoursStart);
@@ -337,7 +319,7 @@ function generateSlotsForSelection(params: {
       date,
       services,
       appointments,
-      time
+      time,
     });
 
     if (isAvailable) {
@@ -345,7 +327,7 @@ function generateSlotsForSelection(params: {
         professional,
         service,
         date,
-        time
+        time,
       });
     }
   }
@@ -359,21 +341,21 @@ function getAvailabilityBadge(count: number): {
 } {
   if (count === 0) {
     return {
-      label: 'Horário esgotado',
-      className: 'bg-red-50 text-red-700 border-red-100'
+      label: "Horário esgotado",
+      className: "bg-red-50 text-red-700 border-red-100",
     };
   }
 
   if (count <= 3) {
     return {
       label: `${count} horários livres`,
-      className: 'bg-orange-50 text-orange-700 border-orange-100'
+      className: "bg-orange-50 text-orange-700 border-orange-100",
     };
   }
 
   return {
     label: `${count} horários livres`,
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    className: "bg-emerald-50 text-emerald-700 border-emerald-100",
   };
 }
 
@@ -383,29 +365,49 @@ export default function AgendaView({
   services,
   config,
   clients = [],
+  quickOpenProfessionalAgendaId,
+  quickOpenProfessionalAgendaKey,
   onCreateAppointment,
   onUpdateAppointmentStatus,
-  onOpenRescheduleAppointment
+  onOpenRescheduleAppointment,
 }: AgendaViewProps) {
   const [mode, setMode] = useState<AgendaStartMode | null>(null);
-  const [currentStep, setCurrentStep] = useState<AgendaStep>('start');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedServiceId, setSelectedServiceId] = useState('');
-  const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [clientNotes, setClientNotes] = useState('');
-  const [whatsAppConfirmUrl, setWhatsAppConfirmUrl] = useState('');
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [professionalSearch, setProfessionalSearch] = useState('');
+  const [currentStep, setCurrentStep] = useState<AgendaStep>("start");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientNotes, setClientNotes] = useState("");
+  const [whatsAppConfirmUrl, setWhatsAppConfirmUrl] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [professionalSearch, setProfessionalSearch] = useState("");
   const viewTopRef = useRef<HTMLDivElement | null>(null);
 
   const todayStr = getTodayStr();
 
   useEffect(() => {
-    if (currentStep !== 'start') {
-      viewTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!quickOpenProfessionalAgendaId) {
+      return;
+    }
+
+    setMode("professionalAgenda");
+    setCurrentStep("professionalAgenda");
+    setSelectedProfessionalId(quickOpenProfessionalAgendaId);
+    setSelectedServiceId("");
+    setSelectedTime("");
+    setSelectedDate(todayStr);
+    setServiceSearch("");
+    setProfessionalSearch("");
+  }, [quickOpenProfessionalAgendaId, quickOpenProfessionalAgendaKey, todayStr]);
+
+  useEffect(() => {
+    if (currentStep !== "start") {
+      viewTopRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, [currentStep]);
 
@@ -428,14 +430,11 @@ export default function AgendaView({
         return (
           normalizeText(service.name).includes(normalizedSearch) ||
           normalizeText(service.category).includes(normalizedSearch) ||
-          normalizeText(service.description || '').includes(normalizedSearch)
+          normalizeText(service.description || "").includes(normalizedSearch)
         );
       })
-      .sort((first, second) => first.name.localeCompare(second.name, 'pt-BR'));
-  }, [
-    services,
-    serviceSearch
-  ]);
+      .sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
+  }, [services, serviceSearch]);
 
   const activeProfessionals = useMemo(() => {
     const normalizedSearch = normalizeText(professionalSearch);
@@ -460,20 +459,19 @@ export default function AgendaView({
           return firstOrder - secondOrder;
         }
 
-        return first.name.localeCompare(second.name, 'pt-BR');
+        return first.name.localeCompare(second.name, "pt-BR");
       });
-  }, [
-    professionals,
-    professionalSearch
-  ]);
+  }, [professionals, professionalSearch]);
 
-  const selectedService = services.find((service) => {
-    return service.id === selectedServiceId;
-  }) || null;
+  const selectedService =
+    services.find((service) => {
+      return service.id === selectedServiceId;
+    }) || null;
 
-  const selectedProfessional = professionals.find((professional) => {
-    return professional.id === selectedProfessionalId;
-  }) || null;
+  const selectedProfessional =
+    professionals.find((professional) => {
+      return professional.id === selectedProfessionalId;
+    }) || null;
 
   const servicesForSelectedProfessional = useMemo(() => {
     if (!selectedProfessional) {
@@ -483,13 +481,10 @@ export default function AgendaView({
     return activeServices.filter((service) => {
       return professionalCanDoService({
         professional: selectedProfessional,
-        service
+        service,
       });
     });
-  }, [
-    activeServices,
-    selectedProfessional
-  ]);
+  }, [activeServices, selectedProfessional]);
 
   const professionalsForSelectedService = useMemo(() => {
     if (!selectedService) {
@@ -499,13 +494,10 @@ export default function AgendaView({
     return activeProfessionals.filter((professional) => {
       return professionalCanDoService({
         professional,
-        service: selectedService
+        service: selectedService,
       });
     });
-  }, [
-    activeProfessionals,
-    selectedService
-  ]);
+  }, [activeProfessionals, selectedService]);
 
   const availableSlots = useMemo(() => {
     if (!selectedService || !selectedProfessional || !selectedDate) {
@@ -517,109 +509,89 @@ export default function AgendaView({
       service: selectedService,
       date: selectedDate,
       services,
-      appointments
+      appointments,
     });
   }, [
     appointments,
     selectedDate,
     selectedProfessional,
     selectedService,
-    services
+    services,
   ]);
 
   const canGoClientData = Boolean(
-    selectedService &&
-    selectedProfessional &&
-    selectedDate &&
-    selectedTime
+    selectedService && selectedProfessional && selectedDate && selectedTime,
   );
 
   const canSubmit = Boolean(
     canGoClientData &&
     clientName.trim() &&
-    normalizePhone(clientPhone).length >= 10
+    normalizePhone(clientPhone).length >= 10,
   );
 
   const resetFlow = () => {
     setMode(null);
-    setCurrentStep('start');
-    setSelectedDate('');
-    setSelectedServiceId('');
-    setSelectedProfessionalId('');
-    setSelectedTime('');
-    setClientName('');
-    setClientPhone('');
-    setClientNotes('');
-    setWhatsAppConfirmUrl('');
-    setServiceSearch('');
-    setProfessionalSearch('');
+    setCurrentStep("start");
+    setSelectedDate("");
+    setSelectedServiceId("");
+    setSelectedProfessionalId("");
+    setSelectedTime("");
+    setClientName("");
+    setClientPhone("");
+    setClientNotes("");
+    setWhatsAppConfirmUrl("");
+    setServiceSearch("");
+    setProfessionalSearch("");
   };
 
   const startMode = (nextMode: AgendaStartMode) => {
     resetFlow();
     setMode(nextMode);
 
-    if (nextMode === 'date') {
-      setCurrentStep('selectDate');
+    if (nextMode === "date") {
+      setCurrentStep("selectDate");
       return;
     }
 
-    if (nextMode === 'service') {
-      setCurrentStep('selectService');
+    if (nextMode === "service") {
+      setCurrentStep("selectService");
       return;
     }
 
-    if (nextMode === 'professionalAgenda') {
+    if (nextMode === "professionalAgenda") {
       setSelectedDate(todayStr);
-      setCurrentStep('selectProfessional');
+      setCurrentStep("selectProfessional");
       return;
     }
 
-    setCurrentStep('selectProfessional');
+    setCurrentStep("selectProfessional");
   };
 
   const goBack = () => {
-    if (currentStep === 'start') {
+    if (currentStep === "start") {
       return;
     }
 
-    if (currentStep === 'success') {
+    if (currentStep === "success") {
       resetFlow();
       return;
     }
 
-    if (currentStep === 'selectDate') {
+    if (currentStep === "selectDate") {
       resetFlow();
       return;
     }
 
-    if (currentStep === 'selectService') {
-      if (mode === 'date') {
-        setSelectedServiceId('');
-        setCurrentStep('selectProfessional');
+    if (currentStep === "selectService") {
+      if (mode === "date") {
+        setSelectedServiceId("");
+        setCurrentStep("selectProfessional");
         return;
       }
 
-      if (mode === 'professional') {
-        setSelectedServiceId('');
-        setCurrentStep('selectProfessional');
-        return;
-      }
-
-      resetFlow();
-      return;
-    }
-
-    if (currentStep === 'selectProfessional') {
-      if (mode === 'date') {
-        setSelectedProfessionalId('');
-        setCurrentStep('selectDate');
-        return;
-      }
-
-      if (mode === 'service') {
-        setSelectedProfessionalId('');
-        setCurrentStep('selectService');
+      if (mode === "professional") {
+        setSelectedServiceId("");
+        setCurrentStep("selectProfessional");
         return;
       }
 
@@ -627,94 +599,111 @@ export default function AgendaView({
       return;
     }
 
-    if (currentStep === 'professionalAgenda') {
-      setSelectedProfessionalId('');
-      setCurrentStep('selectProfessional');
-      return;
-    }
-
-    if (currentStep === 'selectDateTime') {
-      setSelectedTime('');
-
-      if (mode === 'date') {
-        setCurrentStep('selectService');
+    if (currentStep === "selectProfessional") {
+      if (mode === "date") {
+        setSelectedProfessionalId("");
+        setCurrentStep("selectDate");
         return;
       }
 
-      if (mode === 'service') {
-        setCurrentStep('selectProfessional');
+      if (mode === "service") {
+        setSelectedProfessionalId("");
+        setCurrentStep("selectService");
         return;
       }
 
-      setCurrentStep('selectService');
+      resetFlow();
       return;
     }
 
-    if (currentStep === 'clientData') {
-      setCurrentStep('selectDateTime');
+    if (currentStep === "professionalAgenda") {
+      setSelectedProfessionalId("");
+      setCurrentStep("selectProfessional");
+      return;
+    }
+
+    if (currentStep === "selectDateTime") {
+      setSelectedTime("");
+
+      if (mode === "date") {
+        setCurrentStep("selectService");
+        return;
+      }
+
+      if (mode === "service") {
+        setCurrentStep("selectProfessional");
+        return;
+      }
+
+      setCurrentStep("selectService");
+      return;
+    }
+
+    if (currentStep === "clientData") {
+      setCurrentStep("selectDateTime");
     }
   };
 
   const handleSelectDateFirst = (date: string) => {
     setSelectedDate(date);
-    setSelectedProfessionalId('');
-    setSelectedServiceId('');
-    setSelectedTime('');
-    setCurrentStep('selectProfessional');
+    setSelectedProfessionalId("");
+    setSelectedServiceId("");
+    setSelectedTime("");
+    setCurrentStep("selectProfessional");
   };
 
   const handleSelectService = (service: Service) => {
     setSelectedServiceId(service.id);
-    setSelectedTime('');
+    setSelectedTime("");
 
-    if (mode === 'service') {
-      setSelectedProfessionalId('');
-      setSelectedDate('');
-      setCurrentStep('selectProfessional');
+    if (mode === "service") {
+      setSelectedProfessionalId("");
+      setSelectedDate("");
+      setCurrentStep("selectProfessional");
       return;
     }
 
-    if (mode === 'date') {
-      setCurrentStep('selectDateTime');
+    if (mode === "date") {
+      setCurrentStep("selectDateTime");
       return;
     }
 
-    setSelectedDate('');
-    setCurrentStep('selectDateTime');
+    setSelectedDate("");
+    setCurrentStep("selectDateTime");
   };
 
   const handleSelectProfessional = (professional: Professional) => {
     setSelectedProfessionalId(professional.id);
-    setSelectedTime('');
+    setSelectedTime("");
 
-    if (mode === 'date') {
-      setSelectedServiceId('');
-      setCurrentStep('selectService');
+    if (mode === "date") {
+      setSelectedServiceId("");
+      setCurrentStep("selectService");
       return;
     }
 
-    if (mode === 'professionalAgenda') {
-      setSelectedServiceId('');
-      setSelectedTime('');
+    if (mode === "professionalAgenda") {
+      setSelectedServiceId("");
+      setSelectedTime("");
       setSelectedDate(selectedDate || todayStr);
-      setCurrentStep('professionalAgenda');
+      setCurrentStep("professionalAgenda");
       return;
     }
 
-    if (mode === 'professional') {
-      setSelectedServiceId('');
-      setSelectedDate('');
-      setCurrentStep('selectService');
+    if (mode === "professional") {
+      setSelectedServiceId("");
+      setSelectedDate("");
+      setCurrentStep("selectService");
       return;
     }
 
-    setSelectedDate('');
-    setCurrentStep('selectDateTime');
+    setSelectedDate("");
+    setCurrentStep("selectDateTime");
   };
 
   const handleSelectDateTimeDate = (date: string) => {
     setSelectedDate(date);
-    setSelectedTime('');
+    setSelectedTime("");
   };
 
   const findClientByPhone = (phone: string) => {
@@ -724,17 +713,23 @@ export default function AgendaView({
       return null;
     }
 
-    return clients.find((client) => {
-      const mainPhone = normalizePhone(client.phone || '');
-      const normalizedStoredPhone = normalizePhone(client.phoneNormalized || '');
-      const historyPhones = client.phoneHistory || [];
+    return (
+      clients.find((client) => {
+        const mainPhone = normalizePhone(client.phone || "");
+        const normalizedStoredPhone = normalizePhone(
+          client.phoneNormalized || "",
+        );
+        const historyPhones = client.phoneHistory || [];
 
-      return (
-        mainPhone === normalizedPhone ||
-        normalizedStoredPhone === normalizedPhone ||
-        historyPhones.some((historyPhone) => normalizePhone(historyPhone) === normalizedPhone)
-      );
-    }) || null;
+        return (
+          mainPhone === normalizedPhone ||
+          normalizedStoredPhone === normalizedPhone ||
+          historyPhones.some(
+            (historyPhone) => normalizePhone(historyPhone) === normalizedPhone,
+          )
+        );
+      }) || null
+    );
   };
 
   const handleClientPhoneChange = (value: string) => {
@@ -757,30 +752,36 @@ export default function AgendaView({
     const params = new URLSearchParams({
       phone: normalizePhone(clientPhone),
       date: selectedDate,
-      time: selectedTime
+      time: selectedTime,
     });
 
     return `${baseUrl}/meu-agendamento?${params.toString()}`;
   };
 
   const buildClientConfirmationWhatsAppUrl = () => {
-    if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime || !clientPhone) {
-      return '';
+    if (
+      !selectedService ||
+      !selectedProfessional ||
+      !selectedDate ||
+      !selectedTime ||
+      !clientPhone
+    ) {
+      return "";
     }
 
     const phone = normalizePhone(clientPhone);
     const actionLink = buildAppointmentActionLink();
     const message = [
-      `Olá, ${clientName.trim() || 'tudo bem'}! Seu horário foi agendado com sucesso.`,
-      '',
+      `Olá, ${clientName.trim() || "tudo bem"}! Seu horário foi agendado com sucesso.`,
+      "",
       `Serviço: ${selectedService.name}`,
       `Profissional: ${selectedProfessional.name}`,
       `Data: ${formatDateBr(selectedDate)}`,
       `Horário: ${selectedTime}`,
-      '',
-      'Para confirmar, cancelar ou remarcar, acesse:',
-      actionLink
-    ].join('\n');
+      "",
+      "Para confirmar, cancelar ou remarcar, acesse:",
+      actionLink,
+    ].join("\n");
 
     return `https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`;
   };
@@ -800,20 +801,22 @@ export default function AgendaView({
       date: selectedDate,
       time: selectedTime,
       notes: clientNotes,
-      paymentType: 'pendente'
+      paymentType: "pendente",
     });
 
     const confirmationUrl = buildClientConfirmationWhatsAppUrl();
     setWhatsAppConfirmUrl(confirmationUrl);
 
     if (confirmationUrl) {
-      window.open(confirmationUrl, '_blank', 'noopener,noreferrer');
+      window.open(confirmationUrl, "_blank", "noopener,noreferrer");
     }
 
-    setCurrentStep('success');
+    setCurrentStep("success");
   };
 
-  const getSlotsForProfessionalAcrossPeriod = (professional: Professional): number => {
+  const getSlotsForProfessionalAcrossPeriod = (
+    professional: Professional,
+  ): number => {
     const targetServices = selectedService
       ? [selectedService]
       : activeServices.filter((service) => {
@@ -821,19 +824,27 @@ export default function AgendaView({
         });
 
     return dateOptions.reduce((total, dateOption) => {
-      return total + targetServices.reduce((serviceTotal, service) => {
-        return serviceTotal + generateSlotsForSelection({
-          professional,
-          service,
-          date: selectedDate || dateOption,
-          services,
-          appointments
-        }).length;
-      }, 0);
+      return (
+        total +
+        targetServices.reduce((serviceTotal, service) => {
+          return (
+            serviceTotal +
+            generateSlotsForSelection({
+              professional,
+              service,
+              date: selectedDate || dateOption,
+              services,
+              appointments,
+            }).length
+          );
+        }, 0)
+      );
     }, 0);
   };
 
-  const getSlotsForProfessionalOnSelectedDate = (professional: Professional): number => {
+  const getSlotsForProfessionalOnSelectedDate = (
+    professional: Professional,
+  ): number => {
     if (!selectedDate) {
       return 0;
     }
@@ -845,13 +856,16 @@ export default function AgendaView({
         });
 
     return targetServices.reduce((total, service) => {
-      return total + generateSlotsForSelection({
-        professional,
-        service,
-        date: selectedDate,
-        services,
-        appointments
-      }).length;
+      return (
+        total +
+        generateSlotsForSelection({
+          professional,
+          service,
+          date: selectedDate,
+          services,
+          appointments,
+        }).length
+      );
     }, 0);
   };
 
@@ -866,55 +880,65 @@ export default function AgendaView({
           return professionalCanDoService({ professional, service });
         });
 
-        return professionalTotal + professionalServices.reduce((serviceTotal, service) => {
-          return serviceTotal + generateSlotsForSelection({
-            professional,
-            service,
-            date,
-            services,
-            appointments
-          }).length;
-        }, 0);
+        return (
+          professionalTotal +
+          professionalServices.reduce((serviceTotal, service) => {
+            return (
+              serviceTotal +
+              generateSlotsForSelection({
+                professional,
+                service,
+                date,
+                services,
+                appointments,
+              }).length
+            );
+          }, 0)
+        );
       }, 0);
     }
 
     return targetProfessionals.reduce((total, professional) => {
-      return total + generateSlotsForSelection({
-        professional,
-        service: selectedService,
-        date,
-        services,
-        appointments
-      }).length;
+      return (
+        total +
+        generateSlotsForSelection({
+          professional,
+          service: selectedService,
+          date,
+          services,
+          appointments,
+        }).length
+      );
     }, 0);
   };
 
   const renderModeCards = () => {
     const cards = [
       {
-        id: 'date' as AgendaStartMode,
-        title: 'Agendar por Data',
-        description: 'Cliente perguntou se tem horário em um dia específico.',
-        icon: CalendarDays
+        id: "date" as AgendaStartMode,
+        title: "Agendar por Data",
+        description: "Cliente perguntou se tem horário em um dia específico.",
+        icon: CalendarDays,
       },
       {
-        id: 'service' as AgendaStartMode,
-        title: 'Agendar por Serviço',
+        id: "service" as AgendaStartMode,
+        title: "Agendar por Serviço",
         description: `Buscar horários pelo serviço nos próximos ${LOOKAHEAD_DAYS} dias.`,
-        icon: Briefcase
+        icon: Briefcase,
       },
       {
-        id: 'professional' as AgendaStartMode,
-        title: 'Agendar com Profissional',
-        description: 'Cliente pediu horário com um profissional específico.',
-        icon: UserRound
+        id: "professional" as AgendaStartMode,
+        title: "Agendar com Profissional",
+        description: "Cliente pediu horário com um profissional específico.",
+        icon: UserRound,
       },
       {
-        id: 'professionalAgenda' as AgendaStartMode,
-        title: 'Agenda por Profissional',
-        description: 'Abrir agenda individual para cancelar, remarcar ou marcar faltou.',
-        icon: UsersRound
-      }
+        id: "professionalAgenda" as AgendaStartMode,
+        title: "Agenda por Profissional",
+        description:
+          "Abrir agenda individual para cancelar, remarcar ou marcar faltou.",
+        icon: UsersRound,
+      },
     ];
 
     return (
@@ -960,7 +984,8 @@ export default function AgendaView({
           </h3>
 
           <p className="text-xs text-neutral-500 font-semibold mt-1">
-            Use quando o cliente perguntou por um dia específico. Dias passados não aparecem.
+            Use quando o cliente perguntou por um dia específico. Dias passados
+            não aparecem.
           </p>
         </div>
 
@@ -976,26 +1001,30 @@ export default function AgendaView({
                 onClick={() => handleSelectDateFirst(dateOption)}
                 className={`rounded-2xl border p-3 text-center transition ${
                   isSelected
-                    ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100'
+                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
                     : freeSlots === 0
-                      ? 'bg-red-50/40 border-red-100 hover:border-red-200'
-                      : 'bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md'
+                      ? "bg-red-50/40 border-red-100 hover:border-red-200"
+                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
                 }`}
               >
                 <span className="text-[10px] font-black uppercase text-neutral-400 block">
-                  {dateOption === todayStr ? 'Hoje' : getWeekDayShortLabel(dateOption)}
+                  {dateOption === todayStr
+                    ? "Hoje"
+                    : getWeekDayShortLabel(dateOption)}
                 </span>
 
                 <strong className="text-base font-black text-neutral-950 block mt-1">
                   {formatDateBr(dateOption).slice(0, 5)}
                 </strong>
 
-                <span className={`text-[10px] font-black rounded-lg px-2 py-1 inline-block mt-3 ${
-                  freeSlots === 0
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-emerald-50 text-emerald-700'
-                }`}>
-                  {freeSlots === 0 ? 'Esgotado' : `${freeSlots} livres`}
+                <span
+                  className={`text-[10px] font-black rounded-lg px-2 py-1 inline-block mt-3 ${
+                    freeSlots === 0
+                      ? "bg-red-100 text-red-700"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {freeSlots === 0 ? "Esgotado" : `${freeSlots} livres`}
                 </span>
               </button>
             );
@@ -1032,7 +1061,7 @@ export default function AgendaView({
             <p className="text-xs text-neutral-500 font-semibold mt-1">
               {selectedProfessional
                 ? `Mostrando serviços realizados por ${selectedProfessional.name}.`
-                : 'Escolha o serviço solicitado pelo cliente.'}
+                : "Escolha o serviço solicitado pelo cliente."}
             </p>
           </div>
 
@@ -1050,39 +1079,54 @@ export default function AgendaView({
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
           {serviceList.map((service) => {
             const serviceProfessional = selectedProfessional;
-            const count = serviceProfessional && selectedDate
-              ? generateSlotsForSelection({
-                  professional: serviceProfessional,
-                  service,
-                  date: selectedDate,
-                  services,
-                  appointments
-                }).length
-              : serviceProfessional
-                ? dateOptions.reduce((total, dateOption) => {
-                    return total + generateSlotsForSelection({
-                      professional: serviceProfessional,
-                      service,
-                      date: dateOption,
-                      services,
-                      appointments
-                    }).length;
-                  }, 0)
-                : professionalsForSelectedService.reduce((total, professional) => {
-                    if (!professionalCanDoService({ professional, service })) {
-                      return total;
-                    }
+            const count =
+              serviceProfessional && selectedDate
+                ? generateSlotsForSelection({
+                    professional: serviceProfessional,
+                    service,
+                    date: selectedDate,
+                    services,
+                    appointments,
+                  }).length
+                : serviceProfessional
+                  ? dateOptions.reduce((total, dateOption) => {
+                      return (
+                        total +
+                        generateSlotsForSelection({
+                          professional: serviceProfessional,
+                          service,
+                          date: dateOption,
+                          services,
+                          appointments,
+                        }).length
+                      );
+                    }, 0)
+                  : professionalsForSelectedService.reduce(
+                      (total, professional) => {
+                        if (
+                          !professionalCanDoService({ professional, service })
+                        ) {
+                          return total;
+                        }
 
-                    return total + dateOptions.reduce((dateTotal, dateOption) => {
-                      return dateTotal + generateSlotsForSelection({
-                        professional,
-                        service,
-                        date: selectedDate || dateOption,
-                        services,
-                        appointments
-                      }).length;
-                    }, 0);
-                  }, 0);
+                        return (
+                          total +
+                          dateOptions.reduce((dateTotal, dateOption) => {
+                            return (
+                              dateTotal +
+                              generateSlotsForSelection({
+                                professional,
+                                service,
+                                date: selectedDate || dateOption,
+                                services,
+                                appointments,
+                              }).length
+                            );
+                          }, 0)
+                        );
+                      },
+                      0,
+                    );
 
             const availability = getAvailabilityBadge(count);
             const isSoldOut = count === 0;
@@ -1099,10 +1143,10 @@ export default function AgendaView({
                 disabled={isSoldOut}
                 className={`rounded-2xl border p-3 text-left transition ${
                   selectedServiceId === service.id
-                    ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100'
+                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
                     : isSoldOut
-                      ? 'bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed'
-                      : 'bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md'
+                      ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
+                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1140,7 +1184,9 @@ export default function AgendaView({
                   </span>
                 </div>
 
-                <span className={`inline-block mt-4 px-2 py-1 rounded-lg border text-[10px] font-black ${availability.className}`}>
+                <span
+                  className={`inline-block mt-4 px-2 py-1 rounded-lg border text-[10px] font-black ${availability.className}`}
+                >
                   {availability.label}
                 </span>
               </button>
@@ -1177,8 +1223,8 @@ export default function AgendaView({
             </h3>
 
             <p className="text-xs text-neutral-500 font-semibold mt-1">
-              {mode === 'professionalAgenda'
-                ? 'Escolha o profissional para abrir a agenda individual.'
+              {mode === "professionalAgenda"
+                ? "Escolha o profissional para abrir a agenda individual."
                 : selectedDate
                   ? `Mostrando disponibilidade para ${formatDateBr(selectedDate)}.`
                   : selectedService
@@ -1205,7 +1251,8 @@ export default function AgendaView({
               : getSlotsForProfessionalAcrossPeriod(professional);
 
             const availability = getAvailabilityBadge(availabilityCount);
-            const isSoldOut = mode !== 'professionalAgenda' && availabilityCount === 0;
+            const isSoldOut =
+              mode !== "professionalAgenda" && availabilityCount === 0;
 
             return (
               <button
@@ -1219,10 +1266,10 @@ export default function AgendaView({
                 disabled={isSoldOut}
                 className={`w-full rounded-2xl border p-3 text-left transition ${
                   selectedProfessionalId === professional.id
-                    ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100'
+                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
                     : isSoldOut
-                      ? 'bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed'
-                      : 'bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md'
+                      ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
+                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
                 }`}
               >
                 <div className="flex items-center justify-between gap-4">
@@ -1252,8 +1299,12 @@ export default function AgendaView({
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className={`px-3 py-1 rounded-full border text-[10px] font-black ${mode === 'professionalAgenda' ? 'bg-neutral-50 text-neutral-700 border-neutral-200' : availability.className}`}>
-                      {mode === 'professionalAgenda' ? 'Abrir agenda' : availability.label}
+                    <span
+                      className={`px-3 py-1 rounded-full border text-[10px] font-black ${mode === "professionalAgenda" ? "bg-neutral-50 text-neutral-700 border-neutral-200" : availability.className}`}
+                    >
+                      {mode === "professionalAgenda"
+                        ? "Abrir agenda"
+                        : availability.label}
                     </span>
 
                     {isSoldOut ? (
@@ -1293,7 +1344,8 @@ export default function AgendaView({
             </h3>
 
             <p className="text-xs text-neutral-500 font-semibold mt-1">
-              Horários ocupados, almoço e horários passados são ocultados automaticamente.
+              Horários ocupados, almoço e horários passados são ocultados
+              automaticamente.
             </p>
           </div>
 
@@ -1303,11 +1355,11 @@ export default function AgendaView({
             </span>
 
             <span className="text-neutral-500 font-semibold block mt-1">
-              {selectedService?.name || 'Serviço não selecionado'}
+              {selectedService?.name || "Serviço não selecionado"}
             </span>
 
             <span className="text-neutral-500 font-semibold block">
-              {selectedProfessional?.name || 'Profissional não selecionado'}
+              {selectedProfessional?.name || "Profissional não selecionado"}
             </span>
           </div>
         </div>
@@ -1320,15 +1372,16 @@ export default function AgendaView({
 
             <div className="flex gap-2 overflow-x-auto mt-3 pb-1">
               {dateOptions.map((dateOption) => {
-                const slotsForDate = selectedService && selectedProfessional
-                  ? generateSlotsForSelection({
-                      professional: selectedProfessional,
-                      service: selectedService,
-                      date: dateOption,
-                      services,
-                      appointments
-                    }).length
-                  : 0;
+                const slotsForDate =
+                  selectedService && selectedProfessional
+                    ? generateSlotsForSelection({
+                        professional: selectedProfessional,
+                        service: selectedService,
+                        date: dateOption,
+                        services,
+                        appointments,
+                      }).length
+                    : 0;
                 const isSelected = selectedDate === dateOption;
 
                 return (
@@ -1339,26 +1392,32 @@ export default function AgendaView({
                     disabled={slotsForDate === 0}
                     className={`min-w-[96px] rounded-2xl border px-3 py-2.5 text-center transition ${
                       isSelected
-                        ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100'
+                        ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
                         : slotsForDate === 0
-                          ? 'bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed'
-                          : 'bg-white border-neutral-200 hover:border-orange-300'
+                          ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
+                          : "bg-white border-neutral-200 hover:border-orange-300"
                     }`}
                   >
                     <span className="text-[10px] font-black uppercase text-neutral-400 block">
-                      {dateOption === todayStr ? 'Hoje' : getWeekDayShortLabel(dateOption)}
+                      {dateOption === todayStr
+                        ? "Hoje"
+                        : getWeekDayShortLabel(dateOption)}
                     </span>
 
                     <strong className="text-sm font-black text-neutral-950 block mt-1">
                       {formatDateBr(dateOption).slice(0, 5)}
                     </strong>
 
-                    <span className={`text-[10px] font-black rounded-lg px-2 py-1 inline-block mt-2 ${
-                      slotsForDate === 0
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-emerald-50 text-emerald-700'
-                    }`}>
-                      {slotsForDate === 0 ? 'Esgotado' : `${slotsForDate} disp.`}
+                    <span
+                      className={`text-[10px] font-black rounded-lg px-2 py-1 inline-block mt-2 ${
+                        slotsForDate === 0
+                          ? "bg-red-100 text-red-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {slotsForDate === 0
+                        ? "Esgotado"
+                        : `${slotsForDate} disp.`}
                     </span>
                   </button>
                 );
@@ -1399,8 +1458,8 @@ export default function AgendaView({
                       onClick={() => setSelectedTime(slot.time)}
                       className={`rounded-xl border px-3 py-2.5 text-left transition ${
                         isSelected
-                          ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100'
-                          : 'bg-white border-neutral-200 hover:border-orange-300'
+                          ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
+                          : "bg-white border-neutral-200 hover:border-orange-300"
                       }`}
                     >
                       <strong className="text-sm font-black text-neutral-950 block">
@@ -1421,11 +1480,11 @@ export default function AgendaView({
             <button
               type="button"
               disabled={!canGoClientData}
-              onClick={() => setCurrentStep('clientData')}
+              onClick={() => setCurrentStep("clientData")}
               className={`w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-black transition flex items-center justify-center gap-2 ${
                 canGoClientData
-                  ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm'
-                  : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                  ? "bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                  : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
               }`}
             >
               Avançar
@@ -1445,45 +1504,50 @@ export default function AgendaView({
           getAppointmentDate(appointment) === selectedDate
         );
       })
-      .sort((first, second) => getAppointmentTime(first).localeCompare(getAppointmentTime(second)));
+      .sort((first, second) =>
+        getAppointmentTime(first).localeCompare(getAppointmentTime(second)),
+      );
 
-    const getAppointmentCardClassName = (status: Appointment['status']) => {
-      if (status === 'confirmed') {
-        return 'border-emerald-200 bg-emerald-50/80 shadow-emerald-950/5';
+    const getAppointmentCardClassName = (status: Appointment["status"]) => {
+      if (status === "confirmed") {
+        return "border-emerald-200 bg-emerald-50/80 shadow-emerald-950/5";
       }
 
-      if (status === 'cancelled') {
-        return 'border-neutral-300 bg-neutral-100/90 shadow-neutral-950/5 opacity-90';
+      if (status === "cancelled") {
+        return "border-neutral-300 bg-neutral-100/90 shadow-neutral-950/5 opacity-90";
       }
 
-      if (status === 'absent') {
-        return 'border-red-200 bg-red-50/85 shadow-red-950/5';
+      if (status === "absent") {
+        return "border-red-200 bg-red-50/85 shadow-red-950/5";
       }
 
-      if (status === 'completed') {
-        return 'border-sky-200 bg-sky-50/80 shadow-sky-950/5';
+      if (status === "completed") {
+        return "border-sky-200 bg-sky-50/80 shadow-sky-950/5";
       }
 
-      return 'border-amber-200 bg-amber-50/85 shadow-amber-950/5';
+      return "border-amber-200 bg-amber-50/85 shadow-amber-950/5";
     };
 
-    const getAppointmentFooterLabel = (status: Appointment['status']) => {
-      if (status === 'confirmed') return 'CLIENTE CONFIRMOU PRESENÇA';
-      if (status === 'cancelled') return 'ATENDIMENTO CANCELADO';
-      if (status === 'absent') return 'CLIENTE FALTOU';
-      if (status === 'completed') return 'ATENDIMENTO FINALIZADO';
-      return 'AGUARDANDO CONFIRMAÇÃO';
+    const getAppointmentFooterLabel = (status: Appointment["status"]) => {
+      if (status === "confirmed") return "CLIENTE CONFIRMOU PRESENÇA";
+      if (status === "cancelled") return "ATENDIMENTO CANCELADO";
+      if (status === "absent") return "CLIENTE FALTOU";
+      if (status === "completed") return "ATENDIMENTO FINALIZADO";
+      return "AGUARDANDO CONFIRMAÇÃO";
     };
 
-    const getAppointmentFooterClassName = (status: Appointment['status']) => {
-      if (status === 'confirmed') return 'text-emerald-800';
-      if (status === 'cancelled') return 'text-neutral-600';
-      if (status === 'absent') return 'text-red-800';
-      if (status === 'completed') return 'text-sky-800';
-      return 'text-amber-800';
+    const getAppointmentFooterClassName = (status: Appointment["status"]) => {
+      if (status === "confirmed") return "text-emerald-800";
+      if (status === "cancelled") return "text-neutral-600";
+      if (status === "absent") return "text-red-800";
+      if (status === "completed") return "text-sky-800";
+      return "text-amber-800";
     };
 
-    const handleStatusAction = (appointmentId: string, status: Appointment['status']) => {
+    const handleStatusAction = (
+      appointmentId: string,
+      status: Appointment["status"],
+    ) => {
       if (onUpdateAppointmentStatus) {
         onUpdateAppointmentStatus(appointmentId, status);
       }
@@ -1514,12 +1578,14 @@ export default function AgendaView({
                     onClick={() => setSelectedDate(dateOption)}
                     className={`min-w-[78px] rounded-xl border px-3 py-2 text-center transition ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-600 text-white shadow-sm'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-300'
+                        ? "border-orange-500 bg-orange-600 text-white shadow-sm"
+                        : "border-neutral-200 bg-white text-neutral-600 hover:border-orange-300"
                     }`}
                   >
                     <span className="block text-[10px] font-extrabold uppercase tracking-wider">
-                      {dateOption === todayStr ? 'Hoje' : getWeekDayShortLabel(dateOption)}
+                      {dateOption === todayStr
+                        ? "Hoje"
+                        : getWeekDayShortLabel(dateOption)}
                     </span>
 
                     <strong className="mt-0.5 block text-xs font-extrabold">
@@ -1540,12 +1606,15 @@ export default function AgendaView({
               </p>
 
               <p className="mt-1 text-xs text-neutral-400">
-                Escolha outra data acima ou volte para selecionar outro profissional.
+                Escolha outra data acima ou volte para selecionar outro
+                profissional.
               </p>
             </div>
           ) : (
             professionalAppointments.map((appointment) => {
-              const service = services.find((item) => item.id === appointment.serviceId);
+              const service = services.find(
+                (item) => item.id === appointment.serviceId,
+              );
               const disabledActions = !onUpdateAppointmentStatus;
 
               return (
@@ -1562,18 +1631,19 @@ export default function AgendaView({
 
                     <div className="min-w-0">
                       <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
-                        Cliente:{' '}
+                        Cliente:{" "}
                         <span className="text-neutral-950">
                           {appointment.clientName}
                         </span>
                       </p>
 
                       <h4 className="mt-2 break-words text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950">
-                        {service?.name || 'Serviço não localizado'}
+                        {service?.name || "Serviço não localizado"}
                       </h4>
 
                       <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">
-                        Profissional: {selectedProfessional?.name || 'Profissional'}
+                        Profissional:{" "}
+                        {selectedProfessional?.name || "Profissional"}
                       </p>
 
                       {appointment.clientPhone && (
@@ -1592,12 +1662,16 @@ export default function AgendaView({
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[460px]">
                       <button
                         type="button"
-                        disabled={disabledActions || appointment.status === 'confirmed'}
-                        onClick={() => handleStatusAction(appointment.id, 'confirmed')}
+                        disabled={
+                          disabledActions || appointment.status === "confirmed"
+                        }
+                        onClick={() =>
+                          handleStatusAction(appointment.id, "confirmed")
+                        }
                         className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === 'confirmed'
-                            ? 'cursor-not-allowed bg-emerald-100 text-emerald-700'
-                            : 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+                          disabledActions || appointment.status === "confirmed"
+                            ? "cursor-not-allowed bg-emerald-100 text-emerald-700"
+                            : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                         }`}
                       >
                         Confirmar
@@ -1606,11 +1680,13 @@ export default function AgendaView({
                       <button
                         type="button"
                         disabled={!onOpenRescheduleAppointment}
-                        onClick={() => onOpenRescheduleAppointment?.(appointment)}
+                        onClick={() =>
+                          onOpenRescheduleAppointment?.(appointment)
+                        }
                         className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
                           onOpenRescheduleAppointment
-                            ? 'bg-orange-600 text-white shadow-sm hover:bg-orange-700'
-                            : 'cursor-not-allowed bg-orange-100 text-orange-400'
+                            ? "bg-orange-600 text-white shadow-sm hover:bg-orange-700"
+                            : "cursor-not-allowed bg-orange-100 text-orange-400"
                         }`}
                       >
                         Reagendar
@@ -1618,12 +1694,16 @@ export default function AgendaView({
 
                       <button
                         type="button"
-                        disabled={disabledActions || appointment.status === 'cancelled'}
-                        onClick={() => handleStatusAction(appointment.id, 'cancelled')}
+                        disabled={
+                          disabledActions || appointment.status === "cancelled"
+                        }
+                        onClick={() =>
+                          handleStatusAction(appointment.id, "cancelled")
+                        }
                         className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === 'cancelled'
-                            ? 'cursor-not-allowed bg-neutral-200 text-neutral-500'
-                            : 'bg-neutral-800 text-white shadow-sm hover:bg-neutral-900'
+                          disabledActions || appointment.status === "cancelled"
+                            ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
+                            : "bg-neutral-800 text-white shadow-sm hover:bg-neutral-900"
                         }`}
                       >
                         Cancelou
@@ -1631,12 +1711,16 @@ export default function AgendaView({
 
                       <button
                         type="button"
-                        disabled={disabledActions || appointment.status === 'absent'}
-                        onClick={() => handleStatusAction(appointment.id, 'absent')}
+                        disabled={
+                          disabledActions || appointment.status === "absent"
+                        }
+                        onClick={() =>
+                          handleStatusAction(appointment.id, "absent")
+                        }
                         className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                          disabledActions || appointment.status === 'absent'
-                            ? 'cursor-not-allowed bg-red-100 text-red-700'
-                            : 'bg-red-700 text-white shadow-sm hover:bg-red-800'
+                          disabledActions || appointment.status === "absent"
+                            ? "cursor-not-allowed bg-red-100 text-red-700"
+                            : "bg-red-700 text-white shadow-sm hover:bg-red-800"
                         }`}
                       >
                         Faltou
@@ -1662,14 +1746,18 @@ export default function AgendaView({
     const matchedClient = findClientByPhone(clientPhone);
 
     return (
-      <form onSubmit={handleSubmit} className="bg-white border rounded-2xl shadow-sm overflow-hidden max-w-5xl mx-auto">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white border rounded-2xl shadow-sm overflow-hidden max-w-5xl mx-auto"
+      >
         <div className="p-4 border-b">
           <h3 className="text-base font-black text-neutral-950">
             Dados do cliente
           </h3>
 
           <p className="text-xs text-neutral-500 font-semibold mt-1">
-            Informe primeiro o WhatsApp. Se o cliente já existir, o nome será preenchido automaticamente.
+            Informe primeiro o WhatsApp. Se o cliente já existir, o nome será
+            preenchido automaticamente.
           </p>
         </div>
 
@@ -1684,7 +1772,9 @@ export default function AgendaView({
                 <Phone className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   value={clientPhone}
-                  onChange={(event) => handleClientPhoneChange(event.target.value)}
+                  onChange={(event) =>
+                    handleClientPhoneChange(event.target.value)
+                  }
                   placeholder="(14) 99999-9999"
                   className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2 text-sm font-semibold outline-none focus:border-orange-300"
                   autoFocus
@@ -1763,9 +1853,7 @@ export default function AgendaView({
                   <span className="text-[10px] font-black text-neutral-400 uppercase block">
                     Hora
                   </span>
-                  <strong className="text-neutral-950">
-                    {selectedTime}
-                  </strong>
+                  <strong className="text-neutral-950">{selectedTime}</strong>
                 </div>
               </div>
 
@@ -1783,8 +1871,8 @@ export default function AgendaView({
 
         <div className="p-4 border-t bg-neutral-50 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-neutral-500 font-semibold flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            A cobrança fica para o caixa. Aqui salvamos somente o agendamento.
+            <Info className="w-4 h-4" />A cobrança fica para o caixa. Aqui
+            salvamos somente o agendamento.
           </p>
 
           <button
@@ -1792,8 +1880,8 @@ export default function AgendaView({
             disabled={!canSubmit}
             className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-black transition ${
               canSubmit
-                ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm'
-                : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                ? "bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
             }`}
           >
             Confirmar agendamento
@@ -1844,41 +1932,44 @@ export default function AgendaView({
   };
 
   const renderCurrentStep = () => {
-    if (currentStep === 'selectDate') {
+    if (currentStep === "selectDate") {
       return renderDateSelection();
     }
 
-    if (currentStep === 'selectService') {
+    if (currentStep === "selectService") {
       return renderServiceSelection();
     }
 
-    if (currentStep === 'selectProfessional') {
+    if (currentStep === "selectProfessional") {
       return renderProfessionalSelection();
     }
 
-    if (currentStep === 'selectDateTime') {
+    if (currentStep === "selectDateTime") {
       return renderDateTimeSelection();
     }
 
-    if (currentStep === 'clientData') {
+    if (currentStep === "clientData") {
       return renderClientData();
     }
 
-    if (currentStep === 'professionalAgenda') {
+    if (currentStep === "professionalAgenda") {
       return renderProfessionalAgenda();
     }
 
-    if (currentStep === 'success') {
+    if (currentStep === "success") {
       return renderSuccess();
     }
 
     return null;
   };
 
-
   return (
-    <div id="view-agenda" ref={viewTopRef} className="space-y-4 text-left animate-none">
-      {currentStep === 'start' ? (
+    <div
+      id="view-agenda"
+      ref={viewTopRef}
+      className="space-y-4 text-left animate-none"
+    >
+      {currentStep === "start" ? (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
@@ -1887,7 +1978,8 @@ export default function AgendaView({
               </h2>
 
               <p className="text-xs text-neutral-500 mt-1 font-semibold">
-                Escolha uma opção para iniciar. Depois disso, a tela mostra somente o próximo passo.
+                Escolha uma opção para iniciar. Depois disso, a tela mostra
+                somente o próximo passo.
               </p>
             </div>
 
@@ -1909,7 +2001,6 @@ export default function AgendaView({
             <ArrowLeft className="w-4 h-4" />
             Voltar
           </button>
-
         </div>
       )}
 

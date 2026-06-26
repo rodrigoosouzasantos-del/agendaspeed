@@ -113,11 +113,19 @@ function mapTenantSettingsToConfig(
     defaultMsgTemplate:
       settings.default_msg_template || currentConfig.defaultMsgTemplate,
     minLeadTimeMinutes: Number(
-      settings.booking_min_lead_time_minutes ?? currentConfig.minLeadTimeMinutes ?? 0,
+      settings.booking_min_lead_time_minutes ??
+        currentConfig.minLeadTimeMinutes ??
+        0,
     ),
-    maxFutureDays: Number(settings.booking_max_future_days ?? currentConfig.maxFutureDays ?? 14),
-    workHoursStart: settings.booking_work_hours_start || currentConfig.workHoursStart || "08:00",
-    workHoursEnd: settings.booking_work_hours_end || currentConfig.workHoursEnd || "19:00",
+    maxFutureDays: Number(
+      settings.booking_max_future_days ?? currentConfig.maxFutureDays ?? 14,
+    ),
+    workHoursStart:
+      settings.booking_work_hours_start ||
+      currentConfig.workHoursStart ||
+      "08:00",
+    workHoursEnd:
+      settings.booking_work_hours_end || currentConfig.workHoursEnd || "19:00",
   };
 }
 
@@ -217,9 +225,9 @@ function mapSupabaseProfessionalToAppProfessional(
     lunchEnd: normalizeProfessionalTime(professional.lunch_end, "13:00"),
     noLunchBreak: Boolean(
       professional.no_lunch_break ||
-        professional.has_no_lunch_break ||
-        professional.without_lunch_break ||
-        professional.noLunchBreak,
+      professional.has_no_lunch_break ||
+      professional.without_lunch_break ||
+      professional.noLunchBreak,
     ),
     defaultAppointmentDuration:
       Number(
@@ -275,7 +283,6 @@ function buildProfessionalPayload(professional: Professional) {
   };
 }
 
-
 type SupabaseServiceResponse = {
   id: string;
   name: string;
@@ -295,7 +302,9 @@ type SupabaseServiceCategoryResponse = {
   sort_order: number;
 };
 
-function mapSupabaseServiceToAppService(service: SupabaseServiceResponse): Service {
+function mapSupabaseServiceToAppService(
+  service: SupabaseServiceResponse,
+): Service {
   return {
     id: service.id,
     name: service.name || "",
@@ -308,17 +317,16 @@ function mapSupabaseServiceToAppService(service: SupabaseServiceResponse): Servi
     professionals: [],
     specificCommission: null,
     requireDeposit: service.require_deposit === true,
-    depositValue: service.require_deposit ? Number(service.deposit_value) || 0 : null,
+    depositValue: service.require_deposit
+      ? Number(service.deposit_value) || 0
+      : null,
     active: service.active !== false,
   } as Service;
 }
 
 function buildServicePayload(service: Service) {
   return {
-    id:
-      service.id && !service.id.startsWith("serv-")
-        ? service.id
-        : null,
+    id: service.id && !service.id.startsWith("serv-") ? service.id : null,
     name: service.name,
     category: normalizeServiceCategoryName(service.category),
     category_order: getServiceCategoryOrder(service),
@@ -328,10 +336,11 @@ function buildServicePayload(service: Service) {
     description: service.description || "",
     active: service.active !== false,
     require_deposit: service.requireDeposit === true,
-    deposit_value: service.requireDeposit ? Number(service.depositValue) || 0 : 0,
+    deposit_value: service.requireDeposit
+      ? Number(service.depositValue) || 0
+      : 0,
   };
 }
-
 
 type SupabaseAppointmentResponse = {
   id: string;
@@ -643,6 +652,10 @@ export default function OwnerDashboard({
   const [professionalFilter, setProfessionalFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [calendarView, setCalendarView] = useState<CalendarView>("today");
+  const [quickOpenProfessionalAgendaId, setQuickOpenProfessionalAgendaId] =
+    useState<string>("");
+  const [quickOpenProfessionalAgendaKey, setQuickOpenProfessionalAgendaKey] =
+    useState(0);
 
   const [showApptModal, setShowApptModal] = useState(false);
   const [showProfModal, setShowProfModal] = useState(false);
@@ -727,18 +740,12 @@ export default function OwnerDashboard({
     bookingMinRescheduleLeadTimeMinutes,
     setBookingMinRescheduleLeadTimeMinutes,
   ] = useState(120);
-  const [
-    bookingAllowClientConfirmation,
-    setBookingAllowClientConfirmation,
-  ] = useState(true);
-  const [
-    bookingAllowClientCancellation,
-    setBookingAllowClientCancellation,
-  ] = useState(true);
-  const [
-    bookingAllowClientReschedule,
-    setBookingAllowClientReschedule,
-  ] = useState(true);
+  const [bookingAllowClientConfirmation, setBookingAllowClientConfirmation] =
+    useState(true);
+  const [bookingAllowClientCancellation, setBookingAllowClientCancellation] =
+    useState(true);
+  const [bookingAllowClientReschedule, setBookingAllowClientReschedule] =
+    useState(true);
   const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] =
     useState(30);
   const [bookingMaxFutureDays, setBookingMaxFutureDays] = useState(
@@ -869,29 +876,35 @@ export default function OwnerDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   useEffect(() => {
     let isMounted = true;
 
     async function loadServicesFromSupabase() {
       setIsLoadingServices(true);
 
-      const [servicesResult, categoriesResult, professionalsResult] = await Promise.all([
-        supabase.rpc("get_my_services"),
-        supabase.rpc("get_my_service_categories"),
-        supabase.rpc("get_my_professionals"),
-      ]);
+      const [servicesResult, categoriesResult, professionalsResult] =
+        await Promise.all([
+          supabase.rpc("get_my_services"),
+          supabase.rpc("get_my_service_categories"),
+          supabase.rpc("get_my_professionals"),
+        ]);
 
       if (!isMounted) return;
 
       if (servicesResult.error) {
-        console.error("Erro ao carregar serviços:", servicesResult.error.message);
+        console.error(
+          "Erro ao carregar serviços:",
+          servicesResult.error.message,
+        );
         setIsLoadingServices(false);
         return;
       }
 
       if (categoriesResult.error) {
-        console.error("Erro ao carregar categorias:", categoriesResult.error.message);
+        console.error(
+          "Erro ao carregar categorias:",
+          categoriesResult.error.message,
+        );
       }
 
       const serviceRows = (
@@ -903,17 +916,27 @@ export default function OwnerDashboard({
         Array.isArray(categoriesResult.data) ? categoriesResult.data : []
       ) as SupabaseServiceCategoryResponse[];
 
-      const nextCategories = categoryRows.length > 0
-        ? categoryRows.map((category) => normalizeServiceCategoryName(category.name))
-        : getInitialServiceCategories(nextServices);
+      const nextCategories =
+        categoryRows.length > 0
+          ? categoryRows.map((category) =>
+              normalizeServiceCategoryName(category.name),
+            )
+          : getInitialServiceCategories(nextServices);
 
-      const nextCategoryOrders = categoryRows.length > 0
-        ? categoryRows.reduce<Record<string, number>>((accumulator, category, index) => {
-            const normalizedCategory = normalizeServiceCategoryName(category.name);
-            accumulator[normalizedCategory] = Number(category.sort_order) || index + 1;
-            return accumulator;
-          }, {})
-        : buildInitialServiceCategoryOrders(nextCategories, nextServices);
+      const nextCategoryOrders =
+        categoryRows.length > 0
+          ? categoryRows.reduce<Record<string, number>>(
+              (accumulator, category, index) => {
+                const normalizedCategory = normalizeServiceCategoryName(
+                  category.name,
+                );
+                accumulator[normalizedCategory] =
+                  Number(category.sort_order) || index + 1;
+                return accumulator;
+              },
+              {},
+            )
+          : buildInitialServiceCategoryOrders(nextCategories, nextServices);
 
       const professionalRows = (
         Array.isArray(professionalsResult.data) ? professionalsResult.data : []
@@ -925,7 +948,9 @@ export default function OwnerDashboard({
       setServiceCategories(nextCategories);
       setServiceCategoryOrders(nextCategoryOrders);
 
-      if (!nextCategories.includes(normalizeServiceCategoryName(servCategory))) {
+      if (
+        !nextCategories.includes(normalizeServiceCategoryName(servCategory))
+      ) {
         setServCategory(nextCategories[0] || "CABELO");
       }
 
@@ -946,7 +971,6 @@ export default function OwnerDashboard({
     // Carrega serviços e categorias reais ao abrir o painel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   useEffect(() => {
     let isMounted = true;
@@ -1041,7 +1065,21 @@ export default function OwnerDashboard({
     search: clientSearch,
   });
 
+  const clearQuickProfessionalAgenda = () => {
+    setQuickOpenProfessionalAgendaId("");
+    setQuickOpenProfessionalAgendaKey((currentKey) => currentKey + 1);
+  };
+
+  const handleChangeOwnerTab = (nextTab: OwnerTab) => {
+    if (nextTab === "agenda") {
+      clearQuickProfessionalAgenda();
+    }
+
+    setActiveTab(nextTab);
+  };
+
   const openTodayAgenda = () => {
+    clearQuickProfessionalAgenda();
     setActiveTab("agenda");
     setCalendarView("today");
   };
@@ -1128,7 +1166,9 @@ export default function OwnerDashboard({
     });
 
     if (error) {
-      alert(error.message || "Não foi possível atualizar o status do agendamento.");
+      alert(
+        error.message || "Não foi possível atualizar o status do agendamento.",
+      );
       setLiveAppointments(previousAppointments);
 
       onUpdateState({
@@ -1139,9 +1179,9 @@ export default function OwnerDashboard({
       return;
     }
 
-    const savedRow = (Array.isArray(data) ? data[0] : null) as
-      | SupabaseAppointmentResponse
-      | null;
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) return;
 
@@ -1217,9 +1257,9 @@ export default function OwnerDashboard({
       return;
     }
 
-    const savedRow = (Array.isArray(data) ? data[0] : null) as
-      | SupabaseAppointmentResponse
-      | null;
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
       alert("Não foi possível confirmar o agendamento criado.");
@@ -1293,9 +1333,9 @@ export default function OwnerDashboard({
       return;
     }
 
-    const savedRow = (Array.isArray(data) ? data[0] : null) as
-      | SupabaseAppointmentResponse
-      | null;
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
       alert("Não foi possível confirmar o agendamento criado.");
@@ -1368,9 +1408,9 @@ export default function OwnerDashboard({
       return;
     }
 
-    const savedRow = (Array.isArray(data) ? data[0] : null) as
-      | SupabaseAppointmentResponse
-      | null;
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) return;
 
@@ -1457,8 +1497,7 @@ export default function OwnerDashboard({
       lunchStart: profLunchStart,
       lunchEnd: profLunchEnd,
       noLunchBreak: profNoLunchBreak,
-      defaultAppointmentDuration:
-        Number(profDefaultAppointmentDuration) || 30,
+      defaultAppointmentDuration: Number(profDefaultAppointmentDuration) || 30,
       services: profServicesIds,
       remType: (profRemType === "commission_fixed"
         ? "commission_fixed"
@@ -1550,6 +1589,17 @@ export default function OwnerDashboard({
     });
   };
 
+  const handleOpenProfessionalAgenda = (professional: Professional) => {
+    if (!professional.active) {
+      alert("Este profissional está inativo e sem acesso à agenda.");
+      return;
+    }
+
+    setQuickOpenProfessionalAgendaId(professional.id);
+    setQuickOpenProfessionalAgendaKey((currentKey) => currentKey + 1);
+    setActiveTab("agenda");
+  };
+
   const handleGenerateProfessionalAccessLink = async (
     professional: Professional,
   ) => {
@@ -1581,7 +1631,9 @@ export default function OwnerDashboard({
     } | null;
 
     if (!result?.success || !result.link_local) {
-      alert(result?.message || "Não foi possível gerar o link do profissional.");
+      alert(
+        result?.message || "Não foi possível gerar o link do profissional.",
+      );
       return;
     }
 
@@ -2325,7 +2377,7 @@ ${result.link_local}`);
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto">
         <OwnerSidebar
           activeTab={activeTab}
-          onChangeTab={setActiveTab}
+          onChangeTab={handleChangeOwnerTab}
           onOpenTodayAgenda={openTodayAgenda}
         />
 
@@ -2354,6 +2406,8 @@ ${result.link_local}`);
               services={services}
               config={config}
               clients={clients}
+              quickOpenProfessionalAgendaId={quickOpenProfessionalAgendaId}
+              quickOpenProfessionalAgendaKey={quickOpenProfessionalAgendaKey}
               onCreateAppointment={handleCreateAppointmentFromAgenda}
               onUpdateAppointmentStatus={handleModifyStatus}
             />
@@ -2373,6 +2427,7 @@ ${result.link_local}`);
               onDeleteProfessional={handleDeleteProf}
               onOpenPermissions={setShowPermissionModal}
               onGenerateProfessionalLink={handleGenerateProfessionalAccessLink}
+              onOpenProfessionalAgenda={handleOpenProfessionalAgenda}
             />
           )}
 
