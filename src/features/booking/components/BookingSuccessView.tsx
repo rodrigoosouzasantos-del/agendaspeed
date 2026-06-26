@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   Clock,
   MessageCircle,
-  Scissors,
   UserCheck
 } from 'lucide-react';
 
@@ -29,6 +28,37 @@ function formatDateBr(dateStr: string): string {
   return dateStr.split('-').reverse().join('/');
 }
 
+
+function getServiceVisualIcon(serviceName?: string, categoryName?: string): string {
+  const value = `${serviceName || ''} ${categoryName || ''}`.toLowerCase();
+
+  if (value.includes('massagem') || value.includes('massage')) {
+    return '💆';
+  }
+
+  if (value.includes('barba') || value.includes('barbearia')) {
+    return '🧔';
+  }
+
+  if (value.includes('unha') || value.includes('manicure') || value.includes('pedicure')) {
+    return '💅';
+  }
+
+  if (value.includes('sobrancelha') || value.includes('cilio') || value.includes('cílio')) {
+    return '✨';
+  }
+
+  if (value.includes('estética') || value.includes('estetica') || value.includes('limpeza')) {
+    return '🌿';
+  }
+
+  if (value.includes('cabelo') || value.includes('corte') || value.includes('escova') || value.includes('visagismo')) {
+    return '💇';
+  }
+
+  return '⚡';
+}
+
 export default function BookingSuccessView({
   selectedService,
   selectedProfessional,
@@ -40,6 +70,7 @@ export default function BookingSuccessView({
 }: BookingSuccessViewProps) {
   const formattedDate = formatDateBr(selectedDate);
   const hasWhatsappUrl = Boolean(whatsappUrl);
+  const serviceIcon = getServiceVisualIcon(selectedService?.name, selectedService?.category);
 
   return (
     <section className="mx-auto flex min-h-screen max-w-xl items-center px-4 py-6 sm:py-8">
@@ -65,7 +96,9 @@ export default function BookingSuccessView({
         <div className="mt-5 rounded-3xl border border-neutral-200 bg-neutral-50 p-4 text-left">
           <div className="grid gap-3 text-sm">
             <div className="flex items-start gap-2">
-              <Scissors className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-base leading-none">
+                {serviceIcon}
+              </span>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-400">
                   Serviço

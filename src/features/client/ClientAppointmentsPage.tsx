@@ -22,7 +22,6 @@ import {
   Clock,
   Loader2,
   RefreshCcw,
-  Scissors,
   UserCheck,
   XCircle
 } from 'lucide-react';
@@ -68,13 +67,14 @@ interface ClientAppointmentsPageProps {
 }
 
 interface FeedbackModalState {
-  tone: 'yellow' | 'red' | 'green';
+  tone: 'orange' | 'red' | 'green';
   title: string;
   description: string;
 }
 
 interface RescheduleDraft {
   appointment: ClientAppointmentRow;
+  selectedDate: string;
   selectedStartsAtLocal: string;
   options: RescheduleOptionRow[];
   loading: boolean;
@@ -392,9 +392,25 @@ export default function ClientAppointmentsPage({
     return Array.from(groups.entries());
   }, [rescheduleDraft?.options]);
 
+  const selectedRescheduleDateOptions = useMemo(() => {
+    if (!rescheduleDraft?.selectedDate) {
+      return [];
+    }
+
+    const selectedGroup = groupedRescheduleOptions.find(([date]) => {
+      return date === rescheduleDraft.selectedDate;
+    });
+
+    return selectedGroup?.[1] || [];
+  }, [
+    groupedRescheduleOptions,
+    rescheduleDraft?.selectedDate
+  ]);
+
   const loadRescheduleOptions = async (appointment: ClientAppointmentRow) => {
     setRescheduleDraft({
       appointment,
+      selectedDate: '',
       selectedStartsAtLocal: '',
       options: [],
       loading: true,
@@ -410,6 +426,7 @@ export default function ClientAppointmentsPage({
     if (error) {
       setRescheduleDraft({
         appointment,
+        selectedDate: '',
         selectedStartsAtLocal: '',
         options: [],
         loading: false,
@@ -424,6 +441,7 @@ export default function ClientAppointmentsPage({
 
     setRescheduleDraft({
       appointment,
+      selectedDate: '',
       selectedStartsAtLocal: '',
       options,
       loading: false,
@@ -539,7 +557,7 @@ export default function ClientAppointmentsPage({
       });
 
       setFeedbackModal({
-        tone: 'yellow',
+        tone: 'orange',
         title: 'Horário remarcado',
         description: outsideDeadlineMessage
           ? `${outsideDeadlineMessage} Data antiga: ${formatDateTimeBr(oldDateTime)}. Nova data: ${formatDateTimeBr(newDateTime)}.`
@@ -648,7 +666,7 @@ export default function ClientAppointmentsPage({
                   className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-sm ${
                     appointment.status === 'confirmed'
                       ? 'bg-green-700'
-                      : 'bg-yellow-500 text-neutral-950'
+                      : 'bg-orange-600 text-white'
                   }`}
                 >
                   {getStatusLabel(appointment.status)}
@@ -707,7 +725,7 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={() => handleOpenReschedule(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-reschedule`}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-yellow-600 bg-yellow-400 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm transition hover:bg-yellow-500 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-700 bg-orange-600 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm transition hover:bg-orange-700 disabled:opacity-60"
               >
                 <RefreshCcw className="h-4 w-4" />
                 Remarcar
@@ -735,10 +753,10 @@ export default function ClientAppointmentsPage({
             </h2>
 
             <p className="mt-1 text-sm font-medium leading-relaxed text-neutral-500">
-              Escolha um dos horários livres na agenda de {rescheduleDraft.appointment.professionalName}.
+              Escolha primeiro o dia e depois um horário livre na agenda de {rescheduleDraft.appointment.professionalName}.
             </p>
 
-            <div className="mt-3 rounded-2xl border border-yellow-600 bg-yellow-400 p-3 text-xs font-extrabold text-neutral-950">
+            <div className="mt-3 rounded-2xl border border-orange-700 bg-orange-600 p-3 text-xs font-extrabold text-neutral-950">
               Horário atual: {formatDateTimeBr(rescheduleDraft.appointment.startsAtLocal)}
             </div>
 
@@ -758,16 +776,67 @@ export default function ClientAppointmentsPage({
             )}
 
             {!rescheduleDraft.loading && !rescheduleDraft.error && (
-              <div className="mt-5 space-y-4">
-                {groupedRescheduleOptions.map(([date, options]) => (
-                  <div key={date} className="space-y-2">
-                    <h3 className="text-xs font-extrabold uppercase tracking-[0.12em] text-neutral-500">
-                      {options[0]?.dayLabel ? `${options[0].dayLabel} • ` : ''}
-                      {options[0]?.dateLabel || formatDateBr(date)}
-                    </h3>
+              <div className="mt-5 space-y-5">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-neutral-500">
+                    1. Escolha o dia
+                  </h3>
 
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {options.map((option) => {
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {groupedRescheduleOptions.map(([date, options]) => {
+                      const firstOption = options[0];
+                      const isSelectedDate = rescheduleDraft.selectedDate === date;
+
+                      return (
+                        <button
+                          key={date}
+                          type="button"
+                          onClick={() => {
+                            setRescheduleDraft((currentDraft) => {
+                              if (!currentDraft) return currentDraft;
+
+                              return {
+                                ...currentDraft,
+                                selectedDate: date,
+                                selectedStartsAtLocal: ''
+                              };
+                            });
+                          }}
+                          className={`min-w-[116px] rounded-2xl border px-3 py-3 text-left transition ${
+                            isSelectedDate
+                              ? 'border-orange-700 bg-orange-600 text-white shadow-sm'
+                              : 'border-neutral-200 bg-white text-neutral-900 hover:border-orange-300 hover:bg-orange-50'
+                          }`}
+                        >
+                          <span className={`block text-[10px] font-extrabold uppercase tracking-[0.12em] ${
+                            isSelectedDate ? 'text-white/80' : 'text-neutral-400'
+                          }`}>
+                            {firstOption?.dayLabel || 'Dia'}
+                          </span>
+
+                          <span className="mt-1 block text-sm font-extrabold">
+                            {firstOption?.dateLabel || formatDateBr(date)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-neutral-500">
+                    2. Escolha o horário
+                  </h3>
+
+                  {!rescheduleDraft.selectedDate ? (
+                    <div className="mt-3 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-center">
+                      <p className="text-sm font-bold text-neutral-500">
+                        Selecione primeiro um dia disponível.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {selectedRescheduleDateOptions.map((option) => {
                         const isSelected = rescheduleDraft.selectedStartsAtLocal === option.startsAtLocal;
 
                         return (
@@ -795,8 +864,20 @@ export default function ClientAppointmentsPage({
                         );
                       })}
                     </div>
+                  )}
+                </div>
+
+                {rescheduleDraft.selectedStartsAtLocal && (
+                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-orange-700">
+                      Novo horário selecionado
+                    </p>
+
+                    <p className="mt-1 text-sm font-extrabold text-neutral-950">
+                      {formatDateTimeBr(rescheduleDraft.selectedStartsAtLocal)}
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
@@ -813,7 +894,7 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={handleConfirmReschedule}
                 disabled={!rescheduleDraft.selectedStartsAtLocal || actionLoadingId === `${rescheduleDraft.appointment.id}-reschedule`}
-                className="rounded-2xl border border-yellow-600 bg-yellow-400 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-orange-700 bg-orange-600 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Confirmar remarcação
               </button>
@@ -828,8 +909,8 @@ export default function ClientAppointmentsPage({
             className={`w-full max-w-md rounded-[2rem] border bg-white p-6 shadow-2xl ${
               feedbackModal.tone === 'red'
                 ? 'border-red-950'
-                : feedbackModal.tone === 'yellow'
-                  ? 'border-yellow-600'
+                : feedbackModal.tone === 'orange'
+                  ? 'border-orange-600'
                   : 'border-green-800'
             }`}
           >
@@ -837,14 +918,14 @@ export default function ClientAppointmentsPage({
               className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
                 feedbackModal.tone === 'red'
                   ? 'bg-red-700 text-white'
-                  : feedbackModal.tone === 'yellow'
-                    ? 'bg-yellow-400 text-neutral-950'
+                  : feedbackModal.tone === 'orange'
+                    ? 'bg-orange-600 text-white'
                     : 'bg-green-700 text-white'
               }`}
             >
               {feedbackModal.tone === 'red' ? (
                 <AlertTriangle className="h-6 w-6 text-yellow-300" />
-              ) : feedbackModal.tone === 'yellow' ? (
+              ) : feedbackModal.tone === 'orange' ? (
                 <RefreshCcw className="h-6 w-6" />
               ) : (
                 <CheckCircle2 className="h-6 w-6" />
@@ -865,8 +946,8 @@ export default function ClientAppointmentsPage({
               className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-extrabold shadow-sm ${
                 feedbackModal.tone === 'red'
                   ? 'bg-red-700 text-white hover:bg-red-800'
-                  : feedbackModal.tone === 'yellow'
-                    ? 'bg-yellow-400 text-neutral-950 hover:bg-yellow-500'
+                  : feedbackModal.tone === 'orange'
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
                     : 'bg-green-700 text-white hover:bg-green-800'
               }`}
             >
