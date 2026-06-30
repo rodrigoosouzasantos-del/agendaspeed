@@ -255,13 +255,87 @@ function appointmentBlocksSlot(params: {
 
 function normalizeAgendaBlockedInterval(rawBlock: Record<string, unknown>): AgendaBlockedInterval {
   return {
-    id: String(rawBlock.id || ''),
-    professionalId: String(rawBlock.professionalId || rawBlock.professional_id || ''),
-    date: String(rawBlock.date || rawBlock.block_date || '').slice(0, 10),
-    startTime: String(rawBlock.startTime || rawBlock.start_time || '').slice(0, 5),
-    endTime: String(rawBlock.endTime || rawBlock.end_time || '').slice(0, 5),
-    reason: String(rawBlock.reason || rawBlock.notes || 'Bloqueado')
+    id: String(rawBlock.id || ""),
+    professionalId: String(rawBlock.professionalId || rawBlock.professional_id || ""),
+    date: String(rawBlock.date || rawBlock.block_date || "").slice(0, 10),
+    startTime: String(rawBlock.startTime || rawBlock.start_time || "").slice(0, 5),
+    endTime: String(rawBlock.endTime || rawBlock.end_time || "").slice(0, 5),
+    reason: String(rawBlock.reason || rawBlock.notes || "Bloqueado"),
   };
+}
+
+function buildCompactSlugCandidate(value: string): string {
+  return normalizeText(value).replace(/[^a-z0-9]/g, "");
+}
+
+function collectOwnerTenantSlugCandidates(config: EstablishmentConfig): string[] {
+  const candidates = new Set<string>();
+  const addCandidate = (value: unknown) => {
+    if (typeof value !== "string") return;
+
+    const compact = buildCompactSlugCandidate(value);
+    if (compact) {
+      candidates.add(compact);
+    }
+
+    const pathLike = value.split("/").filter(Boolean).pop() || "";
+    const compactPath = buildCompactSlugCandidate(pathLike);
+    if (compactPath) {
+      candidates.add(compactPath);
+    }
+  };
+
+  addCandidate(config.name);
+
+  try {
+    const currentPathSlug = window.location.pathname
+      .split("/")
+      .filter(Boolean)
+      .find((part) => !["owner", "admin", "dashboard"].includes(part));
+
+    addCandidate(currentPathSlug);
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key) continue;
+
+      const loweredKey = key.toLowerCase();
+      if (!loweredKey.includes("slug") && !loweredKey.includes("tenant")) {
+        continue;
+      }
+
+      addCandidate(window.localStorage.getItem(key) || "");
+    }
+  } catch {
+    // Mantém a agenda funcionando mesmo se o navegador bloquear o localStorage.
+  }
+
+  return Array.from(candidates);
+}
+
+function mergeBlockedIntervals(
+  currentMap: Map<string, AgendaBlockedInterval>,
+  rows: unknown,
+): void {
+  if (!Array.isArray(rows)) return;
+
+  rows.forEach((row) => {
+    const blockedInterval = normalizeAgendaBlockedInterval(row as Record<string, unknown>);
+    if (
+      !blockedInterval.professionalId ||
+      !blockedInterval.date ||
+      !blockedInterval.startTime ||
+      !blockedInterval.endTime
+    ) {
+      return;
+    }
+
+    const key =
+      blockedInterval.id ||
+      `${blockedInterval.professionalId}-${blockedInterval.date}-${blockedInterval.startTime}-${blockedInterval.endTime}`;
+
+    currentMap.set(key, blockedInterval);
+  });
 }
 
 function slotOverlapsBlockedInterval(params: {
@@ -457,19 +531,60 @@ export default function AgendaView({
     let isMounted = true;
 
     async function loadBlockedIntervals() {
-      const { data, error } = await supabase.rpc("get_my_professional_schedule_blocks", {});
+      const intervalsMap = new Map<string, AgendaBlockedInterval>();
+
+      const myBlocksResult = await supabase.rpc("get_my_professional_schedule_blocks", {
+        p_professional_id: null,
+      });
+
+      if (myBlocksResult.error) {
+        console.error(
+          "Erro ao carregar bloqueios da agenda pelo painel do dono:",
+          myBlocksResult.error.message,
+        );
+      } else {
+        mergeBlockedIntervals(intervalsMap, myBlocksResult.data);
+      }
+
+      const tenantSlugCandidates = collectOwnerTenantSlugCandidates(config);
+
+      for (const slugCandidate of tenantSlugCandidates) {
+        const publicBlocksResult = await supabase.rpc(
+          "get_public_professional_schedule_blocks",
+          {
+            p_slug: slugCandidate,
+          },
+        );
+
+        if (publicBlocksResult.error) {
+          console.warn(
+            `Não foi possível carregar bloqueios públicos para o slug ${slugCandidate}:`,
+            publicBlocksResult.error.message,
+          );
+          continue;
+        }
+
+        mergeBlockedIntervals(intervalsMap, publicBlocksResult.data);
+      }
+
+      if (intervalsMap.size === 0) {
+        const directBlocksResult = await supabase
+          .from("professional_schedule_blocks")
+          .select("id, professional_id, block_date, start_time, end_time, reason");
+
+        if (directBlocksResult.error) {
+          console.warn(
+            "Não foi possível carregar bloqueios diretamente da tabela professional_schedule_blocks:",
+            directBlocksResult.error.message,
+          );
+        } else {
+          mergeBlockedIntervals(intervalsMap, directBlocksResult.data);
+        }
+      }
 
       if (!isMounted) return;
 
-      if (error) {
-        console.error("Erro ao carregar bloqueios de agenda:", error.message);
-        return;
-      }
-
-      const rows = Array.isArray(data) ? data : [];
-      setBlockedIntervals(
-        rows.map((row: Record<string, unknown>) => normalizeAgendaBlockedInterval(row))
-      );
+      setBlockedIntervals(Array.from(intervalsMap.values()));
     }
 
     loadBlockedIntervals();
@@ -477,7 +592,7 @@ export default function AgendaView({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [config]);
 
   useEffect(() => {
     if (!quickOpenProfessionalAgendaId) {
@@ -894,7 +1009,36 @@ export default function AgendaView({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canSubmit || !selectedProfessional || !selectedService) {
+      return;
+    }
+
+    const isStillAvailable = isProfessionalAvailableForSlot({
+      professional: selectedProfessional,
+      service: selectedService,
+      date: selectedDate,
+      time: selectedTime,
+      services,
+      appointments,
+      blockedIntervals,
+    });
+
+    if (!isStillAvailable) {
+      const slotStart = timeToMinutes(selectedTime);
+      const slotEnd = slotStart + selectedService.duration;
+      const blockedInterval = slotOverlapsBlockedInterval({
+        blockedIntervals,
+        professionalId: selectedProfessional.id,
+        date: selectedDate,
+        slotStart,
+        slotEnd,
+      });
+
+      alert(
+        blockedInterval
+          ? `Este horário está bloqueado na agenda do profissional. Motivo: ${blockedInterval.reason || "Bloqueado"}.`
+          : "Este horário não está mais disponível. Atualize a agenda e escolha outro horário.",
+      );
       return;
     }
 
