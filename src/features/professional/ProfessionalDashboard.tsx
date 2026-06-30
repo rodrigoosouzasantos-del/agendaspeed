@@ -667,6 +667,7 @@ export default function ProfessionalDashboard({
             onChangeSelectedDate={setSelectedDate}
             onOpenManualAppointmentAtDateTime={handleOpenManualAppointmentAtDateTime}
             onModifyAppointment={handleModifyAppointmentSync}
+            professionalAccessToken={professionalAccessToken}
           />
         ) : (
           <ProfessionalReportsView

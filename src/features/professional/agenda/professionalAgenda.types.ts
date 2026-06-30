@@ -96,6 +96,7 @@ export interface ProfessionalCalendarAgendaViewProps {
     appointmentId: string,
     updates: Partial<Appointment>
   ) => void;
+  professionalAccessToken?: string;
 }
 
 export interface ProfessionalAgendaMonthCalendarProps {
@@ -124,6 +125,7 @@ export interface ProfessionalAgendaDayViewProps {
     appointmentId: string,
     updates: Partial<Appointment>
   ) => void;
+  professionalAccessToken?: string;
 }
 
 export interface ProfessionalAgendaSlotRowProps {
@@ -137,6 +139,7 @@ export interface ProfessionalAgendaSlotRowProps {
     appointmentId: string,
     updates: Partial<Appointment>
   ) => void;
+  professionalAccessToken?: string;
 }
 
 export interface ProfessionalAgendaBlockIntervalForm {

@@ -38,6 +38,7 @@ import {
 } from "../../../types";
 
 import { formatCurrency, formatDateBr } from "../owner.utils";
+import { supabase } from "../../../lib/supabase";
 
 interface AgendaCreateAppointmentPayload {
   clientName: string;
@@ -81,6 +82,16 @@ type AgendaStep =
   | "clientData"
   | "professionalAgenda"
   | "success";
+
+
+interface AgendaBlockedInterval {
+  id: string;
+  professionalId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason?: string;
+}
 
 interface AvailableSlot {
   professional: Professional;
@@ -241,6 +252,44 @@ function appointmentBlocksSlot(params: {
   return slotStart < appointmentEnd && slotEnd > appointmentStart;
 }
 
+
+function normalizeAgendaBlockedInterval(rawBlock: Record<string, unknown>): AgendaBlockedInterval {
+  return {
+    id: String(rawBlock.id || ''),
+    professionalId: String(rawBlock.professionalId || rawBlock.professional_id || ''),
+    date: String(rawBlock.date || rawBlock.block_date || '').slice(0, 10),
+    startTime: String(rawBlock.startTime || rawBlock.start_time || '').slice(0, 5),
+    endTime: String(rawBlock.endTime || rawBlock.end_time || '').slice(0, 5),
+    reason: String(rawBlock.reason || rawBlock.notes || 'Bloqueado')
+  };
+}
+
+function slotOverlapsBlockedInterval(params: {
+  blockedIntervals: AgendaBlockedInterval[];
+  professionalId: string;
+  date: string;
+  slotStart: number;
+  slotEnd: number;
+}): AgendaBlockedInterval | null {
+  const { blockedIntervals, professionalId, date, slotStart, slotEnd } = params;
+
+  return blockedIntervals.find((blockedInterval) => {
+    if (
+      blockedInterval.professionalId !== professionalId ||
+      blockedInterval.date !== date ||
+      !blockedInterval.startTime ||
+      !blockedInterval.endTime
+    ) {
+      return false;
+    }
+
+    const blockedStart = timeToMinutes(blockedInterval.startTime);
+    const blockedEnd = timeToMinutes(blockedInterval.endTime);
+
+    return blockedStart < slotEnd && blockedEnd > slotStart;
+  }) || null;
+}
+
 function isProfessionalAvailableForSlot(params: {
   professional: Professional;
   service: Service;
@@ -248,8 +297,9 @@ function isProfessionalAvailableForSlot(params: {
   time: string;
   services: Service[];
   appointments: Appointment[];
+  blockedIntervals?: AgendaBlockedInterval[];
 }): boolean {
-  const { professional, service, date, time, services, appointments } = params;
+  const { professional, service, date, time, services, appointments, blockedIntervals = [] } = params;
 
   const weekDay = parseLocalDate(date).getDay();
 
@@ -286,6 +336,18 @@ function isProfessionalAvailableForSlot(params: {
     return false;
   }
 
+  if (
+    slotOverlapsBlockedInterval({
+      blockedIntervals,
+      professionalId: professional.id,
+      date,
+      slotStart,
+      slotEnd
+    })
+  ) {
+    return false;
+  }
+
   return !appointments.some((appointment) => {
     return appointmentBlocksSlot({
       appointment,
@@ -304,8 +366,9 @@ function generateSlotsForSelection(params: {
   date: string;
   services: Service[];
   appointments: Appointment[];
+  blockedIntervals?: AgendaBlockedInterval[];
 }): AvailableSlot[] {
-  const { professional, service, date, services, appointments } = params;
+  const { professional, service, date, services, appointments, blockedIntervals = [] } = params;
 
   const slots: AvailableSlot[] = [];
   const start = timeToMinutes(professional.workHoursStart);
@@ -319,6 +382,7 @@ function generateSlotsForSelection(params: {
       date,
       services,
       appointments,
+      blockedIntervals,
       time,
     });
 
@@ -384,8 +448,36 @@ export default function AgendaView({
   const [serviceSearch, setServiceSearch] = useState("");
   const [professionalSearch, setProfessionalSearch] = useState("");
   const viewTopRef = useRef<HTMLDivElement | null>(null);
+  const [blockedIntervals, setBlockedIntervals] = useState<AgendaBlockedInterval[]>([]);
 
   const todayStr = getTodayStr();
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBlockedIntervals() {
+      const { data, error } = await supabase.rpc("get_my_professional_schedule_blocks", {});
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Erro ao carregar bloqueios de agenda:", error.message);
+        return;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      setBlockedIntervals(
+        rows.map((row: Record<string, unknown>) => normalizeAgendaBlockedInterval(row))
+      );
+    }
+
+    loadBlockedIntervals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!quickOpenProfessionalAgendaId) {
@@ -510,9 +602,11 @@ export default function AgendaView({
       date: selectedDate,
       services,
       appointments,
+      blockedIntervals,
     });
   }, [
     appointments,
+    blockedIntervals,
     selectedDate,
     selectedProfessional,
     selectedService,
@@ -846,6 +940,7 @@ export default function AgendaView({
               date: selectedDate || dateOption,
               services,
               appointments,
+              blockedIntervals,
             }).length
           );
         }, 0)
@@ -875,6 +970,7 @@ export default function AgendaView({
           date: selectedDate,
           services,
           appointments,
+          blockedIntervals,
         }).length
       );
     }, 0);
@@ -902,6 +998,7 @@ export default function AgendaView({
                 date,
                 services,
                 appointments,
+                blockedIntervals,
               }).length
             );
           }, 0)
@@ -918,6 +1015,7 @@ export default function AgendaView({
           date,
           services,
           appointments,
+          blockedIntervals,
         }).length
       );
     }, 0);
@@ -1098,6 +1196,7 @@ export default function AgendaView({
                     date: selectedDate,
                     services,
                     appointments,
+                    blockedIntervals,
                   }).length
                 : serviceProfessional
                   ? dateOptions.reduce((total, dateOption) => {
@@ -1109,6 +1208,7 @@ export default function AgendaView({
                           date: dateOption,
                           services,
                           appointments,
+                          blockedIntervals,
                         }).length
                       );
                     }, 0)
@@ -1131,6 +1231,7 @@ export default function AgendaView({
                                 date: selectedDate || dateOption,
                                 services,
                                 appointments,
+                                blockedIntervals,
                               }).length
                             );
                           }, 0)
@@ -1391,6 +1492,7 @@ export default function AgendaView({
                         date: dateOption,
                         services,
                         appointments,
+                        blockedIntervals,
                       }).length
                     : 0;
                 const isSelected = selectedDate === dateOption;
@@ -1614,8 +1716,9 @@ export default function AgendaView({
       key: string;
       start: number;
       end: number;
-      type: "appointment" | "occupied" | "lunch" | "free" | "past";
+      type: "appointment" | "occupied" | "lunch" | "free" | "past" | "blocked";
       appointment?: Appointment;
+      blockedInterval?: AgendaBlockedInterval;
       occupyingAppointment?: Appointment;
     }>;
 
@@ -1634,6 +1737,13 @@ export default function AgendaView({
         return appointmentStart < slotEnd && appointmentEnd > minute;
       });
       const overlapsLunch = hasLunchBreak && minute < lunchEnd && slotEnd > lunchStart;
+      const blockedInterval = slotOverlapsBlockedInterval({
+        blockedIntervals,
+        professionalId: selectedProfessional.id,
+        date: selectedDateSafe,
+        slotStart: minute,
+        slotEnd
+      });
 
       if (appointmentStartingHere) {
         daySlots.push({
@@ -1653,6 +1763,17 @@ export default function AgendaView({
           end: slotEnd,
           type: "occupied",
           occupyingAppointment,
+        });
+        continue;
+      }
+
+      if (blockedInterval) {
+        daySlots.push({
+          key: `blocked-${blockedInterval.id}-${minute}`,
+          start: minute,
+          end: slotEnd,
+          type: "blocked",
+          blockedInterval,
         });
         continue;
       }
@@ -1696,7 +1817,7 @@ export default function AgendaView({
     ).length;
     const freeCount = daySlots.filter((slot) => slot.type === "free").length;
     const blockedCount = daySlots.filter(
-      (slot) => slot.type === "lunch" || slot.type === "past",
+      (slot) => slot.type === "lunch" || slot.type === "past" || slot.type === "blocked",
     ).length;
 
     const handleCreateAppointmentFromFreeSlot = (startMinute: number) => {
@@ -1906,6 +2027,24 @@ export default function AgendaView({
                     <strong className="text-sm font-extrabold text-neutral-600">Ocupado pelo atendimento anterior</strong>
                     <p className="mt-1 text-xs font-medium text-neutral-500">
                       {service?.name || "Atendimento"} ocupa este bloco de horário.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+
+            if (slot.type === "blocked") {
+              return (
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-3">
+                  <div className="font-mono">
+                    <strong className="block text-lg text-neutral-700">{minutesToTime(slot.start)}</strong>
+                    <span className="text-[11px] text-neutral-500">até {minutesToTime(slot.end)}</span>
+                  </div>
+                  <div>
+                    <strong className="text-sm font-extrabold text-neutral-800">Bloqueado</strong>
+                    <p className="mt-1 text-xs font-medium text-neutral-600">
+                      {slot.blockedInterval?.reason || "Horário bloqueado na agenda do profissional."}
                     </p>
                   </div>
                 </div>

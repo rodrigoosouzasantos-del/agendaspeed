@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useMemo,
   useState
 } from 'react';
@@ -50,6 +51,8 @@ import {
   ProfessionalAgendaExtraTimeModal
 } from './ProfessionalAgendaModals';
 
+import { supabase } from '../../../lib/supabase';
+
 function getMonthLabel(date: Date): string {
   return date.toLocaleDateString('pt-BR', {
     month: 'long',
@@ -63,6 +66,18 @@ function getSelectedDateAsDate(dateStr: string): Date {
   }
 
   return new Date(`${dateStr}T00:00:00`);
+}
+
+
+function normalizeScheduleBlock(rawBlock: Record<string, unknown>): ProfessionalAgendaBlockedInterval {
+  return {
+    id: String(rawBlock.id || ''),
+    professionalId: String(rawBlock.professionalId || rawBlock.professional_id || ''),
+    date: String(rawBlock.date || rawBlock.block_date || '').slice(0, 10),
+    startTime: String(rawBlock.startTime || rawBlock.start_time || '').slice(0, 5),
+    endTime: String(rawBlock.endTime || rawBlock.end_time || '').slice(0, 5),
+    reason: String(rawBlock.reason || rawBlock.notes || 'Bloqueado')
+  };
 }
 
 function getCalendarDayClassName(day: ProfessionalAgendaCalendarDay, selectedDate: string): string {
@@ -364,7 +379,8 @@ export default function ProfessionalCalendarAgendaView({
   selectedDate,
   onChangeSelectedDate,
   onOpenManualAppointmentAtDateTime,
-  onModifyAppointment
+  onModifyAppointment,
+  professionalAccessToken
 }: ProfessionalCalendarAgendaViewProps) {
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => {
     return getSelectedDateAsDate(selectedDate);
@@ -381,6 +397,43 @@ export default function ProfessionalCalendarAgendaView({
     startTime: string;
     endTime: string;
   } | null>(null);
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBlockedIntervals() {
+      const { data, error } = professionalAccessToken
+        ? await supabase.rpc('get_professional_access_schedule_blocks', {
+            p_token: professionalAccessToken
+          })
+        : await supabase.rpc('get_my_professional_schedule_blocks', {
+            p_professional_id: professional.id
+          });
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Erro ao carregar bloqueios da agenda:', error.message);
+        return;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+
+      setBlockedIntervals(
+        rows.map((row: Record<string, unknown>) => normalizeScheduleBlock(row))
+      );
+    }
+
+    loadBlockedIntervals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    professional.id,
+    professionalAccessToken
+  ]);
 
   const calendarDays = useMemo(() => {
     return buildProfessionalAgendaCalendarDays({
@@ -527,49 +580,105 @@ export default function ProfessionalCalendarAgendaView({
     });
   };
 
-  const handleSubmitBlockTime = (formState: ProfessionalAgendaBlockIntervalForm) => {
-    setBlockedIntervals((currentIntervals) => {
-      const intervalExists = currentIntervals.some((blockedInterval) => {
-        return (
-          blockedInterval.professionalId === professional.id &&
-          blockedInterval.date === selectedDate &&
-          timeToMinutes(formState.startTime) >= timeToMinutes(blockedInterval.startTime) &&
-          timeToMinutes(formState.startTime) < timeToMinutes(blockedInterval.endTime)
-        );
-      });
+  const saveBlockedInterval = async (formState: ProfessionalAgendaBlockIntervalForm) => {
+    const { data, error } = professionalAccessToken
+      ? await supabase.rpc('upsert_professional_access_schedule_block', {
+          p_token: professionalAccessToken,
+          p_date: selectedDate,
+          p_start_time: formState.startTime,
+          p_end_time: formState.endTime,
+          p_reason: formState.reason || 'Bloqueado'
+        })
+      : await supabase.rpc('upsert_my_professional_schedule_block', {
+          p_professional_id: professional.id,
+          p_date: selectedDate,
+          p_start_time: formState.startTime,
+          p_end_time: formState.endTime,
+          p_reason: formState.reason || 'Bloqueado'
+        });
 
-      if (intervalExists) {
-        return currentIntervals;
-      }
+    if (error) {
+      alert(error.message || 'Não foi possível salvar o bloqueio da agenda.');
+      return null;
+    }
 
-      return [
-        ...currentIntervals,
-        {
-          id: `${professional.id}-${selectedDate}-${formState.startTime}-blocked`,
-          professionalId: professional.id,
-          date: selectedDate,
-          startTime: formState.startTime,
-          endTime: formState.endTime,
-          reason: formState.reason
-        }
-      ];
+    const savedRow = (Array.isArray(data) ? data[0] : data) as
+      | Record<string, unknown>
+      | null;
+
+    return savedRow ? normalizeScheduleBlock(savedRow) : {
+      id: `${professional.id}-${selectedDate}-${formState.startTime}-blocked`,
+      professionalId: professional.id,
+      date: selectedDate,
+      startTime: formState.startTime,
+      endTime: formState.endTime,
+      reason: formState.reason || 'Bloqueado'
+    };
+  };
+
+  const handleSubmitBlockTime = async (formState: ProfessionalAgendaBlockIntervalForm) => {
+    const intervalExists = blockedIntervals.some((blockedInterval) => {
+      return (
+        blockedInterval.professionalId === professional.id &&
+        blockedInterval.date === selectedDate &&
+        timeToMinutes(formState.startTime) >= timeToMinutes(blockedInterval.startTime) &&
+        timeToMinutes(formState.startTime) < timeToMinutes(blockedInterval.endTime)
+      );
     });
+
+    if (intervalExists) {
+      setBlockTimeSlot(null);
+      return;
+    }
+
+    const savedInterval = await saveBlockedInterval(formState);
+
+    if (!savedInterval) {
+      return;
+    }
+
+    setBlockedIntervals((currentIntervals) => [
+      ...currentIntervals.filter((blockedInterval) => blockedInterval.id !== savedInterval.id),
+      savedInterval
+    ]);
 
     setBlockTimeSlot(null);
   };
 
-  const handleReleaseTime = (time: string) => {
+  const handleReleaseTime = async (time: string) => {
+    const intervalToRelease = blockedIntervals.find((blockedInterval) => {
+      const isSameProfessionalAndDate =
+        blockedInterval.professionalId === professional.id &&
+        blockedInterval.date === selectedDate;
+
+      const isTimeInsideInterval =
+        timeToMinutes(time) >= timeToMinutes(blockedInterval.startTime) &&
+        timeToMinutes(time) < timeToMinutes(blockedInterval.endTime);
+
+      return isSameProfessionalAndDate && isTimeInsideInterval;
+    });
+
+    if (!intervalToRelease) {
+      return;
+    }
+
+    const { error } = professionalAccessToken
+      ? await supabase.rpc('delete_professional_access_schedule_block', {
+          p_token: professionalAccessToken,
+          p_block_id: intervalToRelease.id
+        })
+      : await supabase.rpc('delete_my_professional_schedule_block', {
+          p_block_id: intervalToRelease.id
+        });
+
+    if (error) {
+      alert(error.message || 'Não foi possível liberar o horário bloqueado.');
+      return;
+    }
+
     setBlockedIntervals((currentIntervals) => {
       return currentIntervals.filter((blockedInterval) => {
-        const isSameProfessionalAndDate =
-          blockedInterval.professionalId === professional.id &&
-          blockedInterval.date === selectedDate;
-
-        const isTimeInsideInterval =
-          timeToMinutes(time) >= timeToMinutes(blockedInterval.startTime) &&
-          timeToMinutes(time) < timeToMinutes(blockedInterval.endTime);
-
-        return !(isSameProfessionalAndDate && isTimeInsideInterval);
+        return blockedInterval.id !== intervalToRelease.id;
       });
     });
   };
@@ -578,22 +687,21 @@ export default function ProfessionalCalendarAgendaView({
     setShowBlockIntervalModal(true);
   };
 
-  const handleSubmitBlockInterval = (formState: ProfessionalAgendaBlockIntervalForm) => {
+  const handleSubmitBlockInterval = async (formState: ProfessionalAgendaBlockIntervalForm) => {
     if (timeToMinutes(formState.endTime) <= timeToMinutes(formState.startTime)) {
       alert('O horário final deve ser maior que o horário inicial.');
       return;
     }
 
+    const savedInterval = await saveBlockedInterval(formState);
+
+    if (!savedInterval) {
+      return;
+    }
+
     setBlockedIntervals((currentIntervals) => [
-      ...currentIntervals,
-      {
-        id: `${professional.id}-${selectedDate}-${formState.startTime}-${formState.endTime}-blocked`,
-        professionalId: professional.id,
-        date: selectedDate,
-        startTime: formState.startTime,
-        endTime: formState.endTime,
-        reason: formState.reason
-      }
+      ...currentIntervals.filter((blockedInterval) => blockedInterval.id !== savedInterval.id),
+      savedInterval
     ]);
 
     setShowBlockIntervalModal(false);

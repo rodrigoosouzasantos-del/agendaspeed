@@ -34,6 +34,16 @@ export interface BookingTimeSlot {
   available: boolean;
 }
 
+
+export interface BookingAgendaBlockedInterval {
+  id: string;
+  professionalId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason?: string;
+}
+
 export interface BookingSelectionState {
   selectedService: Service | null;
   selectedProfessional: Professional | null;

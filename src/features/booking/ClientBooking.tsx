@@ -29,6 +29,7 @@ import {
 } from '../../types';
 
 import {
+  BookingAgendaBlockedInterval,
   BookingStep,
   ClientBookingProps
 } from './booking.types';
@@ -56,6 +57,7 @@ interface PublicBookingContextRow {
   services: Service[];
   professionals: Professional[];
   appointments: Appointment[];
+  agendaBlocks?: BookingAgendaBlockedInterval[];
 }
 
 function getPublicBookingSlug(): string {
@@ -115,6 +117,18 @@ function normalizeRemoteService(service: Service): Service {
     duration: Number.isFinite(duration) && duration > 0 ? duration : 30,
     requireDeposit: Boolean(requireDeposit ?? service.requireDeposit ?? false),
     depositValue: depositValue ?? service.depositValue ?? null
+  };
+}
+
+
+function normalizeRemoteBlockedInterval(rawBlock: Record<string, unknown>): BookingAgendaBlockedInterval {
+  return {
+    id: String(rawBlock.id || ''),
+    professionalId: String(rawBlock.professionalId || rawBlock.professional_id || ''),
+    date: String(rawBlock.date || rawBlock.block_date || '').slice(0, 10),
+    startTime: String(rawBlock.startTime || rawBlock.start_time || '').slice(0, 5),
+    endTime: String(rawBlock.endTime || rawBlock.end_time || '').slice(0, 5),
+    reason: String(rawBlock.reason || rawBlock.notes || 'Bloqueado')
   };
 }
 
@@ -365,6 +379,7 @@ export default function ClientBooking({
     useState<PublicBookingContextRow | null>(null);
   const [loadingRemoteContext, setLoadingRemoteContext] = useState(Boolean(publicSlug));
   const [remoteContextError, setRemoteContextError] = useState('');
+  const [agendaBlocks, setAgendaBlocks] = useState<BookingAgendaBlockedInterval[]>([]);
 
   const config = useMemo(() => {
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
@@ -379,6 +394,7 @@ export default function ClientBooking({
     : state.professionals;
 
   const appointments = remoteBookingContext?.appointments || state.appointments;
+  const blockedIntervals = remoteBookingContext?.agendaBlocks || agendaBlocks;
 
   const [currentStep, setCurrentStep] = useState<BookingStep>(1);
 
@@ -441,8 +457,24 @@ export default function ClientBooking({
         professionals: Array.isArray(firstRow.professionals)
           ? firstRow.professionals.map(normalizeRemoteProfessional)
           : [],
-        appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : []
+        appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
+        agendaBlocks: Array.isArray(firstRow.agenda_blocks)
+          ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
+          : []
       });
+
+      if (!Array.isArray(firstRow.agenda_blocks)) {
+        const { data: blocksData } = await supabase.rpc('get_public_professional_schedule_blocks', {
+          p_slug: publicSlug
+        });
+
+        if (isMounted && Array.isArray(blocksData)) {
+          setAgendaBlocks(
+            blocksData.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
+          );
+        }
+      }
+
       setLoadingRemoteContext(false);
     }
 
@@ -485,6 +517,7 @@ export default function ClientBooking({
       selectedService,
       appointments,
       services,
+      blockedIntervals,
       numberOfDays: config.maxFutureDays || 30
     });
   }, [
@@ -492,7 +525,8 @@ export default function ClientBooking({
     selectedProfessional,
     selectedService,
     appointments,
-    services
+    services,
+    blockedIntervals
   ]);
 
   const timeSlots = useMemo(() => {
@@ -501,6 +535,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
+      blockedIntervals,
       selectedDate
     });
   }, [
@@ -508,6 +543,7 @@ export default function ClientBooking({
     selectedProfessional,
     selectedService,
     services,
+    blockedIntervals,
     selectedDate
   ]);
 
@@ -647,6 +683,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
+      blockedIntervals,
       selectedDate
     }).some((slot) => slot.time === selectedTime && slot.available);
 
