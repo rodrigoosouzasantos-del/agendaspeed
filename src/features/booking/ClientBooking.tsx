@@ -29,7 +29,6 @@ import {
 } from '../../types';
 
 import {
-  BookingAgendaBlockedInterval,
   BookingStep,
   ClientBookingProps
 } from './booking.types';
@@ -51,6 +50,15 @@ import ClientInfoStep from './components/ClientInfoStep';
 import BookingSuccessView from './components/BookingSuccessView';
 import { supabase } from '../../lib/supabase';
 
+
+interface BookingAgendaBlockedInterval {
+  id: string;
+  professionalId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
+}
 
 interface PublicBookingContextRow {
   config: Partial<EstablishmentConfig> & Record<string, unknown>;
@@ -242,6 +250,107 @@ function getLocalTimeStr(date: Date = new Date()): string {
     padDateNumber(date.getMinutes())
   ].join(':');
 }
+
+function timeToMinutesForBlock(time: string): number {
+  const [hours, minutes] = String(time || '00:00').slice(0, 5).split(':').map(Number);
+
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+function getServiceDurationMinutesForBlock(
+  selectedService: Service | null,
+  selectedProfessional: Professional | null
+): number {
+  const serviceDuration = Number(
+    selectedService
+      ? readRemoteValue(selectedService, ['duration', 'durationMinutes', 'duration_minutes'])
+      : 0
+  );
+
+  if (Number.isFinite(serviceDuration) && serviceDuration > 0) {
+    return serviceDuration;
+  }
+
+  const professionalDuration = Number(
+    selectedProfessional
+      ? readRemoteValue(selectedProfessional, [
+          'defaultAppointmentDuration',
+          'defaultAppointmentDurationMinutes',
+          'default_appointment_duration',
+          'default_appointment_duration_minutes'
+        ])
+      : 0
+  );
+
+  return Number.isFinite(professionalDuration) && professionalDuration > 0
+    ? professionalDuration
+    : 30;
+}
+
+function bookingIntervalOverlapsBlock(params: {
+  block: BookingAgendaBlockedInterval;
+  selectedProfessional: Professional | null;
+  selectedService: Service | null;
+  selectedDate: string;
+  selectedTime: string;
+}): boolean {
+  const {
+    block,
+    selectedProfessional,
+    selectedService,
+    selectedDate,
+    selectedTime
+  } = params;
+
+  if (
+    !selectedProfessional ||
+    !block.professionalId ||
+    block.professionalId !== selectedProfessional.id ||
+    block.date !== selectedDate ||
+    !selectedTime
+  ) {
+    return false;
+  }
+
+  const selectedStartMinutes = timeToMinutesForBlock(selectedTime);
+  const selectedEndMinutes =
+    selectedStartMinutes + getServiceDurationMinutesForBlock(selectedService, selectedProfessional);
+  const blockStartMinutes = timeToMinutesForBlock(block.startTime);
+  const blockEndMinutes = timeToMinutesForBlock(block.endTime);
+
+  if (blockEndMinutes <= blockStartMinutes) {
+    return false;
+  }
+
+  return selectedStartMinutes < blockEndMinutes && selectedEndMinutes > blockStartMinutes;
+}
+
+function isTimeBlockedForPublicBooking(params: {
+  blockedIntervals: BookingAgendaBlockedInterval[];
+  selectedProfessional: Professional | null;
+  selectedService: Service | null;
+  selectedDate: string;
+  selectedTime: string;
+}): boolean {
+  const {
+    blockedIntervals,
+    selectedProfessional,
+    selectedService,
+    selectedDate,
+    selectedTime
+  } = params;
+
+  return blockedIntervals.some((block) =>
+    bookingIntervalOverlapsBlock({
+      block,
+      selectedProfessional,
+      selectedService,
+      selectedDate,
+      selectedTime
+    })
+  );
+}
+
 
 function isPastBookingDateTime(
   selectedDate: string,
@@ -449,6 +558,10 @@ export default function ClientBooking({
         return;
       }
 
+      const contextAgendaBlocks = Array.isArray(firstRow.agenda_blocks)
+        ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
+        : [];
+
       setRemoteBookingContext({
         config: firstRow.config || {},
         services: Array.isArray(firstRow.services)
@@ -458,21 +571,38 @@ export default function ClientBooking({
           ? firstRow.professionals.map(normalizeRemoteProfessional)
           : [],
         appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
-        agendaBlocks: Array.isArray(firstRow.agenda_blocks)
-          ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
-          : []
+        agendaBlocks: contextAgendaBlocks
       });
 
-      if (!Array.isArray(firstRow.agenda_blocks)) {
-        const { data: blocksData } = await supabase.rpc('get_public_professional_schedule_blocks', {
-          p_slug: publicSlug
-        });
+      setAgendaBlocks(contextAgendaBlocks);
 
-        if (isMounted && Array.isArray(blocksData)) {
-          setAgendaBlocks(
-            blocksData.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
-          );
+      const { data: blocksData, error: blocksError } = await supabase.rpc(
+        'get_public_professional_schedule_blocks',
+        {
+          p_slug: publicSlug
         }
+      );
+
+      if (!isMounted) return;
+
+      if (blocksError) {
+        console.error('Erro ao carregar bloqueios públicos da agenda:', blocksError.message);
+      }
+
+      if (Array.isArray(blocksData)) {
+        const normalizedBlocks = blocksData.map((block: Record<string, unknown>) =>
+          normalizeRemoteBlockedInterval(block)
+        );
+
+        setAgendaBlocks(normalizedBlocks);
+        setRemoteBookingContext((currentContext) =>
+          currentContext
+            ? {
+                ...currentContext,
+                agendaBlocks: normalizedBlocks
+              }
+            : currentContext
+        );
       }
 
       setLoadingRemoteContext(false);
@@ -510,14 +640,13 @@ export default function ClientBooking({
     selectedService
   ]);
 
-  const dateOptions = useMemo(() => {
+  const baseDateOptions = useMemo(() => {
     return generateDateOptions({
       config,
       selectedProfessional,
       selectedService,
       appointments,
       services,
-      blockedIntervals,
       numberOfDays: config.maxFutureDays || 30
     });
   }, [
@@ -525,19 +654,62 @@ export default function ClientBooking({
     selectedProfessional,
     selectedService,
     appointments,
-    services,
-    blockedIntervals
+    services
+  ]);
+
+  const dateOptions = useMemo(() => {
+    if (!selectedProfessional) {
+      return baseDateOptions;
+    }
+
+    return baseDateOptions.filter((dateOption) => {
+      const availableSlotsForDate = generateTimeSlotObjects({
+        appointments,
+        selectedProfessional,
+        selectedService,
+        services,
+        selectedDate: dateOption.dateStr
+      });
+
+      return availableSlotsForDate.some((slot) =>
+        slot.available &&
+        !isTimeBlockedForPublicBooking({
+          blockedIntervals,
+          selectedProfessional,
+          selectedService,
+          selectedDate: dateOption.dateStr,
+          selectedTime: slot.time
+        })
+      );
+    });
+  }, [
+    appointments,
+    baseDateOptions,
+    blockedIntervals,
+    selectedProfessional,
+    selectedService,
+    services
   ]);
 
   const timeSlots = useMemo(() => {
-    return generateTimeSlotObjects({
+    const generatedSlots = generateTimeSlotObjects({
       appointments,
       selectedProfessional,
       selectedService,
       services,
-      blockedIntervals,
       selectedDate
     });
+
+    return generatedSlots.filter((slot) =>
+      slot.available &&
+      !isTimeBlockedForPublicBooking({
+        blockedIntervals,
+        selectedProfessional,
+        selectedService,
+        selectedDate,
+        selectedTime: slot.time
+      })
+    );
   }, [
     appointments,
     selectedProfessional,
@@ -678,12 +850,19 @@ export default function ClientBooking({
       return;
     }
 
-    const selectedTimeIsStillAvailable = generateTimeSlotObjects({
+    const selectedTimeIsBlocked = isTimeBlockedForPublicBooking({
+      blockedIntervals,
+      selectedProfessional,
+      selectedService,
+      selectedDate,
+      selectedTime
+    });
+
+    const selectedTimeIsStillAvailable = !selectedTimeIsBlocked && generateTimeSlotObjects({
       appointments,
       selectedProfessional,
       selectedService,
       services,
-      blockedIntervals,
       selectedDate
     }).some((slot) => slot.time === selectedTime && slot.available);
 
