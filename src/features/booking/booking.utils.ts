@@ -21,6 +21,7 @@ import {
 
 import {
   BookingDateOption,
+  BookingScheduleDay,
   BookingTimeSlot
 } from './booking.types';
 
@@ -506,12 +507,38 @@ export function getAvailableProfessionalsForService(params: {
     });
 }
 
+
+export function isProfessionalScheduleDayOpen(params: {
+  openDays?: BookingScheduleDay[];
+  professional: Professional | null;
+  dateStr: string;
+}): boolean {
+  const {
+    openDays = [],
+    professional,
+    dateStr
+  } = params;
+
+  if (!professional || !dateStr) {
+    return false;
+  }
+
+  return openDays.some((scheduleDay) => {
+    return (
+      scheduleDay.professionalId === professional.id &&
+      scheduleDay.date === dateStr &&
+      scheduleDay.status === 'open'
+    );
+  });
+}
+
 export function generateDateOptions(params: {
   config: EstablishmentConfig;
   selectedProfessional: Professional | null;
   selectedService?: Service | null;
   appointments?: Appointment[];
   services?: Service[];
+  openDays?: BookingScheduleDay[];
   numberOfDays?: number;
 }): BookingDateOption[] {
   const {
@@ -520,6 +547,7 @@ export function generateDateOptions(params: {
     selectedService = null,
     appointments = [],
     services = [],
+    openDays = [],
     numberOfDays = 30
   } = params;
 
@@ -545,6 +573,25 @@ export function generateDateOptions(params: {
       : salonWorkDays.length === 0 || salonWorkDays.includes(dayOfWeek);
 
     if (!isWorkingDay) {
+      const isOpenException = isProfessionalScheduleDayOpen({
+        openDays,
+        professional: selectedProfessional,
+        dateStr
+      });
+
+      if (!isOpenException) {
+        continue;
+      }
+    }
+
+    if (
+      selectedProfessional &&
+      !isProfessionalScheduleDayOpen({
+        openDays,
+        professional: selectedProfessional,
+        dateStr
+      })
+    ) {
       continue;
     }
 
@@ -554,6 +601,7 @@ export function generateDateOptions(params: {
           selectedProfessional,
           selectedService,
           services,
+          openDays,
           selectedDate: dateStr
         })
       : [];
@@ -705,18 +753,36 @@ export function generateTimeSlots(params: {
   selectedDate: string;
   selectedService?: Service | null;
   services?: Service[];
+  openDays?: BookingScheduleDay[];
 }): string[] {
   const {
     appointments,
     selectedProfessional,
     selectedDate,
     selectedService = null,
-    services = []
+    services = [],
+    openDays = []
   } = params;
 
   if (
     selectedProfessional &&
     !isProfessionalWorkingOnDate({
+      professional: selectedProfessional,
+      dateStr: selectedDate
+    }) &&
+    !isProfessionalScheduleDayOpen({
+      openDays,
+      professional: selectedProfessional,
+      dateStr: selectedDate
+    })
+  ) {
+    return [];
+  }
+
+  if (
+    selectedProfessional &&
+    !isProfessionalScheduleDayOpen({
+      openDays,
       professional: selectedProfessional,
       dateStr: selectedDate
     })
@@ -782,6 +848,7 @@ export function generateTimeSlotObjects(params: {
   selectedDate: string;
   selectedService?: Service | null;
   services?: Service[];
+  openDays?: BookingScheduleDay[];
 }): BookingTimeSlot[] {
   const availableTimes = generateTimeSlots(params);
 

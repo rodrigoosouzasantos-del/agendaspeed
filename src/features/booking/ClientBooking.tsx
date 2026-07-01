@@ -29,6 +29,7 @@ import {
 } from '../../types';
 
 import {
+  BookingScheduleDay,
   BookingStep,
   ClientBookingProps
 } from './booking.types';
@@ -66,6 +67,7 @@ interface PublicBookingContextRow {
   professionals: Professional[];
   appointments: Appointment[];
   agendaBlocks?: BookingAgendaBlockedInterval[];
+  scheduleDays?: BookingScheduleDay[];
 }
 
 function getPublicBookingSlug(): string {
@@ -138,6 +140,43 @@ function normalizeRemoteBlockedInterval(rawBlock: Record<string, unknown>): Book
     endTime: String(rawBlock.endTime || rawBlock.end_time || '').slice(0, 5),
     reason: String(rawBlock.reason || rawBlock.notes || 'Bloqueado')
   };
+}
+
+
+function normalizeRemoteScheduleDay(rawDay: Record<string, unknown>): BookingScheduleDay {
+  const status = String(rawDay.status || 'closed') === 'open' ? 'open' : 'closed';
+
+  return {
+    id: String(rawDay.id || ''),
+    professionalId: String(rawDay.professionalId || rawDay.professional_id || ''),
+    date: String(rawDay.date || rawDay.day_date || '').slice(0, 10),
+    status,
+    isOutOfRegularSchedule: Boolean(rawDay.isOutOfRegularSchedule || rawDay.is_out_of_regular_schedule)
+  };
+}
+
+function isPublicScheduleDayOpen(params: {
+  openDays: BookingScheduleDay[];
+  selectedProfessional: Professional | null;
+  selectedDate: string;
+}): boolean {
+  const {
+    openDays,
+    selectedProfessional,
+    selectedDate
+  } = params;
+
+  if (!selectedProfessional || !selectedDate) {
+    return false;
+  }
+
+  return openDays.some((scheduleDay) => {
+    return (
+      scheduleDay.professionalId === selectedProfessional.id &&
+      scheduleDay.date === selectedDate &&
+      scheduleDay.status === 'open'
+    );
+  });
 }
 
 function normalizeRemoteProfessional(professional: Professional): Professional {
@@ -489,6 +528,7 @@ export default function ClientBooking({
   const [loadingRemoteContext, setLoadingRemoteContext] = useState(Boolean(publicSlug));
   const [remoteContextError, setRemoteContextError] = useState('');
   const [agendaBlocks, setAgendaBlocks] = useState<BookingAgendaBlockedInterval[]>([]);
+  const [agendaOpenDays, setAgendaOpenDays] = useState<BookingScheduleDay[]>([]);
 
   const config = useMemo(() => {
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
@@ -562,6 +602,10 @@ export default function ClientBooking({
         ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
         : [];
 
+      const contextScheduleDays = Array.isArray(firstRow.schedule_days)
+        ? firstRow.schedule_days.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
+        : [];
+
       setRemoteBookingContext({
         config: firstRow.config || {},
         services: Array.isArray(firstRow.services)
@@ -571,10 +615,12 @@ export default function ClientBooking({
           ? firstRow.professionals.map(normalizeRemoteProfessional)
           : [],
         appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
-        agendaBlocks: contextAgendaBlocks
+        agendaBlocks: contextAgendaBlocks,
+        scheduleDays: contextScheduleDays
       });
 
       setAgendaBlocks(contextAgendaBlocks);
+      setAgendaOpenDays(contextScheduleDays);
 
       const { data: blocksData, error: blocksError } = await supabase.rpc(
         'get_public_professional_schedule_blocks',
@@ -600,6 +646,35 @@ export default function ClientBooking({
             ? {
                 ...currentContext,
                 agendaBlocks: normalizedBlocks
+              }
+            : currentContext
+        );
+      }
+
+      const { data: scheduleDaysData, error: scheduleDaysError } = await supabase.rpc(
+        'get_public_professional_schedule_days',
+        {
+          p_slug: publicSlug
+        }
+      );
+
+      if (!isMounted) return;
+
+      if (scheduleDaysError) {
+        console.error('Erro ao carregar dias abertos da agenda pública:', scheduleDaysError.message);
+      }
+
+      if (Array.isArray(scheduleDaysData)) {
+        const normalizedScheduleDays = scheduleDaysData.map((day: Record<string, unknown>) =>
+          normalizeRemoteScheduleDay(day)
+        );
+
+        setAgendaOpenDays(normalizedScheduleDays);
+        setRemoteBookingContext((currentContext) =>
+          currentContext
+            ? {
+                ...currentContext,
+                scheduleDays: normalizedScheduleDays
               }
             : currentContext
         );
@@ -647,6 +722,7 @@ export default function ClientBooking({
       selectedService,
       appointments,
       services,
+      openDays: agendaOpenDays,
       numberOfDays: config.maxFutureDays || 30
     });
   }, [
@@ -654,6 +730,7 @@ export default function ClientBooking({
     selectedProfessional,
     selectedService,
     appointments,
+    agendaOpenDays,
     services
   ]);
 
@@ -668,6 +745,7 @@ export default function ClientBooking({
         selectedProfessional,
         selectedService,
         services,
+        openDays: agendaOpenDays,
         selectedDate: dateOption.dateStr
       });
 
@@ -686,6 +764,7 @@ export default function ClientBooking({
     appointments,
     baseDateOptions,
     blockedIntervals,
+    agendaOpenDays,
     selectedProfessional,
     selectedService,
     services
@@ -697,6 +776,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
+      openDays: agendaOpenDays,
       selectedDate
     });
 
@@ -716,6 +796,7 @@ export default function ClientBooking({
     selectedService,
     services,
     blockedIntervals,
+    agendaOpenDays,
     selectedDate
   ]);
 
@@ -776,6 +857,23 @@ export default function ClientBooking({
         'Data e horário obrigatórios',
         'Escolha a data e o horário para continuar.'
       );
+      return;
+    }
+
+    if (
+      selectedProfessional &&
+      !isPublicScheduleDayOpen({
+        openDays: agendaOpenDays,
+        selectedProfessional,
+        selectedDate
+      })
+    ) {
+      showFeedbackMessage(
+        'Agenda fechada',
+        'Este dia não está aberto para agendamento. Escolha uma data disponível.'
+      );
+      setSelectedDate('');
+      setSelectedTime('');
       return;
     }
 
@@ -840,6 +938,23 @@ export default function ClientBooking({
       return;
     }
 
+    if (
+      !isPublicScheduleDayOpen({
+        openDays: agendaOpenDays,
+        selectedProfessional,
+        selectedDate
+      })
+    ) {
+      showFeedbackMessage(
+        'Agenda fechada',
+        'Este dia não está aberto para agendamento. Volte e escolha outra data disponível.'
+      );
+      setCurrentStep(3);
+      setSelectedDate('');
+      setSelectedTime('');
+      return;
+    }
+
     if (isPastBookingDateTime(selectedDate, selectedTime)) {
       showFeedbackMessage(
         'Agendamento não permitido',
@@ -863,6 +978,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
+      openDays: agendaOpenDays,
       selectedDate
     }).some((slot) => slot.time === selectedTime && slot.available);
 

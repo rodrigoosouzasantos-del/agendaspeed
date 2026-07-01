@@ -100,6 +100,14 @@ interface AgendaBlockedInterval {
   reason?: string;
 }
 
+interface AgendaScheduleDay {
+  id: string;
+  professionalId: string;
+  date: string;
+  status: 'open' | 'closed';
+  isOutOfRegularSchedule?: boolean;
+}
+
 interface AvailableSlot {
   professional: Professional;
   service: Service;
@@ -345,6 +353,70 @@ function mergeBlockedIntervals(
   });
 }
 
+
+function normalizeAgendaScheduleDay(rawDay: Record<string, unknown>): AgendaScheduleDay {
+  const status = String(rawDay.status || 'closed') === 'open' ? 'open' : 'closed';
+
+  return {
+    id: String(rawDay.id || ''),
+    professionalId: String(rawDay.professionalId || rawDay.professional_id || ''),
+    date: String(rawDay.date || rawDay.day_date || '').slice(0, 10),
+    status,
+    isOutOfRegularSchedule: Boolean(rawDay.isOutOfRegularSchedule || rawDay.is_out_of_regular_schedule),
+  };
+}
+
+function mergeScheduleDays(
+  currentMap: Map<string, AgendaScheduleDay>,
+  rows: unknown,
+): void {
+  if (!Array.isArray(rows)) return;
+
+  rows.forEach((row) => {
+    const scheduleDay = normalizeAgendaScheduleDay(row as Record<string, unknown>);
+
+    if (!scheduleDay.professionalId || !scheduleDay.date) {
+      return;
+    }
+
+    const key = scheduleDay.id || `${scheduleDay.professionalId}-${scheduleDay.date}`;
+    currentMap.set(key, scheduleDay);
+  });
+}
+
+function isScheduleDayOpen(params: {
+  openDays: AgendaScheduleDay[];
+  professional: Professional | null;
+  date: string;
+}): boolean {
+  const {
+    openDays,
+    professional,
+    date
+  } = params;
+
+  if (!professional || !date) {
+    return false;
+  }
+
+  return openDays.some((scheduleDay) => {
+    return (
+      scheduleDay.professionalId === professional.id &&
+      scheduleDay.date === date &&
+      scheduleDay.status === 'open'
+    );
+  });
+}
+
+function isDateOutsideProfessionalRegularSchedule(params: {
+  professional: Professional;
+  date: string;
+}): boolean {
+  const { professional, date } = params;
+
+  return !professional.workDays.includes(parseLocalDate(date).getDay());
+}
+
 function slotOverlapsBlockedInterval(params: {
   blockedIntervals: AgendaBlockedInterval[];
   professionalId: string;
@@ -379,12 +451,27 @@ function isProfessionalAvailableForSlot(params: {
   services: Service[];
   appointments: Appointment[];
   blockedIntervals?: AgendaBlockedInterval[];
+  openDays?: AgendaScheduleDay[];
 }): boolean {
-  const { professional, service, date, time, services, appointments, blockedIntervals = [] } = params;
+  const { professional, service, date, time, services, appointments, blockedIntervals = [], openDays = [] } = params;
 
   const weekDay = parseLocalDate(date).getDay();
 
-  if (!professional.active || !professional.workDays.includes(weekDay)) {
+  if (!professional.active) {
+    return false;
+  }
+
+  const scheduleDayOpen = isScheduleDayOpen({
+    openDays,
+    professional,
+    date,
+  });
+
+  if (!scheduleDayOpen) {
+    return false;
+  }
+
+  if (!professional.workDays.includes(weekDay) && !scheduleDayOpen) {
     return false;
   }
 
@@ -448,8 +535,9 @@ function generateSlotsForSelection(params: {
   services: Service[];
   appointments: Appointment[];
   blockedIntervals?: AgendaBlockedInterval[];
+  openDays?: AgendaScheduleDay[];
 }): AvailableSlot[] {
-  const { professional, service, date, services, appointments, blockedIntervals = [] } = params;
+  const { professional, service, date, services, appointments, blockedIntervals = [], openDays = [] } = params;
 
   const slots: AvailableSlot[] = [];
   const start = timeToMinutes(professional.workHoursStart);
@@ -464,6 +552,7 @@ function generateSlotsForSelection(params: {
       services,
       appointments,
       blockedIntervals,
+      openDays,
       time,
     });
 
@@ -530,6 +619,8 @@ export default function AgendaView({
   const [professionalSearch, setProfessionalSearch] = useState("");
   const viewTopRef = useRef<HTMLDivElement | null>(null);
   const [blockedIntervals, setBlockedIntervals] = useState<AgendaBlockedInterval[]>([]);
+  const [openDays, setOpenDays] = useState<AgendaScheduleDay[]>([]);
+  const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
 
   const todayStr = getTodayStr();
 
@@ -589,9 +680,44 @@ export default function AgendaView({
         }
       }
 
+      const scheduleDaysMap = new Map<string, AgendaScheduleDay>();
+
+      const myScheduleDaysResult = await supabase.rpc("get_my_professional_schedule_days", {
+        p_professional_id: null,
+      });
+
+      if (myScheduleDaysResult.error) {
+        console.error(
+          "Erro ao carregar dias abertos da agenda pelo painel do dono:",
+          myScheduleDaysResult.error.message,
+        );
+      } else {
+        mergeScheduleDays(scheduleDaysMap, myScheduleDaysResult.data);
+      }
+
+      for (const slugCandidate of tenantSlugCandidates) {
+        const publicScheduleDaysResult = await supabase.rpc(
+          "get_public_professional_schedule_days",
+          {
+            p_slug: slugCandidate,
+          },
+        );
+
+        if (publicScheduleDaysResult.error) {
+          console.warn(
+            `Não foi possível carregar dias abertos públicos para o slug ${slugCandidate}:`,
+            publicScheduleDaysResult.error.message,
+          );
+          continue;
+        }
+
+        mergeScheduleDays(scheduleDaysMap, publicScheduleDaysResult.data);
+      }
+
       if (!isMounted) return;
 
       setBlockedIntervals(Array.from(intervalsMap.values()));
+      setOpenDays(Array.from(scheduleDaysMap.values()));
     }
 
     loadBlockedIntervals();
@@ -725,10 +851,12 @@ export default function AgendaView({
       services,
       appointments,
       blockedIntervals,
+      openDays,
     });
   }, [
     appointments,
     blockedIntervals,
+    openDays,
     selectedDate,
     selectedProfessional,
     selectedService,
@@ -1095,6 +1223,7 @@ export default function AgendaView({
               services,
               appointments,
               blockedIntervals,
+              openDays,
             }).length
           );
         }, 0)
@@ -1125,6 +1254,7 @@ export default function AgendaView({
           services,
           appointments,
           blockedIntervals,
+          openDays,
         }).length
       );
     }, 0);
@@ -1153,6 +1283,7 @@ export default function AgendaView({
                 services,
                 appointments,
                 blockedIntervals,
+                openDays,
               }).length
             );
           }, 0)
@@ -1170,6 +1301,7 @@ export default function AgendaView({
           services,
           appointments,
           blockedIntervals,
+          openDays,
         }).length
       );
     }, 0);
@@ -1351,6 +1483,7 @@ export default function AgendaView({
                     services,
                     appointments,
                     blockedIntervals,
+                    openDays,
                   }).length
                 : serviceProfessional
                   ? dateOptions.reduce((total, dateOption) => {
@@ -1363,6 +1496,7 @@ export default function AgendaView({
                           services,
                           appointments,
                           blockedIntervals,
+                          openDays,
                         }).length
                       );
                     }, 0)
@@ -1386,6 +1520,7 @@ export default function AgendaView({
                                 services,
                                 appointments,
                                 blockedIntervals,
+                                openDays,
                               }).length
                             );
                           }, 0)
@@ -1647,6 +1782,7 @@ export default function AgendaView({
                         services,
                         appointments,
                         blockedIntervals,
+                        openDays,
                       }).length
                     : 0;
                 const isSelected = selectedDate === dateOption;
@@ -1775,6 +1911,125 @@ export default function AgendaView({
     }
 
     const selectedDateSafe = selectedDate || todayStr;
+    const selectedScheduleDayOpen = isScheduleDayOpen({
+      openDays,
+      professional: selectedProfessional,
+      date: selectedDateSafe,
+    });
+    const selectedDateOutsideRegularSchedule = isDateOutsideProfessionalRegularSchedule({
+      professional: selectedProfessional,
+      date: selectedDateSafe,
+    });
+
+    const updateLocalScheduleDay = (scheduleDay: AgendaScheduleDay) => {
+      setOpenDays((currentDays) => {
+        const nextMap = new Map<string, AgendaScheduleDay>();
+
+        currentDays.forEach((currentDay) => {
+          const key = currentDay.id || `${currentDay.professionalId}-${currentDay.date}`;
+          nextMap.set(key, currentDay);
+        });
+
+        const nextKey = scheduleDay.id || `${scheduleDay.professionalId}-${scheduleDay.date}`;
+        nextMap.set(nextKey, scheduleDay);
+
+        return Array.from(nextMap.values());
+      });
+    };
+
+    const handleUpdateScheduleDay = async (status: 'open' | 'closed') => {
+      if (scheduleDayActionLoading) {
+        return;
+      }
+
+      const isOpeningOutsideRegularSchedule =
+        status === 'open' && selectedDateOutsideRegularSchedule;
+
+      if (isOpeningOutsideRegularSchedule) {
+        const shouldOpen = window.confirm(
+          `${selectedProfessional.name} informou no cadastro que não trabalha nesta data.\n\nDeseja abrir a agenda mesmo assim?\n\nUse esta opção apenas para exceções, como compensação de feriado, atendimento especial ou plantão.`,
+        );
+
+        if (!shouldOpen) {
+          return;
+        }
+      }
+
+      setScheduleDayActionLoading(true);
+
+      const { data, error } = await supabase.rpc("upsert_my_professional_schedule_day", {
+        p_professional_id: selectedProfessional.id,
+        p_date: selectedDateSafe,
+        p_status: status,
+        p_is_out_of_regular_schedule: isOpeningOutsideRegularSchedule,
+      });
+
+      setScheduleDayActionLoading(false);
+
+      if (error) {
+        alert(error.message || "Não foi possível atualizar a abertura da agenda.");
+        return;
+      }
+
+      const firstRow = Array.isArray(data) ? data[0] : data;
+
+      updateLocalScheduleDay(
+        normalizeAgendaScheduleDay({
+          ...(firstRow || {}),
+          professional_id: selectedProfessional.id,
+          date: selectedDateSafe,
+          status,
+          is_out_of_regular_schedule: isOpeningOutsideRegularSchedule,
+        } as Record<string, unknown>),
+      );
+    };
+
+    const handleOpenVisibleScheduleDays = async () => {
+      if (scheduleDayActionLoading) {
+        return;
+      }
+
+      const outsideRegularDates = dateOptions.filter((dateOption) =>
+        isDateOutsideProfessionalRegularSchedule({
+          professional: selectedProfessional,
+          date: dateOption,
+        }),
+      );
+
+      if (outsideRegularDates.length > 0) {
+        const shouldOpen = window.confirm(
+          `Você selecionou dias fora da escala de ${selectedProfessional.name}:\n\n${outsideRegularDates
+            .map((dateOption) => formatDateBr(dateOption))
+            .join("\n")}\n\nDeseja abrir esses dias mesmo assim?`,
+        );
+
+        if (!shouldOpen) {
+          return;
+        }
+      }
+
+      setScheduleDayActionLoading(true);
+
+      const { data, error } = await supabase.rpc("bulk_upsert_my_professional_schedule_days", {
+        p_professional_id: selectedProfessional.id,
+        p_dates: dateOptions,
+        p_status: "open",
+      });
+
+      setScheduleDayActionLoading(false);
+
+      if (error) {
+        alert(error.message || "Não foi possível abrir os dias selecionados.");
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        data.forEach((row) => {
+          updateLocalScheduleDay(normalizeAgendaScheduleDay(row as Record<string, unknown>));
+        });
+      }
+    };
+
     const professionalRecord = selectedProfessional as Professional & {
       noLunchBreak?: boolean;
       defaultAppointmentDuration?: number;
@@ -1917,6 +2172,24 @@ export default function AgendaView({
           end: slotEnd,
           type: "occupied",
           occupyingAppointment,
+        });
+        continue;
+      }
+
+      if (!selectedScheduleDayOpen) {
+        daySlots.push({
+          key: `closed-${selectedProfessional.id}-${selectedDateSafe}-${minute}`,
+          start: minute,
+          end: slotEnd,
+          type: "blocked",
+          blockedInterval: {
+            id: `closed-${selectedProfessional.id}-${selectedDateSafe}`,
+            professionalId: selectedProfessional.id,
+            date: selectedDateSafe,
+            startTime: minutesToTime(minute),
+            endTime: minutesToTime(slotEnd),
+            reason: "Agenda fechada. Abra este dia para permitir agendamentos.",
+          },
         });
         continue;
       }
@@ -2103,6 +2376,52 @@ export default function AgendaView({
               <p className="mt-1 text-xs font-medium text-neutral-500">
                 Visualize horários livres, horários marcados e ações rápidas do dia.
               </p>
+
+              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 font-mono text-[10px] font-extrabold uppercase tracking-[0.14em] ${
+                selectedScheduleDayOpen
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-neutral-200 bg-neutral-100 text-neutral-600"
+              }`}>
+                {selectedScheduleDayOpen ? "Agenda aberta" : "Agenda fechada"}
+                {selectedScheduleDayOpen && selectedDateOutsideRegularSchedule ? " · fora da escala" : ""}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={scheduleDayActionLoading || selectedScheduleDayOpen}
+                onClick={() => handleUpdateScheduleDay("open")}
+                className={`rounded-xl px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] transition ${
+                  selectedScheduleDayOpen
+                    ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
+                }`}
+              >
+                Abrir dia
+              </button>
+
+              <button
+                type="button"
+                disabled={scheduleDayActionLoading || !selectedScheduleDayOpen}
+                onClick={() => handleUpdateScheduleDay("closed")}
+                className={`rounded-xl px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] transition ${
+                  !selectedScheduleDayOpen
+                    ? "cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-400"
+                    : "bg-neutral-900 text-white shadow-sm hover:bg-black"
+                }`}
+              >
+                Fechar dia
+              </button>
+
+              <button
+                type="button"
+                disabled={scheduleDayActionLoading}
+                onClick={handleOpenVisibleScheduleDays}
+                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-900 transition hover:border-blue-300 hover:bg-blue-100"
+              >
+                Abrir dias visíveis
+              </button>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">

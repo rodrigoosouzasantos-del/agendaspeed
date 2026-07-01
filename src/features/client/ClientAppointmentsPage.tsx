@@ -75,6 +75,14 @@ interface AgendaBlockedInterval {
   reason: string;
 }
 
+interface AgendaOpenDay {
+  id: string;
+  professionalId: string;
+  date: string;
+  status: 'open' | 'closed';
+  isOutOfRegularSchedule: boolean;
+}
+
 interface ClientAppointmentsPageProps {
   token: string;
   state: LocalState;
@@ -92,6 +100,7 @@ interface RescheduleDraft {
   selectedStartsAtLocal: string;
   options: RescheduleOptionRow[];
   blockedIntervals: AgendaBlockedInterval[];
+  openDays: AgendaOpenDay[];
   loading: boolean;
   error: string;
 }
@@ -321,6 +330,64 @@ function mergeBlockedIntervals(
   });
 }
 
+
+function normalizeAgendaOpenDay(rawDay: Record<string, unknown>): AgendaOpenDay {
+  const status = String(rawDay.status || 'closed') === 'open' ? 'open' : 'closed';
+
+  return {
+    id: String(readRecordValue(rawDay, ['id']) || ''),
+    professionalId: String(readRecordValue(rawDay, ['professional_id', 'professionalId']) || ''),
+    date: String(readRecordValue(rawDay, ['date', 'day_date', 'dayDate']) || '').slice(0, 10),
+    status,
+    isOutOfRegularSchedule: Boolean(readRecordValue(rawDay, ['is_out_of_regular_schedule', 'isOutOfRegularSchedule']))
+  };
+}
+
+function mergeOpenDays(
+  currentMap: Map<string, AgendaOpenDay>,
+  rows: unknown
+): void {
+  if (!Array.isArray(rows)) return;
+
+  rows.forEach((row) => {
+    const openDay = normalizeAgendaOpenDay(row as Record<string, unknown>);
+
+    if (!openDay.professionalId || !openDay.date) {
+      return;
+    }
+
+    const key = openDay.id || `${openDay.professionalId}-${openDay.date}`;
+    currentMap.set(key, openDay);
+  });
+}
+
+function optionIsInsideOpenDay(params: {
+  option: RescheduleOptionRow;
+  appointment: ClientAppointmentRow;
+  openDays: AgendaOpenDay[];
+}): boolean {
+  const {
+    option,
+    appointment,
+    openDays
+  } = params;
+
+  const optionDate = option.date || getDateInputValue(option.startsAtLocal);
+  const professionalId = option.professionalId || appointment.professionalId;
+
+  if (!optionDate || !professionalId) {
+    return false;
+  }
+
+  return openDays.some((openDay) => {
+    return (
+      openDay.professionalId === professionalId &&
+      openDay.date === optionDate &&
+      openDay.status === 'open'
+    );
+  });
+}
+
 function getOptionSlotRange(option: RescheduleOptionRow): {
   date: string;
   startMinute: number;
@@ -393,6 +460,33 @@ async function loadPublicBlockedIntervals(params: {
   return Array.from(intervalsMap.values());
 }
 
+
+
+async function loadPublicOpenDays(params: {
+  appointment: ClientAppointmentRow;
+  state: LocalState;
+}): Promise<AgendaOpenDay[]> {
+  const daysMap = new Map<string, AgendaOpenDay>();
+  const slugCandidates = getTenantSlugCandidates(params);
+
+  const results = await Promise.allSettled(
+    slugCandidates.map((slugCandidate) => {
+      return supabase.rpc('get_public_professional_schedule_days', {
+        p_slug: slugCandidate
+      });
+    })
+  );
+
+  results.forEach((result) => {
+    if (result.status !== 'fulfilled' || result.value.error) {
+      return;
+    }
+
+    mergeOpenDays(daysMap, result.value.data);
+  });
+
+  return Array.from(daysMap.values());
+}
 
 function normalizeStatus(value: unknown): ClientAppointmentStatus {
   const status = String(value || 'scheduled');
@@ -702,15 +796,17 @@ export default function ClientAppointmentsPage({
       selectedStartsAtLocal: '',
       options: [],
       blockedIntervals: [],
+      openDays: [],
       loading: true,
       error: ''
     });
 
     let data: unknown[] | null = null;
     let blockedIntervals: AgendaBlockedInterval[] = [];
+    let openDays: AgendaOpenDay[] = [];
 
     try {
-      const [rescheduleResult, blockedIntervalsResult] = await Promise.all([
+      const [rescheduleResult, blockedIntervalsResult, openDaysResult] = await Promise.all([
         withTimeout(
           supabase.rpc('get_client_reschedule_options_by_token', {
             p_token: token,
@@ -727,6 +823,14 @@ export default function ClientAppointmentsPage({
           }),
           RESCHEDULE_LOAD_TIMEOUT_MS,
           'Tempo esgotado ao buscar bloqueios da agenda.'
+        ),
+        withTimeout(
+          loadPublicOpenDays({
+            appointment,
+            state
+          }),
+          RESCHEDULE_LOAD_TIMEOUT_MS,
+          'Tempo esgotado ao buscar dias abertos da agenda.'
         )
       ]);
 
@@ -736,6 +840,7 @@ export default function ClientAppointmentsPage({
 
       data = Array.isArray(rescheduleResult.data) ? rescheduleResult.data : [];
       blockedIntervals = blockedIntervalsResult;
+      openDays = openDaysResult;
     } catch {
       setRescheduleDraft({
         appointment,
@@ -743,6 +848,7 @@ export default function ClientAppointmentsPage({
         selectedStartsAtLocal: '',
         options: [],
         blockedIntervals: [],
+        openDays: [],
         loading: false,
         error: 'Não foi possível carregar os horários disponíveis deste profissional. Tente novamente em alguns instantes.'
       });
@@ -761,6 +867,13 @@ export default function ClientAppointmentsPage({
       }))
       .filter((option) => option.startsAtLocal && option.startsAtLocal !== appointment.startsAtLocal)
       .filter((option) => {
+        return optionIsInsideOpenDay({
+          option,
+          appointment,
+          openDays
+        });
+      })
+      .filter((option) => {
         return !optionOverlapsBlockedInterval({
           option,
           appointment,
@@ -774,6 +887,7 @@ export default function ClientAppointmentsPage({
       selectedStartsAtLocal: '',
       options,
       blockedIntervals,
+      openDays,
       loading: false,
       error: options.length === 0 ? 'Este profissional não possui horários livres nos próximos dias.' : ''
     });
@@ -936,6 +1050,21 @@ export default function ClientAppointmentsPage({
         tone: 'red',
         title: 'Horário indisponível',
         description: 'Este horário não está mais disponível. Feche a remarcação e escolha outro horário.'
+      });
+      return;
+    }
+
+    const selectedOptionIsOpen = optionIsInsideOpenDay({
+      option: selectedOption,
+      appointment: rescheduleDraft.appointment,
+      openDays: rescheduleDraft.openDays
+    });
+
+    if (!selectedOptionIsOpen) {
+      setFeedbackModal({
+        tone: 'red',
+        title: 'Agenda fechada',
+        description: 'Este dia não está mais aberto para remarcação. Feche a remarcação e escolha outra data disponível.'
       });
       return;
     }

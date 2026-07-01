@@ -35,6 +35,15 @@ export interface BookingTimeSlot {
 }
 
 
+
+export interface BookingScheduleDay {
+  id: string;
+  professionalId: string;
+  date: string;
+  status: 'open' | 'closed';
+  isOutOfRegularSchedule?: boolean;
+}
+
 export interface BookingAgendaBlockedInterval {
   id: string;
   professionalId: string;
