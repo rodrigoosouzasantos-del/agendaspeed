@@ -987,28 +987,28 @@ export default function ClientAppointmentsPage({
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.09),_transparent_34%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-6 text-slate-950 sm:py-10">
-      <section className="mx-auto max-w-2xl space-y-5">
-        <header className="rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur">
-          <div className="inline-flex rounded-full border border-blue-100 bg-white px-4 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.24em] text-slate-950 shadow-sm">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-3 py-3 text-slate-950 sm:py-6">
+      <section className="mx-auto max-w-md space-y-3">
+        <header className="rounded-3xl border border-white/80 bg-white/95 px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="inline-flex rounded-full border border-blue-100 bg-white px-3 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.24em] text-slate-950 shadow-sm">
             Agenda<span className="text-blue-700">Speed</span>
           </div>
 
-          <h1 className="mt-5 text-4xl font-extrabold leading-none tracking-[-0.06em] text-slate-950 sm:text-5xl">
+          <h1 className="mt-3 text-2xl font-extrabold leading-none tracking-[-0.05em] text-slate-950">
             Meus agendamentos
           </h1>
 
-          <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-5">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
-              <CalendarDays className="h-5 w-5" />
+          <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+              <CalendarDays className="h-4 w-4" />
             </span>
 
             <div className="min-w-0">
-              <p className="font-mono text-[11px] font-extrabold uppercase tracking-[0.24em] text-slate-400">
+              <p className="font-mono text-[9px] font-extrabold uppercase tracking-[0.22em] text-slate-400">
                 Estabelecimento
               </p>
 
-              <p className="mt-1 truncate font-mono text-lg font-extrabold uppercase tracking-[0.18em] text-slate-800">
+              <p className="mt-0.5 truncate font-mono text-sm font-extrabold uppercase tracking-[0.18em] text-slate-800">
                 {tenantName}
               </p>
             </div>
@@ -1034,12 +1034,12 @@ export default function ClientAppointmentsPage({
         {visibleAppointments.map((appointment) => (
           <article
             key={appointment.id}
-            className="overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]"
+            className="overflow-hidden rounded-3xl border border-white/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.08)]"
           >
-            <div className="p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-3">
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-2">
                 <span
-                  className={`inline-flex rounded-full border px-3 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] shadow-sm ${
+                  className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.18em] shadow-sm ${
                     appointment.status === 'confirmed'
                       ? 'border-green-100 bg-green-50 text-green-800'
                       : 'border-blue-100 bg-blue-50 text-blue-800'
@@ -1049,58 +1049,58 @@ export default function ClientAppointmentsPage({
                 </span>
               </div>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-[72px_1fr] sm:items-start">
-                <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-700">
-                  <UserCheck className="h-7 w-7" />
+              <div className="mt-3 grid grid-cols-[44px_1fr] gap-3 items-start">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+                  <UserCheck className="h-5 w-5" />
                 </div>
 
                 <div className="min-w-0">
-                  <p className="font-mono text-[11px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
+                  <p className="font-mono text-[9px] font-extrabold uppercase tracking-[0.22em] text-slate-400">
                     Serviço
                   </p>
 
-                  <h2 className="mt-2 text-2xl font-extrabold leading-tight tracking-[-0.04em] text-slate-950">
+                  <h2 className="mt-1 text-lg font-extrabold leading-tight tracking-[-0.04em] text-slate-950">
                     {appointment.serviceName}
                   </h2>
 
-                  <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
+                  <div className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <p className="font-mono text-[9px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
                       Profissional
                     </p>
 
-                    <p className="mt-1 font-mono text-lg font-extrabold uppercase tracking-[0.16em] text-slate-800">
+                    <p className="mt-0.5 font-mono text-sm font-extrabold uppercase tracking-[0.16em] text-slate-800">
                       {appointment.professionalName}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
-                  <div className="flex items-center gap-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
-                    <CalendarDays className="h-4 w-4" />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
+                    <CalendarDays className="h-3.5 w-3.5" />
                     Data
                   </div>
 
-                  <p className="mt-2 font-mono text-lg font-extrabold tracking-[-0.04em] text-slate-950">
+                  <p className="mt-1 font-mono text-base font-extrabold tracking-[-0.04em] text-slate-950">
                     {formatDateBr(getDateInputValue(appointment.startsAtLocal))}
                   </p>
                 </div>
 
-                <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
-                  <div className="flex items-center gap-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
-                    <Clock className="h-4 w-4" />
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
+                    <Clock className="h-3.5 w-3.5" />
                     Horário
                   </div>
 
-                  <p className="mt-2 font-mono text-lg font-extrabold tracking-[-0.04em] text-slate-950">
+                  <p className="mt-1 font-mono text-base font-extrabold tracking-[-0.04em] text-slate-950">
                     {getTimeInputValue(appointment.startsAtLocal)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3 border-t border-slate-100 bg-slate-50/70 p-5 sm:p-6">
+            <div className="space-y-2 border-t border-slate-100 bg-slate-50/70 p-3">
               <button
                 type="button"
                 onClick={() => handleConfirmAppointment(appointment)}
@@ -1108,9 +1108,9 @@ export default function ClientAppointmentsPage({
                   appointment.status === 'confirmed' ||
                   actionLoadingId === `${appointment.id}-confirm`
                 }
-                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-green-900 bg-green-700 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(21,128,61,0.25)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-green-900 bg-green-700 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(21,128,61,0.20)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <CheckCircle2 className="h-5 w-5" />
+                <CheckCircle2 className="h-4 w-4" />
                 {appointment.status === 'confirmed' ? 'Presença confirmada' : 'Confirmar presença'}
               </button>
 
@@ -1118,9 +1118,9 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={() => handleOpenReschedule(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-reschedule`}
-                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-blue-950 bg-slate-950 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(15,23,42,0.20)] transition hover:bg-blue-950 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-blue-950 bg-slate-950 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition hover:bg-blue-950 disabled:opacity-60"
               >
-                <RefreshCcw className="h-5 w-5 text-blue-300" />
+                <RefreshCcw className="h-4 w-4 text-blue-300" />
                 Remarcar horário
               </button>
 
@@ -1128,10 +1128,10 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={() => handleCancelAppointment(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-cancel`}
-                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-red-950 bg-red-700 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(185,28,28,0.20)] transition hover:bg-red-800 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-red-950 bg-red-700 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(185,28,28,0.18)] transition hover:bg-red-800 disabled:opacity-60"
               >
-                <XCircle className="h-5 w-5" />
-                Cancelar agendamento
+                <XCircle className="h-4 w-4" />
+                Cancelar
               </button>
             </div>
           </article>
@@ -1140,12 +1140,12 @@ export default function ClientAppointmentsPage({
 
       {rescheduleDraft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-4 sm:items-center sm:pb-0">
-          <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
-            <h2 className="text-lg font-extrabold tracking-[-0.03em] text-slate-950">
+          <div className="max-h-[86vh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+            <h2 className="text-base font-extrabold tracking-[-0.03em] text-slate-950">
               Remarcar horário
             </h2>
 
-            <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
+            <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500">
               Escolha primeiro o dia e depois um horário livre na agenda de {rescheduleDraft.appointment.professionalName}.
             </p>
 
@@ -1169,7 +1169,7 @@ export default function ClientAppointmentsPage({
             )}
 
             {!rescheduleDraft.loading && !rescheduleDraft.error && (
-              <div className="mt-5 space-y-5">
+              <div className="mt-4 space-y-4">
                 <div>
                   <h3 className="font-mono text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
                     1. Escolha o dia
@@ -1195,7 +1195,7 @@ export default function ClientAppointmentsPage({
                               };
                             });
                           }}
-                          className={`min-w-[116px] rounded-2xl border px-3 py-3 text-left transition ${
+                          className={`min-w-[116px] rounded-2xl border px-3 py-2 text-left transition ${
                             isSelectedDate
                               ? 'border-blue-950 bg-slate-950 text-white shadow-sm'
                               : 'border-slate-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50'
@@ -1246,7 +1246,7 @@ export default function ClientAppointmentsPage({
                                 };
                               });
                             }}
-                            className={`rounded-2xl border px-3 py-3 text-sm font-extrabold transition ${
+                            className={`rounded-2xl border px-3 py-2.5 font-mono text-xs font-extrabold transition ${
                               isSelected
                                 ? 'border-blue-950 bg-slate-950 text-white shadow-sm'
                                 : 'border-slate-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50'
@@ -1274,11 +1274,11 @@ export default function ClientAppointmentsPage({
               </div>
             )}
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRescheduleDraft(null)}
-                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
               >
                 Voltar
               </button>
@@ -1287,7 +1287,7 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={handleConfirmReschedule}
                 disabled={!rescheduleDraft.selectedStartsAtLocal || actionLoadingId === `${rescheduleDraft.appointment.id}-reschedule`}
-                className="rounded-2xl border border-blue-950 bg-slate-950 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-blue-950 bg-slate-950 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Confirmar remarcação
               </button>
@@ -1325,7 +1325,7 @@ export default function ClientAppointmentsPage({
               )}
             </div>
 
-            <h2 className="text-lg font-extrabold tracking-[-0.03em] text-slate-950">
+            <h2 className="text-base font-extrabold tracking-[-0.03em] text-slate-950">
               {feedbackModal.title}
             </h2>
 
