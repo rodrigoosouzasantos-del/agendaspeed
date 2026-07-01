@@ -964,16 +964,22 @@ export default function ClientAppointmentsPage({
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-        <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <Loader2 className="mx-auto mb-4 h-9 w-9 animate-spin text-orange-500" />
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-slate-950">
+        <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.10)]">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
+            <Loader2 className="h-7 w-7 animate-spin text-blue-300" />
+          </div>
 
-          <h1 className="text-xl font-extrabold text-neutral-950">
-            Carregando seus horários...
+          <div className="mx-auto mb-4 inline-flex rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.22em] text-blue-800">
+            AgendaSpeed
+          </div>
+
+          <h1 className="text-2xl font-extrabold tracking-[-0.04em] text-slate-950">
+            Abrindo seu agendamento
           </h1>
 
-          <p className="mt-2 text-sm font-medium text-neutral-500">
-            Estamos abrindo seu link com segurança.
+          <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
+            Estamos carregando seus horários com segurança.
           </p>
         </div>
       </main>
@@ -981,33 +987,45 @@ export default function ClientAppointmentsPage({
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-4 py-5 text-neutral-900 sm:py-8">
-      <section className="mx-auto max-w-2xl space-y-4">
-        <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-sm">
-          <div className="inline-flex rounded-full bg-orange-600 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
-            AgendaSpeed
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.09),_transparent_34%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-6 text-slate-950 sm:py-10">
+      <section className="mx-auto max-w-2xl space-y-5">
+        <header className="rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur">
+          <div className="inline-flex rounded-full border border-blue-100 bg-white px-4 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.24em] text-slate-950 shadow-sm">
+            Agenda<span className="text-blue-700">Speed</span>
           </div>
 
-          <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.03em] text-neutral-950">
+          <h1 className="mt-5 text-4xl font-extrabold leading-none tracking-[-0.06em] text-slate-950 sm:text-5xl">
             Meus agendamentos
           </h1>
 
-          <p className="mt-2 text-sm font-medium leading-relaxed text-neutral-500">
-            {tenantName}
-          </p>
-        </div>
+          <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+              <CalendarDays className="h-5 w-5" />
+            </span>
+
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] font-extrabold uppercase tracking-[0.24em] text-slate-400">
+                Estabelecimento
+              </p>
+
+              <p className="mt-1 truncate font-mono text-lg font-extrabold uppercase tracking-[0.18em] text-slate-800">
+                {tenantName}
+              </p>
+            </div>
+          </div>
+        </header>
 
         {loadError && visibleAppointments.length === 0 && (
-          <div className="rounded-[2rem] border border-red-700 bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-700 text-white">
+          <div className="rounded-[2rem] border border-red-200 bg-white p-6 text-center shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-700 text-white">
               <AlertTriangle className="h-6 w-6 text-yellow-300" />
             </div>
 
-            <h2 className="text-lg font-extrabold text-neutral-950">
+            <h2 className="text-xl font-extrabold tracking-[-0.03em] text-slate-950">
               Nenhum horário futuro encontrado
             </h2>
 
-            <p className="mt-2 text-sm font-medium leading-relaxed text-neutral-500">
+            <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
               {loadError}
             </p>
           </div>
@@ -1016,56 +1034,73 @@ export default function ClientAppointmentsPage({
         {visibleAppointments.map((appointment) => (
           <article
             key={appointment.id}
-            className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-sm"
+            className="overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-3">
                 <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-sm ${
+                  className={`inline-flex rounded-full border px-3 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] shadow-sm ${
                     appointment.status === 'confirmed'
-                      ? 'bg-green-700'
-                      : 'bg-orange-600 text-white'
+                      ? 'border-green-100 bg-green-50 text-green-800'
+                      : 'border-blue-100 bg-blue-50 text-blue-800'
                   }`}
                 >
                   {getStatusLabel(appointment.status)}
                 </span>
+              </div>
 
-                <h2 className="mt-3 text-lg font-extrabold leading-tight tracking-[-0.03em] text-neutral-950">
-                  {appointment.serviceName}
-                </h2>
+              <div className="mt-5 grid gap-4 sm:grid-cols-[72px_1fr] sm:items-start">
+                <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-700">
+                  <UserCheck className="h-7 w-7" />
+                </div>
 
-                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-neutral-500">
-                  <UserCheck className="h-4 w-4 text-orange-600" />
-                  {appointment.professionalName}
-                </p>
+                <div className="min-w-0">
+                  <p className="font-mono text-[11px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
+                    Serviço
+                  </p>
+
+                  <h2 className="mt-2 text-2xl font-extrabold leading-tight tracking-[-0.04em] text-slate-950">
+                    {appointment.serviceName}
+                  </h2>
+
+                  <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
+                      Profissional
+                    </p>
+
+                    <p className="mt-1 font-mono text-lg font-extrabold uppercase tracking-[0.16em] text-slate-800">
+                      {appointment.professionalName}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="flex items-center gap-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
+                    <CalendarDays className="h-4 w-4" />
+                    Data
+                  </div>
+
+                  <p className="mt-2 font-mono text-lg font-extrabold tracking-[-0.04em] text-slate-950">
+                    {formatDateBr(getDateInputValue(appointment.startsAtLocal))}
+                  </p>
+                </div>
+
+                <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="flex items-center gap-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] text-blue-800">
+                    <Clock className="h-4 w-4" />
+                    Horário
+                  </div>
+
+                  <p className="mt-2 font-mono text-lg font-extrabold tracking-[-0.04em] text-slate-950">
+                    {getTimeInputValue(appointment.startsAtLocal)}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-orange-300 bg-orange-100 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-800">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Data
-                </div>
-
-                <p className="mt-1 text-sm font-extrabold text-neutral-950">
-                  {formatDateBr(getDateInputValue(appointment.startsAtLocal))}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-orange-300 bg-orange-100 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-800">
-                  <Clock className="h-3.5 w-3.5" />
-                  Horário
-                </div>
-
-                <p className="mt-1 text-sm font-extrabold text-neutral-950">
-                  {getTimeInputValue(appointment.startsAtLocal)}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="space-y-3 border-t border-slate-100 bg-slate-50/70 p-5 sm:p-6">
               <button
                 type="button"
                 onClick={() => handleConfirmAppointment(appointment)}
@@ -1073,30 +1108,30 @@ export default function ClientAppointmentsPage({
                   appointment.status === 'confirmed' ||
                   actionLoadingId === `${appointment.id}-confirm`
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-green-800 bg-green-700 px-4 py-3 text-xs font-extrabold text-white shadow-sm transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-green-900 bg-green-700 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(21,128,61,0.25)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <CheckCircle2 className="h-4 w-4" />
-                {appointment.status === 'confirmed' ? 'Confirmado' : 'Confirmar presença'}
+                <CheckCircle2 className="h-5 w-5" />
+                {appointment.status === 'confirmed' ? 'Presença confirmada' : 'Confirmar presença'}
               </button>
 
               <button
                 type="button"
                 onClick={() => handleOpenReschedule(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-reschedule`}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-700 bg-orange-600 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm transition hover:bg-orange-700 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-blue-950 bg-slate-950 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(15,23,42,0.20)] transition hover:bg-blue-950 disabled:opacity-60"
               >
-                <RefreshCcw className="h-4 w-4" />
-                Remarcar
+                <RefreshCcw className="h-5 w-5 text-blue-300" />
+                Remarcar horário
               </button>
 
               <button
                 type="button"
                 onClick={() => handleCancelAppointment(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-cancel`}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-950 bg-red-700 px-4 py-3 text-xs font-extrabold text-white shadow-sm transition hover:bg-red-800 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-red-950 bg-red-700 px-5 py-4 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(185,28,28,0.20)] transition hover:bg-red-800 disabled:opacity-60"
               >
-                <XCircle className="h-4 w-4" />
-                Cancelar
+                <XCircle className="h-5 w-5" />
+                Cancelar agendamento
               </button>
             </div>
           </article>
@@ -1105,22 +1140,22 @@ export default function ClientAppointmentsPage({
 
       {rescheduleDraft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-4 sm:items-center sm:pb-0">
-          <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-2xl">
-            <h2 className="text-lg font-extrabold text-neutral-950">
+          <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+            <h2 className="text-lg font-extrabold tracking-[-0.03em] text-slate-950">
               Remarcar horário
             </h2>
 
-            <p className="mt-1 text-sm font-medium leading-relaxed text-neutral-500">
+            <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
               Escolha primeiro o dia e depois um horário livre na agenda de {rescheduleDraft.appointment.professionalName}.
             </p>
 
-            <div className="mt-3 rounded-2xl border border-orange-700 bg-orange-600 p-3 text-xs font-extrabold text-neutral-950">
+            <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3 font-mono text-xs font-extrabold uppercase tracking-[0.12em] text-blue-900">
               Horário atual: {formatDateTimeBr(rescheduleDraft.appointment.startsAtLocal)}
             </div>
 
             {rescheduleDraft.loading && (
               <div className="mt-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-center">
-                <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-orange-600" />
+                <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-blue-700" />
                 <p className="text-sm font-bold text-neutral-600">
                   Buscando horários livres...
                 </p>
@@ -1136,7 +1171,7 @@ export default function ClientAppointmentsPage({
             {!rescheduleDraft.loading && !rescheduleDraft.error && (
               <div className="mt-5 space-y-5">
                 <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-neutral-500">
+                  <h3 className="font-mono text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
                     1. Escolha o dia
                   </h3>
 
@@ -1162,12 +1197,12 @@ export default function ClientAppointmentsPage({
                           }}
                           className={`min-w-[116px] rounded-2xl border px-3 py-3 text-left transition ${
                             isSelectedDate
-                              ? 'border-orange-700 bg-orange-600 text-white shadow-sm'
-                              : 'border-neutral-200 bg-white text-neutral-900 hover:border-orange-300 hover:bg-orange-50'
+                              ? 'border-blue-950 bg-slate-950 text-white shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50'
                           }`}
                         >
                           <span className={`block text-[10px] font-extrabold uppercase tracking-[0.12em] ${
-                            isSelectedDate ? 'text-white/80' : 'text-neutral-400'
+                            isSelectedDate ? 'text-white/80' : 'text-slate-400'
                           }`}>
                             {firstOption?.dayLabel || 'Dia'}
                           </span>
@@ -1182,7 +1217,7 @@ export default function ClientAppointmentsPage({
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-neutral-500">
+                  <h3 className="font-mono text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
                     2. Escolha o horário
                   </h3>
 
@@ -1213,8 +1248,8 @@ export default function ClientAppointmentsPage({
                             }}
                             className={`rounded-2xl border px-3 py-3 text-sm font-extrabold transition ${
                               isSelected
-                                ? 'border-orange-700 bg-orange-600 text-white shadow-sm'
-                                : 'border-neutral-200 bg-white text-neutral-900 hover:border-orange-300 hover:bg-orange-50'
+                                ? 'border-blue-950 bg-slate-950 text-white shadow-sm'
+                                : 'border-slate-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50'
                             }`}
                           >
                             {option.time}
@@ -1226,8 +1261,8 @@ export default function ClientAppointmentsPage({
                 </div>
 
                 {rescheduleDraft.selectedStartsAtLocal && (
-                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-orange-700">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                    <p className="font-mono text-xs font-extrabold uppercase tracking-[0.14em] text-blue-800">
                       Novo horário selecionado
                     </p>
 
@@ -1243,7 +1278,7 @@ export default function ClientAppointmentsPage({
               <button
                 type="button"
                 onClick={() => setRescheduleDraft(null)}
-                className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-xs font-extrabold text-neutral-700 hover:bg-neutral-50"
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
               >
                 Voltar
               </button>
@@ -1252,7 +1287,7 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={handleConfirmReschedule}
                 disabled={!rescheduleDraft.selectedStartsAtLocal || actionLoadingId === `${rescheduleDraft.appointment.id}-reschedule`}
-                className="rounded-2xl border border-orange-700 bg-orange-600 px-4 py-3 text-xs font-extrabold text-neutral-950 shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-blue-950 bg-slate-950 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Confirmar remarcação
               </button>
@@ -1290,7 +1325,7 @@ export default function ClientAppointmentsPage({
               )}
             </div>
 
-            <h2 className="text-lg font-extrabold text-neutral-950">
+            <h2 className="text-lg font-extrabold tracking-[-0.03em] text-slate-950">
               {feedbackModal.title}
             </h2>
 
