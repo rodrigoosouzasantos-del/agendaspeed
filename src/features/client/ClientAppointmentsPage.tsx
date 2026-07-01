@@ -96,6 +96,71 @@ interface RescheduleDraft {
   error: string;
 }
 
+const CLIENT_APPOINTMENTS_CACHE_PREFIX = 'agendaspeed:client-appointments:';
+const CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS = 12000;
+const RESCHEDULE_LOAD_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function getCachedClientAppointments(token: string): ClientAppointmentRow[] {
+  if (!token) return [];
+
+  try {
+    const rawCachedValue = window.sessionStorage.getItem(`${CLIENT_APPOINTMENTS_CACHE_PREFIX}${token}`);
+    if (!rawCachedValue) return [];
+
+    const parsedValue = JSON.parse(rawCachedValue) as ClientAppointmentRow[];
+    if (!Array.isArray(parsedValue)) return [];
+
+    return parsedValue
+      .map((item) => normalizeRemoteAppointment(item as unknown as Record<string, unknown>))
+      .filter((appointment) => {
+        return (
+          appointment.id &&
+          isFutureAppointment(appointment.startsAtLocal) &&
+          appointment.status !== 'cancelled' &&
+          appointment.status !== 'completed' &&
+          appointment.status !== 'absent'
+        );
+      });
+  } catch {
+    return [];
+  }
+}
+
+function setCachedClientAppointments(token: string, rows: ClientAppointmentRow[]): void {
+  if (!token) return;
+
+  try {
+    window.sessionStorage.setItem(
+      `${CLIENT_APPOINTMENTS_CACHE_PREFIX}${token}`,
+      JSON.stringify(rows)
+    );
+  } catch {
+    // Cache é apenas otimização. Se falhar, a tela continua funcionando normalmente.
+  }
+}
+
 function padDatePart(value: number): string {
   return String(value).padStart(2, '0');
 }
@@ -309,17 +374,21 @@ async function loadPublicBlockedIntervals(params: {
   const intervalsMap = new Map<string, AgendaBlockedInterval>();
   const slugCandidates = getTenantSlugCandidates(params);
 
-  for (const slugCandidate of slugCandidates) {
-    const { data, error } = await supabase.rpc('get_public_professional_schedule_blocks', {
-      p_slug: slugCandidate
-    });
+  const results = await Promise.allSettled(
+    slugCandidates.map((slugCandidate) => {
+      return supabase.rpc('get_public_professional_schedule_blocks', {
+        p_slug: slugCandidate
+      });
+    })
+  );
 
-    if (error) {
-      continue;
+  results.forEach((result) => {
+    if (result.status !== 'fulfilled' || result.value.error) {
+      return;
     }
 
-    mergeBlockedIntervals(intervalsMap, data);
-  }
+    mergeBlockedIntervals(intervalsMap, result.value.data);
+  });
 
   return Array.from(intervalsMap.values());
 }
@@ -481,8 +550,9 @@ export default function ClientAppointmentsPage({
   token,
   state
 }: ClientAppointmentsPageProps) {
-  const [appointments, setAppointments] = useState<ClientAppointmentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedAppointments = useMemo(() => getCachedClientAppointments(token), [token]);
+  const [appointments, setAppointments] = useState<ClientAppointmentRow[]>(cachedAppointments);
+  const [loading, setLoading] = useState(cachedAppointments.length === 0);
   const [loadError, setLoadError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState('');
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState | null>(null);
@@ -499,32 +569,54 @@ export default function ClientAppointmentsPage({
         return;
       }
 
-      setLoading(true);
-      setLoadError('');
+      const cachedRows = getCachedClientAppointments(token);
 
-      const { data, error } = await supabase.rpc('get_client_future_appointments_by_token', {
-        p_token: token
-      });
-
-      if (!isMounted) return;
-
-      if (!error) {
-        const rows = (Array.isArray(data) ? data : [])
-          .map((item) => normalizeRemoteAppointment(item as Record<string, unknown>))
-          .filter((appointment) => {
-            return (
-              appointment.id &&
-              isFutureAppointment(appointment.startsAtLocal) &&
-              appointment.status !== 'cancelled' &&
-              appointment.status !== 'completed' &&
-              appointment.status !== 'absent'
-            );
-          });
-
-        setAppointments(rows);
-        setLoadError(rows.length === 0 ? 'Nenhum agendamento futuro foi encontrado para este link.' : '');
+      if (cachedRows.length > 0) {
+        setAppointments(cachedRows);
+        setLoadError('');
         setLoading(false);
-        return;
+      } else {
+        setLoading(true);
+        setLoadError('');
+      }
+
+      try {
+        const { data, error } = await withTimeout(
+          supabase.rpc('get_client_future_appointments_by_token', {
+            p_token: token
+          }),
+          CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS,
+          'Tempo esgotado ao carregar os agendamentos.'
+        );
+
+        if (!isMounted) return;
+
+        if (!error) {
+          const rows = (Array.isArray(data) ? data : [])
+            .map((item) => normalizeRemoteAppointment(item as Record<string, unknown>))
+            .filter((appointment) => {
+              return (
+                appointment.id &&
+                isFutureAppointment(appointment.startsAtLocal) &&
+                appointment.status !== 'cancelled' &&
+                appointment.status !== 'completed' &&
+                appointment.status !== 'absent'
+              );
+            });
+
+          setCachedClientAppointments(token, rows);
+          setAppointments(rows);
+          setLoadError(rows.length === 0 ? 'Nenhum agendamento futuro foi encontrado para este link.' : '');
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        if (!isMounted) return;
+
+        if (cachedRows.length > 0) {
+          setLoading(false);
+          return;
+        }
       }
 
       const localRows = buildLocalAppointmentRows({
@@ -542,7 +634,7 @@ export default function ClientAppointmentsPage({
       setAppointments(localRows);
 
       if (localRows.length === 0) {
-        setLoadError('Nenhum agendamento futuro foi encontrado para este link.');
+        setLoadError('Não foi possível carregar seus agendamentos agora. Tente novamente em alguns instantes.');
       }
 
       setLoading(false);
@@ -614,13 +706,37 @@ export default function ClientAppointmentsPage({
       error: ''
     });
 
-    const { data, error } = await supabase.rpc('get_client_reschedule_options_by_token', {
-      p_token: token,
-      p_appointment_id: appointment.id,
-      p_days: 30
-    });
+    let data: unknown[] | null = null;
+    let blockedIntervals: AgendaBlockedInterval[] = [];
 
-    if (error) {
+    try {
+      const [rescheduleResult, blockedIntervalsResult] = await Promise.all([
+        withTimeout(
+          supabase.rpc('get_client_reschedule_options_by_token', {
+            p_token: token,
+            p_appointment_id: appointment.id,
+            p_days: 30
+          }),
+          RESCHEDULE_LOAD_TIMEOUT_MS,
+          'Tempo esgotado ao buscar horários livres.'
+        ),
+        withTimeout(
+          loadPublicBlockedIntervals({
+            appointment,
+            state
+          }),
+          RESCHEDULE_LOAD_TIMEOUT_MS,
+          'Tempo esgotado ao buscar bloqueios da agenda.'
+        )
+      ]);
+
+      if (rescheduleResult.error) {
+        throw new Error(rescheduleResult.error.message);
+      }
+
+      data = Array.isArray(rescheduleResult.data) ? rescheduleResult.data : [];
+      blockedIntervals = blockedIntervalsResult;
+    } catch {
       setRescheduleDraft({
         appointment,
         selectedDate: '',
@@ -628,15 +744,10 @@ export default function ClientAppointmentsPage({
         options: [],
         blockedIntervals: [],
         loading: false,
-        error: 'Não foi possível carregar os horários disponíveis deste profissional.'
+        error: 'Não foi possível carregar os horários disponíveis deste profissional. Tente novamente em alguns instantes.'
       });
       return;
     }
-
-    const blockedIntervals = await loadPublicBlockedIntervals({
-      appointment,
-      state
-    });
 
     const options = (Array.isArray(data) ? data : [])
       .map((item) => normalizeRescheduleOption(item as Record<string, unknown>))
@@ -862,7 +973,7 @@ export default function ClientAppointmentsPage({
           </h1>
 
           <p className="mt-2 text-sm font-medium text-neutral-500">
-            Aguarde alguns segundos.
+            Estamos abrindo seu link com segurança.
           </p>
         </div>
       </main>
