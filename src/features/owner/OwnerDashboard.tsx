@@ -357,7 +357,6 @@ type SupabaseAppointmentResponse = {
   commission_paid: boolean;
   commission_value: number;
   deposit_paid: boolean;
-  client_public_access_token?: string | null;
 };
 
 function mapSupabaseAppointmentToAppAppointment(
@@ -423,19 +422,6 @@ function buildOwnerAppointmentPayload(
     payment_type: appointment.paymentType || "pendente",
     notes: appointment.notes || "Agendamento criado pela Agenda Geral.",
   };
-}
-
-
-function buildClientAppointmentAccessLink(token: string | null | undefined): string {
-  const normalizedToken = String(token || "").trim();
-
-  if (!normalizedToken) {
-    return "";
-  }
-
-  return `https://agendaspeed.com.br/meus-agendamentos/${encodeURIComponent(
-    normalizedToken,
-  )}`;
 }
 
 function buildReceiptFinancialAppointments(receipts: Receipt[]): Appointment[] {
@@ -633,8 +619,43 @@ interface AgendaCreateAppointmentPayload {
 }
 
 interface AgendaCreateAppointmentResult {
-  appointment: Appointment;
-  clientAccessLink: string;
+  appointmentId?: string;
+  clientActionLink?: string;
+}
+
+function getAgendaSpeedPublicOrigin(): string {
+  if (typeof window === "undefined") {
+    return "https://agendaspeed.com.br";
+  }
+
+  const origin = window.location.origin.replace("https://www.", "https://");
+
+  if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+    return "https://agendaspeed.com.br";
+  }
+
+  return origin;
+}
+
+function extractClientPublicToken(data: unknown): string {
+  const firstRow = Array.isArray(data) ? data[0] : data;
+
+  if (typeof firstRow === "string") {
+    return firstRow;
+  }
+
+  if (firstRow && typeof firstRow === "object") {
+    const record = firstRow as Record<string, unknown>;
+    return String(
+      record.public_access_token ||
+        record.client_public_access_token ||
+        record.access_token ||
+        record.token ||
+        "",
+    );
+  }
+
+  return "";
 }
 
 export default function OwnerDashboard({
@@ -1310,7 +1331,7 @@ export default function OwnerDashboard({
 
   const handleCreateAppointmentFromAgenda = async (
     payload: AgendaCreateAppointmentPayload,
-  ): Promise<AgendaCreateAppointmentResult | null> => {
+  ): Promise<AgendaCreateAppointmentResult | void> => {
     const selectedService = services.find(
       (service) => service.id === payload.serviceId,
     );
@@ -1320,7 +1341,7 @@ export default function OwnerDashboard({
 
     if (!selectedService || !selectedProfessional) {
       alert("Serviço ou profissional não encontrado.");
-      return null;
+      return;
     }
 
     const commissionValue = calculateCommissionValue({
@@ -1349,7 +1370,7 @@ export default function OwnerDashboard({
 
     if (error) {
       alert(error.message || "Não foi possível criar o agendamento.");
-      return null;
+      return;
     }
 
     const savedRow = (
@@ -1358,34 +1379,10 @@ export default function OwnerDashboard({
 
     if (!savedRow) {
       alert("Não foi possível confirmar o agendamento criado.");
-      return null;
+      return;
     }
 
     const newAppointment = mapSupabaseAppointmentToAppAppointment(savedRow);
-
-    let clientAccessToken = String(
-      savedRow.client_public_access_token || "",
-    ).trim();
-
-    if (!clientAccessToken && newAppointment.id) {
-      const { data: tokenData, error: tokenError } = await supabase.rpc(
-        "get_my_client_public_access_token_by_appointment",
-        {
-          p_appointment_id: newAppointment.id,
-        },
-      );
-
-      if (!tokenError) {
-        clientAccessToken = String(tokenData || "").trim();
-      } else {
-        console.error(
-          "Erro ao buscar token público do cliente:",
-          tokenError.message,
-        );
-      }
-    }
-
-    const clientAccessLink = buildClientAppointmentAccessLink(clientAccessToken);
 
     const updatedClients = upsertClientFromAppointment({
       clients,
@@ -1404,9 +1401,29 @@ export default function OwnerDashboard({
       clients: updatedClients,
     });
 
+    const tokenResult = await supabase.rpc(
+      "get_my_client_public_access_token_by_appointment",
+      {
+        p_appointment_id: newAppointment.id,
+      },
+    );
+
+    if (tokenResult.error) {
+      console.error(
+        "Erro ao buscar token público do cliente:",
+        tokenResult.error.message,
+      );
+    }
+
+    const clientPublicToken = tokenResult.error
+      ? ""
+      : extractClientPublicToken(tokenResult.data);
+
     return {
-      appointment: newAppointment,
-      clientAccessLink,
+      appointmentId: newAppointment.id,
+      clientActionLink: clientPublicToken
+        ? `${getAgendaSpeedPublicOrigin()}/meus-agendamentos/${clientPublicToken}`
+        : "",
     };
   };
 

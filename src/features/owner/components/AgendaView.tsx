@@ -51,6 +51,11 @@ interface AgendaCreateAppointmentPayload {
   paymentType: PaymentType;
 }
 
+interface AgendaCreateAppointmentResult {
+  appointmentId?: string;
+  clientActionLink?: string;
+}
+
 interface AgendaViewProps {
   appointments: Appointment[];
   professionals: Professional[];
@@ -59,7 +64,9 @@ interface AgendaViewProps {
   clients?: Client[];
   quickOpenProfessionalAgendaId?: string;
   quickOpenProfessionalAgendaKey?: number;
-  onCreateAppointment: (payload: AgendaCreateAppointmentPayload) => void;
+  onCreateAppointment: (
+    payload: AgendaCreateAppointmentPayload,
+  ) => Promise<AgendaCreateAppointmentResult | void> | AgendaCreateAppointmentResult | void;
   onUpdateAppointmentStatus?: (
     appointmentId: string,
     status: Appointment["status"],
@@ -967,18 +974,7 @@ export default function AgendaView({
     }
   };
 
-  const buildAppointmentActionLink = () => {
-    const baseUrl = window.location.origin;
-    const params = new URLSearchParams({
-      phone: normalizePhone(clientPhone),
-      date: selectedDate,
-      time: selectedTime,
-    });
-
-    return `${baseUrl}/meu-agendamento?${params.toString()}`;
-  };
-
-  const buildClientConfirmationWhatsAppUrl = () => {
+  const buildClientConfirmationWhatsAppUrl = (clientActionLink: string) => {
     if (
       !selectedService ||
       !selectedProfessional ||
@@ -990,7 +986,6 @@ export default function AgendaView({
     }
 
     const phone = normalizePhone(clientPhone);
-    const actionLink = buildAppointmentActionLink();
     const message = [
       `Olá, ${clientName.trim() || "tudo bem"}! Seu horário foi agendado com sucesso.`,
       "",
@@ -1000,13 +995,13 @@ export default function AgendaView({
       `Horário: ${selectedTime}`,
       "",
       "Para confirmar, cancelar ou remarcar, acesse:",
-      actionLink,
+      clientActionLink,
     ].join("\n");
 
     return `https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`;
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!canSubmit || !selectedProfessional || !selectedService) {
@@ -1042,7 +1037,7 @@ export default function AgendaView({
       return;
     }
 
-    onCreateAppointment({
+    const createdAppointment = await onCreateAppointment({
       clientName: clientName.trim(),
       clientPhone,
       serviceId: selectedServiceId,
@@ -1053,7 +1048,22 @@ export default function AgendaView({
       paymentType: "pendente",
     });
 
-    const confirmationUrl = buildClientConfirmationWhatsAppUrl();
+    if (!createdAppointment?.appointmentId) {
+      return;
+    }
+
+    const clientActionLink = createdAppointment.clientActionLink || "";
+
+    if (!clientActionLink) {
+      alert(
+        "Agendamento criado, mas não foi possível gerar o link do cliente. Atualize a página e tente reenviar a confirmação pelo painel.",
+      );
+      setWhatsAppConfirmUrl("");
+      setCurrentStep("success");
+      return;
+    }
+
+    const confirmationUrl = buildClientConfirmationWhatsAppUrl(clientActionLink);
     setWhatsAppConfirmUrl(confirmationUrl);
 
     if (confirmationUrl) {
