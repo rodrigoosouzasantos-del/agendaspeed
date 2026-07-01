@@ -46,6 +46,9 @@ interface ClientAppointmentRow {
   tenantName: string;
   serviceName: string;
   professionalName: string;
+  professionalId: string;
+  serviceId: string;
+  serviceDurationMinutes: number;
   startsAtLocal: string;
   status: ClientAppointmentStatus;
   cancelLeadTimeMinutes: number;
@@ -59,6 +62,17 @@ interface RescheduleOptionRow {
   dateLabel: string;
   time: string;
   startsAtLocal: string;
+  professionalId: string;
+  serviceDurationMinutes: number;
+}
+
+interface AgendaBlockedInterval {
+  id: string;
+  professionalId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
 }
 
 interface ClientAppointmentsPageProps {
@@ -77,6 +91,7 @@ interface RescheduleDraft {
   selectedDate: string;
   selectedStartsAtLocal: string;
   options: RescheduleOptionRow[];
+  blockedIntervals: AgendaBlockedInterval[];
   loading: boolean;
   error: string;
 }
@@ -149,6 +164,167 @@ function readRecordValue<T = unknown>(
   return undefined;
 }
 
+function normalizeText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function buildCompactSlugCandidate(value: string): string {
+  return normalizeText(value).replace(/[^a-z0-9]/g, '');
+}
+
+function getTenantSlugCandidates(params: {
+  appointment?: ClientAppointmentRow;
+  state: LocalState;
+}): string[] {
+  const candidates = new Set<string>();
+  const addCandidate = (value: unknown) => {
+    if (typeof value !== 'string') return;
+
+    const compact = buildCompactSlugCandidate(value);
+    if (compact) {
+      candidates.add(compact);
+    }
+
+    const pathLike = value.split('/').filter(Boolean).pop() || '';
+    const compactPath = buildCompactSlugCandidate(pathLike);
+    if (compactPath) {
+      candidates.add(compactPath);
+    }
+  };
+
+  addCandidate(params.appointment?.tenantName);
+  addCandidate(params.state.config.name);
+
+  try {
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    pathParts.forEach((part) => {
+      if (!['meus-agendamentos', 'meu-agendamento'].includes(part)) {
+        addCandidate(part);
+      }
+    });
+  } catch {
+    // Mantém a página funcionando mesmo se o browser bloquear algum recurso.
+  }
+
+  return Array.from(candidates);
+}
+
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = String(time || '00:00').slice(0, 5).split(':').map(Number);
+
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
+
+function normalizeAgendaBlockedInterval(rawBlock: Record<string, unknown>): AgendaBlockedInterval {
+  return {
+    id: String(readRecordValue(rawBlock, ['id']) || ''),
+    professionalId: String(readRecordValue(rawBlock, ['professional_id', 'professionalId']) || ''),
+    date: String(readRecordValue(rawBlock, ['date', 'block_date', 'blockDate']) || '').slice(0, 10),
+    startTime: String(readRecordValue(rawBlock, ['start_time', 'startTime']) || '').slice(0, 5),
+    endTime: String(readRecordValue(rawBlock, ['end_time', 'endTime']) || '').slice(0, 5),
+    reason: String(readRecordValue(rawBlock, ['reason', 'notes']) || 'Bloqueado')
+  };
+}
+
+function mergeBlockedIntervals(
+  currentMap: Map<string, AgendaBlockedInterval>,
+  rows: unknown
+): void {
+  if (!Array.isArray(rows)) return;
+
+  rows.forEach((row) => {
+    const blockedInterval = normalizeAgendaBlockedInterval(row as Record<string, unknown>);
+
+    if (
+      !blockedInterval.professionalId ||
+      !blockedInterval.date ||
+      !blockedInterval.startTime ||
+      !blockedInterval.endTime
+    ) {
+      return;
+    }
+
+    const key =
+      blockedInterval.id ||
+      `${blockedInterval.professionalId}-${blockedInterval.date}-${blockedInterval.startTime}-${blockedInterval.endTime}`;
+
+    currentMap.set(key, blockedInterval);
+  });
+}
+
+function getOptionSlotRange(option: RescheduleOptionRow): {
+  date: string;
+  startMinute: number;
+  endMinute: number;
+} {
+  const date = option.date || getDateInputValue(option.startsAtLocal);
+  const time = option.time || getTimeInputValue(option.startsAtLocal);
+  const startMinute = timeToMinutes(time);
+  const duration = Math.max(15, Number(option.serviceDurationMinutes) || 30);
+
+  return {
+    date,
+    startMinute,
+    endMinute: startMinute + duration
+  };
+}
+
+function optionOverlapsBlockedInterval(params: {
+  option: RescheduleOptionRow;
+  appointment: ClientAppointmentRow;
+  blockedIntervals: AgendaBlockedInterval[];
+}): AgendaBlockedInterval | null {
+  const { option, appointment, blockedIntervals } = params;
+  const professionalId = option.professionalId || appointment.professionalId;
+
+  if (!professionalId) {
+    return null;
+  }
+
+  const optionRange = getOptionSlotRange(option);
+
+  return blockedIntervals.find((blockedInterval) => {
+    if (
+      blockedInterval.professionalId !== professionalId ||
+      blockedInterval.date !== optionRange.date
+    ) {
+      return false;
+    }
+
+    const blockedStart = timeToMinutes(blockedInterval.startTime);
+    const blockedEnd = timeToMinutes(blockedInterval.endTime);
+
+    return blockedStart < optionRange.endMinute && blockedEnd > optionRange.startMinute;
+  }) || null;
+}
+
+async function loadPublicBlockedIntervals(params: {
+  appointment: ClientAppointmentRow;
+  state: LocalState;
+}): Promise<AgendaBlockedInterval[]> {
+  const intervalsMap = new Map<string, AgendaBlockedInterval>();
+  const slugCandidates = getTenantSlugCandidates(params);
+
+  for (const slugCandidate of slugCandidates) {
+    const { data, error } = await supabase.rpc('get_public_professional_schedule_blocks', {
+      p_slug: slugCandidate
+    });
+
+    if (error) {
+      continue;
+    }
+
+    mergeBlockedIntervals(intervalsMap, data);
+  }
+
+  return Array.from(intervalsMap.values());
+}
+
+
 function normalizeStatus(value: unknown): ClientAppointmentStatus {
   const status = String(value || 'scheduled');
 
@@ -183,6 +359,15 @@ function normalizeRemoteAppointment(row: Record<string, unknown>): ClientAppoint
     tenantName: String(readRecordValue(row, ['tenant_name', 'company_name', 'establishment_name']) || 'Estabelecimento'),
     serviceName: String(readRecordValue(row, ['service_name', 'serviceName']) || 'Serviço'),
     professionalName: String(readRecordValue(row, ['professional_name', 'professionalName']) || 'Profissional'),
+    professionalId: String(readRecordValue(row, ['professional_id', 'professionalId']) || ''),
+    serviceId: String(readRecordValue(row, ['service_id', 'serviceId']) || ''),
+    serviceDurationMinutes: Number(readRecordValue(row, [
+      'service_duration_minutes',
+      'service_duration',
+      'duration_minutes',
+      'duration',
+      'serviceDurationMinutes'
+    ]) || 30),
     startsAtLocal,
     status: normalizeStatus(readRecordValue(row, ['status'])),
     cancelLeadTimeMinutes: Number(readRecordValue(row, ['cancel_lead_time_minutes', 'booking_min_cancel_lead_time_minutes']) ?? 0),
@@ -201,7 +386,15 @@ function normalizeRescheduleOption(row: Record<string, unknown>): RescheduleOpti
     dayLabel: String(readRecordValue(row, ['day_label', 'dayLabel']) || ''),
     dateLabel: String(readRecordValue(row, ['date_label', 'dateLabel']) || ''),
     time: String(readRecordValue(row, ['time', 'time_label']) || getTimeInputValue(startsAtLocal)),
-    startsAtLocal
+    startsAtLocal,
+    professionalId: String(readRecordValue(row, ['professional_id', 'professionalId']) || ''),
+    serviceDurationMinutes: Number(readRecordValue(row, [
+      'service_duration_minutes',
+      'service_duration',
+      'duration_minutes',
+      'duration',
+      'serviceDurationMinutes'
+    ]) || 30)
   };
 }
 
@@ -222,6 +415,9 @@ function buildLocalAppointmentRows(params: {
         tenantName: state.config.name || 'Estabelecimento',
         serviceName: service?.name || 'Serviço',
         professionalName: professional?.name || 'Profissional',
+        professionalId: professional?.id || appointment.professionalId || '',
+        serviceId: service?.id || appointment.serviceId || '',
+        serviceDurationMinutes: Number(service?.duration) || 30,
         startsAtLocal: appointment.dateTime,
         status: appointment.status,
         cancelLeadTimeMinutes: 0,
@@ -413,6 +609,7 @@ export default function ClientAppointmentsPage({
       selectedDate: '',
       selectedStartsAtLocal: '',
       options: [],
+      blockedIntervals: [],
       loading: true,
       error: ''
     });
@@ -429,21 +626,43 @@ export default function ClientAppointmentsPage({
         selectedDate: '',
         selectedStartsAtLocal: '',
         options: [],
+        blockedIntervals: [],
         loading: false,
         error: 'Não foi possível carregar os horários disponíveis deste profissional.'
       });
       return;
     }
 
+    const blockedIntervals = await loadPublicBlockedIntervals({
+      appointment,
+      state
+    });
+
     const options = (Array.isArray(data) ? data : [])
       .map((item) => normalizeRescheduleOption(item as Record<string, unknown>))
-      .filter((option) => option.startsAtLocal && option.startsAtLocal !== appointment.startsAtLocal);
+      .map((option) => ({
+        ...option,
+        professionalId: option.professionalId || appointment.professionalId,
+        serviceDurationMinutes:
+          Number(option.serviceDurationMinutes) ||
+          Number(appointment.serviceDurationMinutes) ||
+          30
+      }))
+      .filter((option) => option.startsAtLocal && option.startsAtLocal !== appointment.startsAtLocal)
+      .filter((option) => {
+        return !optionOverlapsBlockedInterval({
+          option,
+          appointment,
+          blockedIntervals
+        });
+      });
 
     setRescheduleDraft({
       appointment,
       selectedDate: '',
       selectedStartsAtLocal: '',
       options,
+      blockedIntervals,
       loading: false,
       error: options.length === 0 ? 'Este profissional não possui horários livres nos próximos dias.' : ''
     });
@@ -593,6 +812,34 @@ export default function ClientAppointmentsPage({
         tone: 'red',
         title: 'Escolha um novo horário',
         description: 'Selecione uma data e um horário disponível da agenda do profissional.'
+      });
+      return;
+    }
+
+    const selectedOption = rescheduleDraft.options.find((option) => {
+      return option.startsAtLocal === rescheduleDraft.selectedStartsAtLocal;
+    });
+
+    if (!selectedOption) {
+      setFeedbackModal({
+        tone: 'red',
+        title: 'Horário indisponível',
+        description: 'Este horário não está mais disponível. Feche a remarcação e escolha outro horário.'
+      });
+      return;
+    }
+
+    const blockedInterval = optionOverlapsBlockedInterval({
+      option: selectedOption,
+      appointment: rescheduleDraft.appointment,
+      blockedIntervals: rescheduleDraft.blockedIntervals
+    });
+
+    if (blockedInterval) {
+      setFeedbackModal({
+        tone: 'red',
+        title: 'Horário bloqueado',
+        description: `Este horário está bloqueado na agenda do profissional. Motivo: ${blockedInterval.reason || 'Bloqueado'}.`
       });
       return;
     }
