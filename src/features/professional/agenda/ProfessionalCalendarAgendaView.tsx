@@ -272,6 +272,7 @@ function ProfessionalAgendaSlotRow({
             Horário reservado para intervalo.
           </p>
         </div>
+      </div>
     );
   }
 
