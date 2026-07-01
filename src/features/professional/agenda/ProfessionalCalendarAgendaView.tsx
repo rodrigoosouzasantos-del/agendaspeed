@@ -5,14 +5,18 @@ import React, {
 } from 'react';
 
 import {
+  Ban,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
   Lock,
   MessageCircle,
   Plus,
+  RotateCcw,
   Unlock,
+  UserX,
   X
 } from 'lucide-react';
 
@@ -33,14 +37,12 @@ import {
 } from './professionalAgenda.types';
 
 import {
-  PROFESSIONAL_AGENDA_STATUS_OPTIONS,
   addMinutesToTime,
   buildConfirmWhatsAppUrl,
   buildProfessionalAgendaCalendarDays,
   calculateAgendaSummary,
   formatDateBr,
   generateProfessionalAgendaSlots,
-  getAppointmentStatusClassName,
   getSlotStatusClassName,
   timeToMinutes
 } from './professionalAgenda.utils';
@@ -137,6 +139,59 @@ function getCalendarDayStatusClassName(status: ProfessionalAgendaCalendarDay['st
   return 'text-neutral-500 bg-white border-neutral-200';
 }
 
+
+function getProfessionalAppointmentCardClassName(status: AppointmentStatus): string {
+  if (status === 'confirmed') {
+    return 'border-emerald-200 bg-emerald-50/85 shadow-emerald-950/5';
+  }
+
+  if (status === 'cancelled') {
+    return 'border-neutral-300 bg-neutral-100/90 shadow-neutral-950/5 opacity-90';
+  }
+
+  if (status === 'absent') {
+    return 'border-red-200 bg-red-50/85 shadow-red-950/5';
+  }
+
+  if (status === 'completed') {
+    return 'border-sky-200 bg-sky-50/80 shadow-sky-950/5';
+  }
+
+  return 'border-amber-200 bg-amber-50/85 shadow-amber-950/5';
+}
+
+function getProfessionalAppointmentFooterLabel(status: AppointmentStatus): string {
+  if (status === 'confirmed') return 'CLIENTE CONFIRMOU PRESENÇA';
+  if (status === 'cancelled') return 'ATENDIMENTO CANCELADO';
+  if (status === 'absent') return 'CLIENTE FALTOU';
+  if (status === 'completed') return 'ATENDIMENTO FINALIZADO';
+  return 'AGUARDANDO CONFIRMAÇÃO';
+}
+
+function getProfessionalAppointmentFooterClassName(status: AppointmentStatus): string {
+  if (status === 'confirmed') return 'text-emerald-800';
+  if (status === 'cancelled') return 'text-neutral-600';
+  if (status === 'absent') return 'text-red-800';
+  if (status === 'completed') return 'text-sky-800';
+  return 'text-amber-800';
+}
+
+function getProfessionalAppointmentStatusLabel(status: AppointmentStatus): string {
+  if (status === 'confirmed') return 'Confirmado';
+  if (status === 'cancelled') return 'Cancelado';
+  if (status === 'absent') return 'Faltou';
+  if (status === 'completed') return 'Finalizado';
+  return 'Aguardando confirmação';
+}
+
+function getProfessionalAppointmentStatusBadgeClassName(status: AppointmentStatus): string {
+  if (status === 'confirmed') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (status === 'cancelled') return 'bg-neutral-200 text-neutral-700 border-neutral-300';
+  if (status === 'absent') return 'bg-red-100 text-red-800 border-red-200';
+  if (status === 'completed') return 'bg-sky-100 text-sky-800 border-sky-200';
+  return 'bg-amber-100 text-amber-800 border-amber-200';
+}
+
 function ProfessionalAgendaSlotRow({
   slot,
   professional,
@@ -217,7 +272,6 @@ function ProfessionalAgendaSlotRow({
             Horário reservado para intervalo.
           </p>
         </div>
-      </div>
     );
   }
 
@@ -297,76 +351,132 @@ function ProfessionalAgendaSlotRow({
     time: slot.time
   });
 
+  const handleAppointmentStatusAction = (status: AppointmentStatus) => {
+    if (appointment.status === status) {
+      return;
+    }
+
+    onModifyAppointment(appointment.id, {
+      status
+    });
+  };
+
   return (
-    <div className={`border rounded-2xl p-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center ${getSlotStatusClassName(slot.status)}`}>
-      <div className="md:col-span-2">
-        <span className="text-sm font-black font-mono">
-          {slot.time}
-        </span>
+    <div className={`rounded-2xl border p-3 shadow-sm transition ${getProfessionalAppointmentCardClassName(appointment.status as AppointmentStatus)}`}>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[88px_1fr_auto] xl:items-center">
+        <div className="flex items-center gap-3 xl:block">
+          <span className="block rounded-2xl bg-white/85 px-4 py-3 text-center font-mono text-2xl font-extrabold leading-none tracking-[-0.04em] text-neutral-950 shadow-sm ring-1 ring-black/5">
+            {slot.time}
+          </span>
 
-        <span className="text-[10px] font-mono block opacity-70">
-          até {slot.endTime}
-        </span>
+          <span className="font-mono text-[10px] font-bold text-neutral-500 xl:mt-1 xl:block xl:text-center">
+            até {slot.endTime}
+          </span>
+        </div>
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] text-neutral-500">
+              Cliente: <span className="text-neutral-950">{appointment.clientName}</span>
+            </span>
+
+            <span className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] ${getProfessionalAppointmentStatusBadgeClassName(appointment.status as AppointmentStatus)}`}>
+              {getProfessionalAppointmentStatusLabel(appointment.status as AppointmentStatus)}
+            </span>
+          </div>
+
+          <h4 className="mt-2 break-words text-base font-extrabold leading-tight tracking-[-0.02em] text-neutral-950 sm:text-lg">
+            {service?.name || 'Serviço personalizado'}
+          </h4>
+
+          <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-500">
+            Profissional: {professional.name}
+          </p>
+
+          {appointment.clientPhone && (
+            <p className="mt-1 font-mono text-xs font-semibold text-neutral-500">
+              WhatsApp: {appointment.clientPhone}
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[430px]">
+          <button
+            type="button"
+            disabled={appointment.status === 'confirmed'}
+            onClick={() => handleAppointmentStatusAction('confirmed')}
+            className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+              appointment.status === 'confirmed'
+                ? 'cursor-not-allowed bg-emerald-100 text-emerald-700'
+                : 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+            }`}
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirmar
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled
+            title="A remarcação completa do profissional será ligada ao fluxo de reagendamento em uma próxima etapa."
+            className="cursor-not-allowed rounded-xl bg-orange-100 px-3 py-2.5 text-xs font-extrabold text-orange-400"
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reagendar
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled={appointment.status === 'cancelled'}
+            onClick={() => handleAppointmentStatusAction('cancelled')}
+            className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+              appointment.status === 'cancelled'
+                ? 'cursor-not-allowed bg-neutral-200 text-neutral-500'
+                : 'bg-neutral-800 text-white shadow-sm hover:bg-neutral-900'
+            }`}
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <Ban className="h-3.5 w-3.5" />
+              Cancelou
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled={appointment.status === 'absent'}
+            onClick={() => handleAppointmentStatusAction('absent')}
+            className={`rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
+              appointment.status === 'absent'
+                ? 'cursor-not-allowed bg-red-100 text-red-700'
+                : 'bg-red-700 text-white shadow-sm hover:bg-red-800'
+            }`}
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <UserX className="h-3.5 w-3.5" />
+              Faltou
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div className="md:col-span-3">
-        <span className="text-sm font-black text-neutral-950">
-          {appointment.clientName}
+      <div className="mt-3 flex flex-col gap-2 border-t border-black/5 pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className={`font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getProfessionalAppointmentFooterClassName(appointment.status as AppointmentStatus)}`}>
+          {getProfessionalAppointmentFooterLabel(appointment.status as AppointmentStatus)}
         </span>
 
-        <p className="text-xs text-neutral-500 font-mono mt-0.5">
-          {appointment.clientPhone}
-        </p>
-      </div>
-
-      <div className="md:col-span-3">
-        <span className="text-xs font-bold text-neutral-500 uppercase font-mono">
-          Serviço
-        </span>
-
-        <p className="text-sm font-black text-neutral-900">
-          {service?.name || 'Serviço personalizado'}
-        </p>
-      </div>
-
-      <div className="md:col-span-2">
-        <span
-          className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-black border ${getAppointmentStatusClassName(appointment.status)}`}
-        >
-          {slot.label}
-        </span>
-      </div>
-
-      <div className="md:col-span-2 flex items-center md:justify-end gap-2">
         <a
           href={whatsappUrl}
           target="_blank"
           rel="noreferrer"
-          title="Enviar WhatsApp"
-          className="p-2 rounded-xl bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-50"
         >
-          <MessageCircle className="w-4 h-4" />
+          <MessageCircle className="h-4 w-4" />
+          WhatsApp
         </a>
-
-        <select
-          value={appointment.status}
-          onChange={(event) => {
-            onModifyAppointment(appointment.id, {
-              status: event.target.value as AppointmentStatus
-            });
-          }}
-          className="bg-white border rounded-xl px-2 py-2 text-[11px] font-bold outline-none"
-          title="Alterar status"
-        >
-          {PROFESSIONAL_AGENDA_STATUS_OPTIONS.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
       </div>
     </div>
   );
