@@ -15,6 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ArrowLeft,
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -89,6 +90,8 @@ type AgendaStep =
   | "clientData"
   | "professionalAgenda"
   | "success";
+
+type OutsideScaleConfirmRequest = "singleOpen" | "bulkOpen" | null;
 
 
 interface AgendaBlockedInterval {
@@ -619,6 +622,8 @@ export default function AgendaView({
   const [professionalSearch, setProfessionalSearch] = useState("");
   const viewTopRef = useRef<HTMLDivElement | null>(null);
   const [blockedIntervals, setBlockedIntervals] = useState<AgendaBlockedInterval[]>([]);
+  const [outsideScaleConfirmRequest, setOutsideScaleConfirmRequest] =
+    useState<OutsideScaleConfirmRequest>(null);
   const [openDays, setOpenDays] = useState<AgendaScheduleDay[]>([]);
   const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
 
@@ -1937,23 +1942,13 @@ export default function AgendaView({
       });
     };
 
-    const handleUpdateScheduleDay = async (status: 'open' | 'closed') => {
+    const submitScheduleDayUpdate = async (status: "open" | "closed") => {
       if (scheduleDayActionLoading) {
         return;
       }
 
       const isOpeningOutsideRegularSchedule =
-        status === 'open' && selectedDateOutsideRegularSchedule;
-
-      if (isOpeningOutsideRegularSchedule) {
-        const shouldOpen = window.confirm(
-          `${selectedProfessional.name} informou no cadastro que não trabalha nesta data.\n\nDeseja abrir a agenda mesmo assim?\n\nUse esta opção apenas para exceções, como compensação de feriado, atendimento especial ou plantão.`,
-        );
-
-        if (!shouldOpen) {
-          return;
-        }
-      }
+        status === "open" && selectedDateOutsideRegularSchedule;
 
       setScheduleDayActionLoading(true);
 
@@ -1984,6 +1979,66 @@ export default function AgendaView({
       );
     };
 
+    const handleUpdateScheduleDay = async (status: "open" | "closed") => {
+      const isOpeningOutsideRegularSchedule =
+        status === "open" && selectedDateOutsideRegularSchedule;
+
+      if (isOpeningOutsideRegularSchedule) {
+        setOutsideScaleConfirmRequest("singleOpen");
+        return;
+      }
+
+      await submitScheduleDayUpdate(status);
+    };
+
+    const submitOpenVisibleScheduleDays = async () => {
+      if (scheduleDayActionLoading) {
+        return;
+      }
+
+      setScheduleDayActionLoading(true);
+
+      const results: AgendaScheduleDay[] = [];
+
+      for (const dateOption of dateOptions) {
+        const isOutsideRegularSchedule = isDateOutsideProfessionalRegularSchedule({
+          professional: selectedProfessional,
+          date: dateOption,
+        });
+
+        const { data, error } = await supabase.rpc("upsert_my_professional_schedule_day", {
+          p_professional_id: selectedProfessional.id,
+          p_date: dateOption,
+          p_status: "open",
+          p_is_out_of_regular_schedule: isOutsideRegularSchedule,
+        });
+
+        if (error) {
+          setScheduleDayActionLoading(false);
+          alert(error.message || "Não foi possível abrir os dias selecionados.");
+          return;
+        }
+
+        const firstRow = Array.isArray(data) ? data[0] : data;
+
+        results.push(
+          normalizeAgendaScheduleDay({
+            ...(firstRow || {}),
+            professional_id: selectedProfessional.id,
+            date: dateOption,
+            status: "open",
+            is_out_of_regular_schedule: isOutsideRegularSchedule,
+          } as Record<string, unknown>),
+        );
+      }
+
+      setScheduleDayActionLoading(false);
+
+      results.forEach((scheduleDay) => {
+        updateLocalScheduleDay(scheduleDay);
+      });
+    };
+
     const handleOpenVisibleScheduleDays = async () => {
       if (scheduleDayActionLoading) {
         return;
@@ -1997,36 +2052,24 @@ export default function AgendaView({
       );
 
       if (outsideRegularDates.length > 0) {
-        const shouldOpen = window.confirm(
-          `Você selecionou dias fora da escala de ${selectedProfessional.name}:\n\n${outsideRegularDates
-            .map((dateOption) => formatDateBr(dateOption))
-            .join("\n")}\n\nDeseja abrir esses dias mesmo assim?`,
-        );
-
-        if (!shouldOpen) {
-          return;
-        }
-      }
-
-      setScheduleDayActionLoading(true);
-
-      const { data, error } = await supabase.rpc("bulk_upsert_my_professional_schedule_days", {
-        p_professional_id: selectedProfessional.id,
-        p_dates: dateOptions,
-        p_status: "open",
-      });
-
-      setScheduleDayActionLoading(false);
-
-      if (error) {
-        alert(error.message || "Não foi possível abrir os dias selecionados.");
+        setOutsideScaleConfirmRequest("bulkOpen");
         return;
       }
 
-      if (Array.isArray(data)) {
-        data.forEach((row) => {
-          updateLocalScheduleDay(normalizeAgendaScheduleDay(row as Record<string, unknown>));
-        });
+      await submitOpenVisibleScheduleDays();
+    };
+
+    const handleConfirmOutsideScale = async () => {
+      const action = outsideScaleConfirmRequest;
+      setOutsideScaleConfirmRequest(null);
+
+      if (action === "singleOpen") {
+        await submitScheduleDayUpdate("open");
+        return;
+      }
+
+      if (action === "bulkOpen") {
+        await submitOpenVisibleScheduleDays();
       }
     };
 
@@ -2589,6 +2632,38 @@ export default function AgendaView({
             );
           })}
         </div>
+
+        {outsideScaleConfirmRequest && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-sm rounded-3xl border border-orange-200 bg-white p-5 text-center shadow-2xl">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+                <AlertTriangle className="h-8 w-8" />
+              </div>
+
+              <h4 className="mt-4 text-lg font-extrabold text-neutral-950">
+                Abrir agenda fora da escala?
+              </h4>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleConfirmOutsideScale}
+                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  Sim
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOutsideScaleConfirmRequest(null)}
+                  className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-700"
+                >
+                  Não
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
