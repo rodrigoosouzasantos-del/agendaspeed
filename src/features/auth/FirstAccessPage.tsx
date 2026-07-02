@@ -227,7 +227,7 @@ export default function FirstAccessPage() {
     setSubmitting(false);
 
     window.setTimeout(() => {
-      window.location.href = '/owner';
+      window.location.href = '/painel';
     }, 1200);
   };
 

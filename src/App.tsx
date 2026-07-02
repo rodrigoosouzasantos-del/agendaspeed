@@ -1,4 +1,4 @@
-/**
+/**/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -87,6 +87,7 @@ const RESERVED_PUBLIC_PATHS = new Set([
   'login',
   'cadastro',
   'owner',
+  'painel',
   'master',
   'profissional',
   'profissional-acesso',
@@ -153,7 +154,7 @@ function getInitialViewFromPath(): AppView {
     return 'register';
   }
 
-  if (pathname === '/owner') {
+  if (pathname === '/painel' || pathname === '/owner') {
     return 'owner-dashboard';
   }
 
@@ -312,8 +313,16 @@ export default function App() {
 
       if (!isMounted) return;
 
-      if (pathname === '/owner' && !user) {
+      if ((pathname === '/painel' || pathname === '/owner') && !user) {
         navigateTo('login', '/login');
+      }
+
+      if (pathname === '/owner' && user) {
+        navigateTo('owner-dashboard', '/painel');
+      }
+
+      if ((pathname === '/login' || pathname === '/cadastro') && user?.role === 'owner') {
+        navigateTo('owner-dashboard', '/painel');
       }
 
       setAuthChecking(false);
@@ -448,7 +457,7 @@ export default function App() {
   const handleAuthSuccess = (user: SessionUser) => {
     setSessionUser(user);
     if (user.role === 'owner') {
-      navigateTo('owner-dashboard', '/owner');
+      navigateTo('owner-dashboard', '/painel');
     } else {
       navigateTo('professional-dashboard', '/profissional');
     }
@@ -459,7 +468,7 @@ export default function App() {
     setSessionUser(null);
     setOwnerContext(null);
     setPreseedRole(null);
-    navigateTo('landing', '/');
+    navigateTo('login', '/login');
   };
 
   const getActiveTenantSlug = (): string => {
@@ -485,7 +494,7 @@ export default function App() {
       const defaultState = resetLocalState();
       setAppState(defaultState);
       alert('Tabelas redefinidas com sucesso!');
-      navigateTo('landing', '/');
+      navigateTo('login', '/login');
     }
   };
 
@@ -533,7 +542,7 @@ export default function App() {
             onAuthSuccess={handleAuthSuccess}
             onNavigateBack={() => {
               setPreseedRole(null);
-              navigateTo('landing', '/');
+              navigateTo('login', '/login');
             }}
           />
         )}
@@ -574,7 +583,7 @@ export default function App() {
           <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
             <div className="rounded-3xl border border-orange-100 bg-white p-8 text-center shadow-sm">
               <p className="text-xl font-black text-neutral-900">Acesso necessário</p>
-              <p className="mt-2 text-sm text-neutral-500">Faça login para acessar o painel.</p>
+              <p className="mt-2 text-sm text-neutral-500">Faça login para acessar o painel protegido.</p>
               <button
                 onClick={() => navigateTo('login', '/login')}
                 className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
@@ -632,7 +641,7 @@ export default function App() {
                   const user = await loadSupabaseOwnerSession();
 
                   if (user) {
-                    navigateTo('owner-dashboard', '/owner');
+                    navigateTo('owner-dashboard', '/painel');
                     return;
                   }
 
