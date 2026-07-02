@@ -392,6 +392,7 @@ export function buildInitialSlots(params: {
   selectedDate: string;
   baseTimes: string[];
   appointmentTimes: string[];
+  historicalTimes?: string[];
   extraTimes: string[];
   blockedIntervals: ProfessionalAgendaBlockedInterval[];
   slotMinutes?: number;
@@ -401,6 +402,7 @@ export function buildInitialSlots(params: {
     selectedDate,
     baseTimes,
     appointmentTimes,
+    historicalTimes = [],
     extraTimes,
     blockedIntervals,
     slotMinutes = 30
@@ -409,6 +411,7 @@ export function buildInitialSlots(params: {
   const allTimes = sortTimes([
     ...baseTimes,
     ...appointmentTimes,
+    ...historicalTimes,
     ...extraTimes
   ]);
 
@@ -473,6 +476,14 @@ export function generateProfessionalAgendaSlots({
     });
   });
 
+  const historicalAppointments = dayAppointments.filter((appointment) => {
+    return !isBlockingAppointmentStatus(appointment.status);
+  });
+
+  const historicalTimes = historicalAppointments.map((appointment) => {
+    return getAppointmentTime(appointment);
+  });
+
   const baseTimes = generateBaseTimes({
     professional,
     selectedDate,
@@ -497,6 +508,7 @@ export function generateProfessionalAgendaSlots({
     selectedDate,
     baseTimes,
     appointmentTimes,
+    historicalTimes,
     extraTimes: dayExtraTimes,
     blockedIntervals: dayBlockedIntervals,
     slotMinutes
@@ -544,6 +556,25 @@ export function generateProfessionalAgendaSlots({
         service
       };
     });
+  });
+
+  historicalAppointments.forEach((appointment) => {
+    const time = getAppointmentTime(appointment);
+    const slotIndex = slots.findIndex((slot) => {
+      return slot.time === time;
+    });
+
+    if (slotIndex < 0) {
+      return;
+    }
+
+    slots[slotIndex] = {
+      ...slots[slotIndex],
+      historicalAppointments: [
+        ...(slots[slotIndex].historicalAppointments || []),
+        appointment
+      ]
+    };
   });
 
   return slots;

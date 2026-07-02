@@ -60,6 +60,7 @@ export interface ProfessionalAgendaTimeSlot {
   service?: Service;
   occupiedByAppointmentId?: string;
   blockReason?: string;
+  historicalAppointments?: Appointment[];
 }
 
 export interface ProfessionalAgendaCalendarDay {

@@ -2098,9 +2098,21 @@ export default function AgendaView({
         getAppointmentTime(first).localeCompare(getAppointmentTime(second)),
       );
 
+    const nonBlockingAppointmentStatuses = ["cancelled", "absent", "rescheduled"];
+
     const blockingAppointments = professionalAppointments.filter(
-      (appointment) => !["cancelled", "absent", "rescheduled"].includes(appointment.status),
+      (appointment) => !nonBlockingAppointmentStatuses.includes(appointment.status),
     );
+
+    const historicalAppointments = professionalAppointments.filter((appointment) => {
+      return nonBlockingAppointmentStatuses.includes(appointment.status);
+    });
+
+    const getHistoricalAppointmentsForStartMinute = (startMinute: number) => {
+      return historicalAppointments.filter((appointment) => {
+        return timeToMinutes(getAppointmentTime(appointment)) === startMinute;
+      });
+    };
 
     const getAppointmentService = (appointment: Appointment) => {
       return services.find((item) => item.id === appointment.serviceId);
@@ -2172,13 +2184,15 @@ export default function AgendaView({
       appointment?: Appointment;
       blockedInterval?: AgendaBlockedInterval;
       occupyingAppointment?: Appointment;
+      historicalAppointments?: Appointment[];
     }>;
 
     for (let minute = workStart; minute < workEnd; minute += slotStepMinutes) {
       const slotEnd = Math.min(minute + slotStepMinutes, workEnd);
-      const appointmentStartingHere = professionalAppointments.find(
+      const appointmentStartingHere = blockingAppointments.find(
         (appointment) => getAppointmentStartMinute(appointment) === minute,
       );
+      const slotHistoricalAppointments = getHistoricalAppointmentsForStartMinute(minute);
       const blockingAppointmentStartingHere = blockingAppointments.find(
         (appointment) => getAppointmentStartMinute(appointment) === minute,
       );
@@ -2204,6 +2218,7 @@ export default function AgendaView({
           end: getAppointmentEndMinute(appointmentStartingHere),
           type: "appointment",
           appointment: appointmentStartingHere,
+          historicalAppointments: slotHistoricalAppointments,
         });
         continue;
       }
@@ -2233,6 +2248,7 @@ export default function AgendaView({
             endTime: minutesToTime(slotEnd),
             reason: "Agenda fechada. Abra este dia para permitir agendamentos.",
           },
+          historicalAppointments: slotHistoricalAppointments,
         });
         continue;
       }
@@ -2244,6 +2260,7 @@ export default function AgendaView({
           end: slotEnd,
           type: "blocked",
           blockedInterval,
+          historicalAppointments: slotHistoricalAppointments,
         });
         continue;
       }
@@ -2254,6 +2271,7 @@ export default function AgendaView({
           start: minute,
           end: slotEnd,
           type: "lunch",
+          historicalAppointments: slotHistoricalAppointments,
         });
         continue;
       }
@@ -2264,6 +2282,7 @@ export default function AgendaView({
           start: minute,
           end: slotEnd,
           type: "past",
+          historicalAppointments: slotHistoricalAppointments,
         });
         continue;
       }
@@ -2273,6 +2292,7 @@ export default function AgendaView({
         start: minute,
         end: slotEnd,
         type: "free",
+        historicalAppointments: slotHistoricalAppointments,
       });
     }
 
@@ -2301,7 +2321,41 @@ export default function AgendaView({
       setCurrentStep("selectService");
     };
 
-    const renderAppointmentSlot = (appointment: Appointment) => {
+    const renderHistoricalAppointments = (historyItems: Appointment[] = []) => {
+      if (historyItems.length === 0) {
+        return null;
+      }
+
+      return (
+        <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50/80 px-3 py-2 opacity-75">
+          <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
+            Histórico do horário
+          </p>
+
+          <div className="mt-1 space-y-1">
+            {historyItems.map((historyAppointment) => {
+              const historyService = getAppointmentService(historyAppointment);
+              const statusLabel = getAppointmentFooterLabel(historyAppointment.status);
+
+              return (
+                <p
+                  key={historyAppointment.id}
+                  className="text-xs font-semibold text-neutral-500 line-through decoration-neutral-300"
+                >
+                  {historyAppointment.clientName} — {statusLabel.toLowerCase()}
+                  {historyService?.name ? ` · ${historyService.name}` : ""}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    const renderAppointmentSlot = (
+      appointment: Appointment,
+      historyItems: Appointment[] = [],
+    ) => {
       const service = getAppointmentService(appointment);
       const disabledActions = !onUpdateAppointmentStatus;
 
@@ -2397,6 +2451,8 @@ export default function AgendaView({
               </button>
             </div>
           </div>
+
+          {renderHistoricalAppointments(historyItems)}
 
           <div
             className={`mt-3 border-t border-black/5 pt-3 font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getAppointmentFooterClassName(appointment.status)}`}
@@ -2528,7 +2584,7 @@ export default function AgendaView({
         <div className="space-y-2 p-4">
           {daySlots.map((slot) => {
             if (slot.type === "appointment" && slot.appointment) {
-              return renderAppointmentSlot(slot.appointment);
+              return renderAppointmentSlot(slot.appointment, slot.historicalAppointments || []);
             }
 
             if (slot.type === "occupied" && slot.occupyingAppointment) {
@@ -2562,6 +2618,7 @@ export default function AgendaView({
                     <p className="mt-1 text-xs font-medium text-neutral-600">
                       {slot.blockedInterval?.reason || "Horário bloqueado na agenda do profissional."}
                     </p>
+                    {renderHistoricalAppointments(slot.historicalAppointments || [])}
                   </div>
                 </div>
               );
@@ -2592,6 +2649,7 @@ export default function AgendaView({
                   <div>
                     <strong className="text-sm font-extrabold text-neutral-600">Horário passado</strong>
                     <p className="mt-1 text-xs font-medium text-neutral-500">Este horário não pode mais receber agendamento.</p>
+                    {renderHistoricalAppointments(slot.historicalAppointments || [])}
                   </div>
                 </div>
               );
@@ -2607,6 +2665,7 @@ export default function AgendaView({
                 <div>
                   <strong className="text-sm font-extrabold text-neutral-800">Livre</strong>
                   <p className="mt-1 text-xs font-medium text-neutral-500">Horário disponível para agendamento.</p>
+                  {renderHistoricalAppointments(slot.historicalAppointments || [])}
                 </div>
 
                 <div className="flex flex-wrap gap-2 sm:justify-end">

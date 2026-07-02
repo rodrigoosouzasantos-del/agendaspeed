@@ -204,6 +204,33 @@ function ProfessionalAgendaSlotRow({
   const appointment = slot.appointment;
   const service = slot.service;
 
+  const renderHistoricalAppointments = () => {
+    const historyItems = slot.historicalAppointments || [];
+
+    if (historyItems.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2 opacity-75">
+        <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
+          Histórico do horário
+        </p>
+
+        <div className="mt-1 space-y-1">
+          {historyItems.map((historyAppointment) => (
+            <p
+              key={historyAppointment.id}
+              className="text-xs font-semibold text-neutral-500 line-through decoration-neutral-300"
+            >
+              {historyAppointment.clientName} — {getProfessionalAppointmentFooterLabel(historyAppointment.status as AppointmentStatus).toLowerCase()}
+            </p>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (slot.status === 'free') {
     return (
       <div className={`border rounded-2xl p-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center ${getSlotStatusClassName(slot.status)}`}>
@@ -225,6 +252,7 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs text-neutral-500 mt-0.5">
             Horário disponível para agendamento.
           </p>
+          {renderHistoricalAppointments()}
         </div>
 
         <div className="md:col-span-4 flex items-center md:justify-end gap-2">
@@ -323,6 +351,7 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs opacity-80 mt-0.5">
             {slot.blockReason || 'Horário indisponível.'}
           </p>
+          {renderHistoricalAppointments()}
         </div>
 
         <div className="md:col-span-4 flex items-center md:justify-end">
@@ -463,6 +492,8 @@ function ProfessionalAgendaSlotRow({
           </button>
         </div>
       </div>
+
+      {renderHistoricalAppointments()}
 
       <div className="mt-3 flex flex-col gap-2 border-t border-black/5 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <span className={`font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getProfessionalAppointmentFooterClassName(appointment.status as AppointmentStatus)}`}>
