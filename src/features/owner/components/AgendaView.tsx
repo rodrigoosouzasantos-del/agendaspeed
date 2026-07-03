@@ -2151,6 +2151,7 @@ export default function AgendaView({
       if (status === "confirmed") return "CLIENTE CONFIRMOU PRESENÇA";
       if (status === "cancelled") return "ATENDIMENTO CANCELADO";
       if (status === "absent") return "CLIENTE FALTOU";
+      if (status === "rescheduled") return "ATENDIMENTO REMARCADO";
       if (status === "completed") return "ATENDIMENTO FINALIZADO";
       return "AGUARDANDO CONFIRMAÇÃO";
     };
@@ -2159,6 +2160,7 @@ export default function AgendaView({
       if (status === "confirmed") return "text-emerald-800";
       if (status === "cancelled") return "text-neutral-600";
       if (status === "absent") return "text-red-800";
+      if (status === "rescheduled") return "text-orange-800";
       if (status === "completed") return "text-sky-800";
       return "text-amber-800";
     };

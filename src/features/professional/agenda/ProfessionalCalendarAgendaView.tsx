@@ -145,7 +145,7 @@ function getProfessionalAppointmentCardClassName(status: AppointmentStatus): str
     return 'border-emerald-200 bg-emerald-50/85 shadow-emerald-950/5';
   }
 
-  if (status === 'cancelled') {
+  if (status === 'cancelled' || status === 'rescheduled') {
     return 'border-neutral-300 bg-neutral-100/90 shadow-neutral-950/5 opacity-90';
   }
 
@@ -164,6 +164,7 @@ function getProfessionalAppointmentFooterLabel(status: AppointmentStatus): strin
   if (status === 'confirmed') return 'CLIENTE CONFIRMOU PRESENÇA';
   if (status === 'cancelled') return 'ATENDIMENTO CANCELADO';
   if (status === 'absent') return 'CLIENTE FALTOU';
+  if (status === 'rescheduled') return 'ATENDIMENTO REMARCADO';
   if (status === 'completed') return 'ATENDIMENTO FINALIZADO';
   return 'AGUARDANDO CONFIRMAÇÃO';
 }
@@ -172,6 +173,7 @@ function getProfessionalAppointmentFooterClassName(status: AppointmentStatus): s
   if (status === 'confirmed') return 'text-emerald-800';
   if (status === 'cancelled') return 'text-neutral-600';
   if (status === 'absent') return 'text-red-800';
+  if (status === 'rescheduled') return 'text-orange-800';
   if (status === 'completed') return 'text-sky-800';
   return 'text-amber-800';
 }
@@ -180,6 +182,7 @@ function getProfessionalAppointmentStatusLabel(status: AppointmentStatus): strin
   if (status === 'confirmed') return 'Confirmado';
   if (status === 'cancelled') return 'Cancelado';
   if (status === 'absent') return 'Faltou';
+  if (status === 'rescheduled') return 'Remarcado';
   if (status === 'completed') return 'Finalizado';
   return 'Aguardando confirmação';
 }
@@ -188,8 +191,42 @@ function getProfessionalAppointmentStatusBadgeClassName(status: AppointmentStatu
   if (status === 'confirmed') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   if (status === 'cancelled') return 'bg-neutral-200 text-neutral-700 border-neutral-300';
   if (status === 'absent') return 'bg-red-100 text-red-800 border-red-200';
+  if (status === 'rescheduled') return 'bg-orange-100 text-orange-800 border-orange-200';
   if (status === 'completed') return 'bg-sky-100 text-sky-800 border-sky-200';
   return 'bg-amber-100 text-amber-800 border-amber-200';
+}
+
+function renderSlotHistoricalAppointments(slot: ProfessionalAgendaTimeSlot) {
+  const historyItems = slot.historicalAppointments || [];
+
+  if (historyItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50/80 px-3 py-2 opacity-80">
+      <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
+        Histórico do horário
+      </p>
+
+      <div className="mt-1 space-y-1">
+        {historyItems.map((historyAppointment) => {
+          const statusLabel = getProfessionalAppointmentFooterLabel(
+            historyAppointment.status as AppointmentStatus
+          );
+
+          return (
+            <p
+              key={historyAppointment.id}
+              className="text-xs font-semibold text-neutral-500 line-through decoration-neutral-300"
+            >
+              {historyAppointment.clientName} — {statusLabel.toLowerCase()}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ProfessionalAgendaSlotRow({
@@ -203,33 +240,6 @@ function ProfessionalAgendaSlotRow({
 }: ProfessionalAgendaSlotRowProps) {
   const appointment = slot.appointment;
   const service = slot.service;
-
-  const renderHistoricalAppointments = () => {
-    const historyItems = slot.historicalAppointments || [];
-
-    if (historyItems.length === 0) {
-      return null;
-    }
-
-    return (
-      <div className="mt-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2 opacity-75">
-        <p className="font-mono text-[10px] font-extrabold uppercase tracking-[0.16em] text-neutral-500">
-          Histórico do horário
-        </p>
-
-        <div className="mt-1 space-y-1">
-          {historyItems.map((historyAppointment) => (
-            <p
-              key={historyAppointment.id}
-              className="text-xs font-semibold text-neutral-500 line-through decoration-neutral-300"
-            >
-              {historyAppointment.clientName} — {getProfessionalAppointmentFooterLabel(historyAppointment.status as AppointmentStatus).toLowerCase()}
-            </p>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   if (slot.status === 'free') {
     return (
@@ -252,7 +262,8 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs text-neutral-500 mt-0.5">
             Horário disponível para agendamento.
           </p>
-          {renderHistoricalAppointments()}
+
+          {renderSlotHistoricalAppointments(slot)}
         </div>
 
         <div className="md:col-span-4 flex items-center md:justify-end gap-2">
@@ -299,6 +310,8 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs opacity-80 mt-0.5">
             Horário reservado para intervalo.
           </p>
+
+          {renderSlotHistoricalAppointments(slot)}
         </div>
       </div>
     );
@@ -325,6 +338,8 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs opacity-80 mt-0.5">
             {service?.name || 'Serviço em andamento'} ocupa este bloco de horário.
           </p>
+
+          {renderSlotHistoricalAppointments(slot)}
         </div>
       </div>
     );
@@ -351,7 +366,8 @@ function ProfessionalAgendaSlotRow({
           <p className="text-xs opacity-80 mt-0.5">
             {slot.blockReason || 'Horário indisponível.'}
           </p>
-          {renderHistoricalAppointments()}
+
+          {renderSlotHistoricalAppointments(slot)}
         </div>
 
         <div className="md:col-span-4 flex items-center md:justify-end">
@@ -493,7 +509,7 @@ function ProfessionalAgendaSlotRow({
         </div>
       </div>
 
-      {renderHistoricalAppointments()}
+      {renderSlotHistoricalAppointments(slot)}
 
       <div className="mt-3 flex flex-col gap-2 border-t border-black/5 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <span className={`font-mono text-[10px] font-extrabold uppercase tracking-[0.18em] ${getProfessionalAppointmentFooterClassName(appointment.status as AppointmentStatus)}`}>

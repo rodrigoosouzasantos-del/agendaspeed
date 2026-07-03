@@ -134,7 +134,24 @@ function isConfirmedStatus(status: AppointmentStatus): boolean {
 }
 
 function isPendingStatus(status: AppointmentStatus): boolean {
-  return status === 'scheduled' || status === 'rescheduled';
+  return status === 'scheduled';
+}
+
+function isHistoricalAppointmentStatus(status: AppointmentStatus): boolean {
+  return [
+    'cancelled',
+    'absent',
+    'rescheduled'
+  ].includes(status);
+}
+
+function isBlockingAppointmentStatus(status: AppointmentStatus): boolean {
+  return [
+    'scheduled',
+    'confirmed',
+    'attending',
+    'completed'
+  ].includes(status);
 }
 
 function getAppointmentStatusLabel(status: AppointmentStatus): string {
@@ -222,7 +239,7 @@ function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
     return 'border-red-200 bg-red-50/80';
   }
 
-  if (status === 'cancelled') {
+  if (status === 'cancelled' || status === 'rescheduled') {
     return 'border-neutral-200 bg-neutral-100/90';
   }
 
@@ -250,6 +267,10 @@ function getAppointmentFooterStatusLabel(status: AppointmentStatus): string {
     return 'Faltou';
   }
 
+  if (status === 'rescheduled') {
+    return 'Remarcado';
+  }
+
   if (status === 'completed') {
     return 'Atendimento finalizado';
   }
@@ -272,6 +293,10 @@ function getAppointmentFooterClassName(status: AppointmentStatus): string {
 
   if (status === 'absent') {
     return 'text-red-800';
+  }
+
+  if (status === 'rescheduled') {
+    return 'text-orange-800';
   }
 
   if (status === 'completed') {
@@ -348,7 +373,7 @@ function getServiceDurationMinutes(params: {
   return service?.duration || 30;
 }
 
-function isCancelledSlotAlreadyOccupied(params: {
+function isHistoricalSlotAlreadyOccupied(params: {
   appointment: Appointment;
   appointments: Appointment[];
 }): boolean {
@@ -377,11 +402,38 @@ function isCancelledSlotAlreadyOccupied(params: {
       return false;
     }
 
-    return ![
-      'cancelled',
-      'absent'
-    ].includes(item.status);
+    return isBlockingAppointmentStatus(item.status);
   });
+}
+
+function getHistoricalAppointmentsForSlot(params: {
+  appointment: Appointment;
+  appointments: Appointment[];
+}): Appointment[] {
+  const {
+    appointment,
+    appointments
+  } = params;
+
+  const appointmentDate = getAppointmentDate(appointment);
+  const appointmentTime = getAppointmentTime(appointment);
+
+  return appointments
+    .filter((item) => {
+      if (item.id === appointment.id) {
+        return false;
+      }
+
+      return (
+        item.professionalId === appointment.professionalId &&
+        getAppointmentDate(item) === appointmentDate &&
+        getAppointmentTime(item) === appointmentTime &&
+        isHistoricalAppointmentStatus(item.status)
+      );
+    })
+    .sort((first, second) => {
+      return first.dateTime.localeCompare(second.dateTime);
+    });
 }
 
 function isOperationalAppointmentVisible(params: {
@@ -399,8 +451,8 @@ function isOperationalAppointmentVisible(params: {
     hideExpired = false
   } = params;
 
-  if (appointment.status === 'cancelled') {
-    return !isCancelledSlotAlreadyOccupied({
+  if (isHistoricalAppointmentStatus(appointment.status)) {
+    return !isHistoricalSlotAlreadyOccupied({
       appointment,
       appointments
     });
@@ -834,6 +886,39 @@ export default function DashboardHomeView({
     onUpdateAppointmentStatus(appointmentId, status);
   };
 
+  const renderHistoricalAppointments = (historyItems: Appointment[] = []) => {
+    if (historyItems.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50/80 px-3 py-2 opacity-80">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-neutral-500">
+          Histórico do horário
+        </p>
+
+        <div className="mt-1 space-y-1">
+          {historyItems.map((historyAppointment) => {
+            const historyService = services.find((item) => {
+              return item.id === historyAppointment.serviceId;
+            });
+            const statusLabel = getAppointmentFooterStatusLabel(historyAppointment.status);
+
+            return (
+              <p
+                key={historyAppointment.id}
+                className="text-xs font-semibold text-neutral-500 line-through decoration-neutral-300"
+              >
+                {historyAppointment.clientName} — {statusLabel.toLowerCase()}
+                {historyService?.name ? ` · ${historyService.name}` : ''}
+              </p>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderAppointmentList = (
     list: Appointment[],
     emptyMessage: string,
@@ -879,7 +964,14 @@ export default function DashboardHomeView({
           const professionalName = professional?.name || 'Profissional';
           const appointmentTime = getAppointmentTime(appointment);
           const isAlreadyConfirmed = isConfirmedStatus(appointment.status);
-          const isInactive = ['cancelled', 'absent', 'completed'].includes(appointment.status);
+          const isHistoricalOnly = isHistoricalAppointmentStatus(appointment.status);
+          const isInactive = isHistoricalOnly || appointment.status === 'completed';
+          const historicalAppointments = isHistoricalOnly
+            ? []
+            : getHistoricalAppointmentsForSlot({
+              appointment,
+              appointments
+            });
 
           return (
             <div
@@ -918,59 +1010,67 @@ export default function DashboardHomeView({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    disabled={isAlreadyConfirmed || isInactive}
-                    onClick={() => handleAppointmentStatusChange(appointment.id, 'confirmed')}
-                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
-                      isAlreadyConfirmed || isInactive
-                        ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
-                    }`}
-                  >
-                    {isAlreadyConfirmed ? 'Confirmado' : 'Confirmar'}
-                  </button>
+                {isHistoricalOnly ? (
+                  <div className="rounded-xl border border-dashed border-neutral-300 bg-white/70 px-3 py-2 text-[11px] font-black uppercase tracking-tight text-neutral-500">
+                    Registro de histórico, sem ações no horário.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      disabled={isAlreadyConfirmed || isInactive}
+                      onClick={() => handleAppointmentStatusChange(appointment.id, 'confirmed')}
+                      className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                        isAlreadyConfirmed || isInactive
+                          ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                      }`}
+                    >
+                      {isAlreadyConfirmed ? 'Confirmado' : 'Confirmar'}
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={isInactive}
-                    onClick={handleOpenAgenda}
-                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
-                      isInactive
-                        ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                        : 'bg-orange-600 text-white hover:bg-orange-700 shadow-sm'
-                    }`}
-                  >
-                    Reagendar
-                  </button>
+                    <button
+                      type="button"
+                      disabled={isInactive}
+                      onClick={handleOpenAgenda}
+                      className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                        isInactive
+                          ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                          : 'bg-orange-600 text-white hover:bg-orange-700 shadow-sm'
+                      }`}
+                    >
+                      Reagendar
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={appointment.status === 'cancelled'}
-                    onClick={() => handleAppointmentStatusChange(appointment.id, 'cancelled')}
-                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
-                      appointment.status === 'cancelled'
-                        ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
-                        : 'bg-neutral-800 text-white hover:bg-neutral-950 shadow-sm'
-                    }`}
-                  >
-                    Cancelou
-                  </button>
+                    <button
+                      type="button"
+                      disabled={appointment.status === 'cancelled'}
+                      onClick={() => handleAppointmentStatusChange(appointment.id, 'cancelled')}
+                      className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                        appointment.status === 'cancelled'
+                          ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
+                          : 'bg-neutral-800 text-white hover:bg-neutral-950 shadow-sm'
+                      }`}
+                    >
+                      Cancelou
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={appointment.status === 'absent'}
-                    onClick={() => handleAppointmentStatusChange(appointment.id, 'absent')}
-                    className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
-                      appointment.status === 'absent'
-                        ? 'bg-red-200 text-red-800 cursor-not-allowed'
-                        : 'bg-red-700 text-white hover:bg-red-800 shadow-sm'
-                    }`}
-                  >
-                    Faltou
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      disabled={appointment.status === 'absent'}
+                      onClick={() => handleAppointmentStatusChange(appointment.id, 'absent')}
+                      className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
+                        appointment.status === 'absent'
+                          ? 'bg-red-200 text-red-800 cursor-not-allowed'
+                          : 'bg-red-700 text-white hover:bg-red-800 shadow-sm'
+                      }`}
+                    >
+                      Faltou
+                    </button>
+                  </div>
+                )}
+
+                {renderHistoricalAppointments(historicalAppointments)}
 
                 <div className="border-t border-black/5 pt-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

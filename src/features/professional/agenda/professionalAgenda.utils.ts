@@ -39,6 +39,10 @@ export const PROFESSIONAL_AGENDA_STATUS_OPTIONS: ProfessionalAgendaStatusOption[
   {
     value: 'cancelled',
     label: 'Cancelado'
+  },
+  {
+    value: 'rescheduled',
+    label: 'Remarcado'
   }
 ];
 
@@ -180,6 +184,27 @@ export function getAppointmentsForProfessionalDate(params: {
     });
 }
 
+export function getHistoricalAppointmentsForTime(params: {
+  appointments: Appointment[];
+  time: string;
+}): Appointment[] {
+  const {
+    appointments,
+    time
+  } = params;
+
+  return appointments
+    .filter((appointment) => {
+      return (
+        getAppointmentTime(appointment) === time &&
+        isHistoricalAppointmentStatus(appointment.status)
+      );
+    })
+    .sort((firstAppointment, secondAppointment) => {
+      return firstAppointment.dateTime.localeCompare(secondAppointment.dateTime);
+    });
+}
+
 export function findServiceByAppointment(params: {
   appointment: Appointment;
   services: Service[];
@@ -194,11 +219,20 @@ export function findServiceByAppointment(params: {
   });
 }
 
+export function isHistoricalAppointmentStatus(status: AppointmentStatus): boolean {
+  return (
+    status === 'cancelled' ||
+    status === 'absent' ||
+    status === 'rescheduled'
+  );
+}
+
 export function isBlockingAppointmentStatus(status: AppointmentStatus): boolean {
   return (
     status === 'scheduled' ||
     status === 'confirmed' ||
-    status === 'attending'
+    status === 'attending' ||
+    status === 'completed'
   );
 }
 
@@ -463,7 +497,15 @@ export function generateProfessionalAgendaSlots({
     selectedDate
   });
 
-  const appointmentTimes = dayAppointments.flatMap((appointment) => {
+  const blockingAppointments = dayAppointments.filter((appointment) => {
+    return isBlockingAppointmentStatus(appointment.status);
+  });
+
+  const historicalAppointments = dayAppointments.filter((appointment) => {
+    return isHistoricalAppointmentStatus(appointment.status);
+  });
+
+  const appointmentTimes = blockingAppointments.flatMap((appointment) => {
     const service = findServiceByAppointment({
       appointment,
       services
@@ -474,10 +516,6 @@ export function generateProfessionalAgendaSlots({
       service,
       slotMinutes
     });
-  });
-
-  const historicalAppointments = dayAppointments.filter((appointment) => {
-    return !isBlockingAppointmentStatus(appointment.status);
   });
 
   const historicalTimes = historicalAppointments.map((appointment) => {
@@ -514,7 +552,7 @@ export function generateProfessionalAgendaSlots({
     slotMinutes
   });
 
-  dayAppointments.forEach((appointment) => {
+  blockingAppointments.forEach((appointment) => {
     const service = findServiceByAppointment({
       appointment,
       services
@@ -559,19 +597,21 @@ export function generateProfessionalAgendaSlots({
   });
 
   historicalAppointments.forEach((appointment) => {
-    const time = getAppointmentTime(appointment);
+    const appointmentTime = getAppointmentTime(appointment);
     const slotIndex = slots.findIndex((slot) => {
-      return slot.time === time;
+      return slot.time === appointmentTime;
     });
 
     if (slotIndex < 0) {
       return;
     }
 
+    const slotHistoricalAppointments = slots[slotIndex].historicalAppointments || [];
+
     slots[slotIndex] = {
       ...slots[slotIndex],
       historicalAppointments: [
-        ...(slots[slotIndex].historicalAppointments || []),
+        ...slotHistoricalAppointments,
         appointment
       ]
     };
@@ -608,6 +648,10 @@ export function calculateAgendaSummary(
       if (slot.appointment?.status === 'absent' && slot.status === 'booked') {
         summary.absent += 1;
       }
+
+      summary.absent += (slot.historicalAppointments || []).filter((appointment) => {
+        return appointment.status === 'absent';
+      }).length;
 
       return summary;
     },
