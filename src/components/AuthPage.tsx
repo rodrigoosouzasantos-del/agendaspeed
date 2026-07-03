@@ -22,7 +22,8 @@ interface AuthPageProps {
 }
 
 type OwnerContext = {
-  profile_id: string;
+  id?: string;
+  profile_id?: string;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -33,8 +34,9 @@ type OwnerContext = {
   tenant_status: string;
   tenant_plan: string;
   max_professionals: number;
-  user_role: 'owner' | 'admin' | string;
-  is_active: boolean;
+  user_role: 'owner' | 'manager' | 'admin' | string;
+  user_active?: boolean;
+  is_active?: boolean;
 };
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
@@ -99,13 +101,16 @@ export default function AuthPage({
 
     const ownerContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
 
-    if (!ownerContext?.tenant_id || !ownerContext.is_active) {
+    const ownerIsActive =
+      ownerContext?.user_active === true || ownerContext?.is_active === true;
+
+    if (!ownerContext?.tenant_id || !ownerIsActive) {
       await supabase.auth.signOut();
       setError('Usuário autenticado, mas sem empresa ativa vinculada.');
       return;
     }
 
-    if (!['owner', 'admin'].includes(ownerContext.user_role)) {
+    if (!['owner', 'manager', 'admin'].includes(ownerContext.user_role)) {
       await supabase.auth.signOut();
       setError('Este usuário não possui permissão para acessar o painel do proprietário.');
       return;
