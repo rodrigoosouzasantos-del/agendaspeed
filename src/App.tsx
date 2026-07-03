@@ -38,7 +38,7 @@ type SessionUser = {
 };
 
 type OwnerContext = {
-  profile_id: string;
+  id: string;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -49,8 +49,8 @@ type OwnerContext = {
   tenant_status: string;
   tenant_plan: string;
   max_professionals: number;
-  user_role: 'owner' | 'admin' | string;
-  is_active: boolean;
+  user_role: 'owner' | 'manager' | 'admin' | string;
+  user_active: boolean;
 };
 
 function normalizePhone(value: string): string {
@@ -265,7 +265,7 @@ export default function App() {
 
     const firstContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
 
-    if (!firstContext?.tenant_id || !firstContext.is_active) {
+    if (!firstContext?.tenant_id || !firstContext.user_active) {
       setOwnerContext(null);
       return null;
     }
