@@ -487,6 +487,10 @@ function isProfessionalAvailableForSlot(params: {
 
   const workStart = timeToMinutes(professional.workHoursStart);
   const workEnd = timeToMinutes(professional.workHoursEnd);
+  const professionalRecord = professional as Professional & {
+    noLunchBreak?: boolean;
+  };
+  const hasLunchBreak = !professionalRecord.noLunchBreak;
   const lunchStart = timeToMinutes(professional.lunchStart);
   const lunchEnd = timeToMinutes(professional.lunchEnd);
 
@@ -494,7 +498,7 @@ function isProfessionalAvailableForSlot(params: {
     return false;
   }
 
-  const overlapsLunch = slotStart < lunchEnd && slotEnd > lunchStart;
+  const overlapsLunch = hasLunchBreak && slotStart < lunchEnd && slotEnd > lunchStart;
 
   if (overlapsLunch) {
     return false;
@@ -1005,6 +1009,33 @@ export default function AgendaView({
     setSelectedServiceId(service.id);
 
     if (mode === "professionalAgenda" && selectedProfessionalId && selectedDate && selectedTime) {
+      const selectedProfessionalForAgenda = professionals.find((professional) => {
+        return professional.id === selectedProfessionalId;
+      });
+
+      if (!selectedProfessionalForAgenda) {
+        alert("Profissional não encontrado. Atualize a agenda e tente novamente.");
+        setSelectedServiceId("");
+        return;
+      }
+
+      const serviceFitsSelectedSlot = isProfessionalAvailableForSlot({
+        professional: selectedProfessionalForAgenda,
+        service,
+        date: selectedDate,
+        time: selectedTime,
+        services,
+        appointments,
+        blockedIntervals,
+        openDays,
+      });
+
+      if (!serviceFitsSelectedSlot) {
+        alert("Este serviço não cabe neste horário. Escolha outro horário ou outro serviço.");
+        setSelectedServiceId("");
+        return;
+      }
+
       setCurrentStep("clientData");
       return;
     }
@@ -1149,6 +1180,7 @@ export default function AgendaView({
       services,
       appointments,
       blockedIntervals,
+      openDays,
     });
 
     if (!isStillAvailable) {
