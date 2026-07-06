@@ -446,7 +446,12 @@ function slotOverlapsBlockedInterval(params: {
   }) || null;
 }
 
-function isProfessionalAvailableForSlot(params: {
+interface SlotAvailabilityResult {
+  available: boolean;
+  reason?: string;
+}
+
+function checkProfessionalSlotAvailability(params: {
   professional: Professional;
   service: Service;
   date: string;
@@ -455,13 +460,25 @@ function isProfessionalAvailableForSlot(params: {
   appointments: Appointment[];
   blockedIntervals?: AgendaBlockedInterval[];
   openDays?: AgendaScheduleDay[];
-}): boolean {
-  const { professional, service, date, time, services, appointments, blockedIntervals = [], openDays = [] } = params;
+}): SlotAvailabilityResult {
+  const {
+    professional,
+    service,
+    date,
+    time,
+    services,
+    appointments,
+    blockedIntervals = [],
+    openDays = [],
+  } = params;
 
   const weekDay = parseLocalDate(date).getDay();
 
   if (!professional.active) {
-    return false;
+    return {
+      available: false,
+      reason: "Este profissional está inativo no cadastro.",
+    };
   }
 
   const scheduleDayOpen = isScheduleDayOpen({
@@ -471,15 +488,24 @@ function isProfessionalAvailableForSlot(params: {
   });
 
   if (!scheduleDayOpen) {
-    return false;
+    return {
+      available: false,
+      reason: "A agenda deste profissional está fechada para esta data. Abra o dia antes de agendar.",
+    };
   }
 
   if (!professional.workDays.includes(weekDay) && !scheduleDayOpen) {
-    return false;
+    return {
+      available: false,
+      reason: "Este profissional não possui escala regular nesta data.",
+    };
   }
 
   if (!professionalCanDoService({ professional, service })) {
-    return false;
+    return {
+      available: false,
+      reason: "Este serviço não está vinculado ao profissional selecionado.",
+    };
   }
 
   const slotStart = timeToMinutes(time);
@@ -495,35 +521,47 @@ function isProfessionalAvailableForSlot(params: {
   const lunchEnd = timeToMinutes(professional.lunchEnd);
 
   if (slotStart < workStart || slotEnd > workEnd) {
-    return false;
+    return {
+      available: false,
+      reason: `Este serviço termina às ${minutesToTime(slotEnd)}, fora do expediente do profissional (${professional.workHoursStart} às ${professional.workHoursEnd}).`,
+    };
   }
 
   const overlapsLunch = hasLunchBreak && slotStart < lunchEnd && slotEnd > lunchStart;
 
   if (overlapsLunch) {
-    return false;
+    return {
+      available: false,
+      reason: `Este serviço invade o intervalo de almoço do profissional (${professional.lunchStart} às ${professional.lunchEnd}).`,
+    };
   }
 
   const isPastToday =
     date === getTodayStr() && slotStart <= getCurrentTimeInMinutes();
 
   if (isPastToday) {
-    return false;
+    return {
+      available: false,
+      reason: "Este horário já passou e não pode receber novo agendamento.",
+    };
   }
 
-  if (
-    slotOverlapsBlockedInterval({
-      blockedIntervals,
-      professionalId: professional.id,
-      date,
-      slotStart,
-      slotEnd
-    })
-  ) {
-    return false;
+  const blockedInterval = slotOverlapsBlockedInterval({
+    blockedIntervals,
+    professionalId: professional.id,
+    date,
+    slotStart,
+    slotEnd,
+  });
+
+  if (blockedInterval) {
+    return {
+      available: false,
+      reason: `Este horário está bloqueado na agenda do profissional. Motivo: ${blockedInterval.reason || "Bloqueado"}.`,
+    };
   }
 
-  return !appointments.some((appointment) => {
+  const conflictingAppointment = appointments.find((appointment) => {
     return appointmentBlocksSlot({
       appointment,
       professionalId: professional.id,
@@ -533,7 +571,39 @@ function isProfessionalAvailableForSlot(params: {
       services,
     });
   });
+
+  if (conflictingAppointment) {
+    const conflictingService = services.find((item) => {
+      return item.id === conflictingAppointment.serviceId;
+    });
+    const conflictingStart = getAppointmentTime(conflictingAppointment);
+    const conflictingDuration = conflictingService?.duration || 30;
+    const conflictingEnd = minutesToTime(timeToMinutes(conflictingStart) + conflictingDuration);
+
+    return {
+      available: false,
+      reason: `Este horário conflita com o atendimento de ${conflictingAppointment.clientName} às ${conflictingStart}, das ${conflictingStart} às ${conflictingEnd}.`,
+    };
+  }
+
+  return {
+    available: true,
+  };
 }
+
+function isProfessionalAvailableForSlot(params: {
+  professional: Professional;
+  service: Service;
+  date: string;
+  time: string;
+  services: Service[];
+  appointments: Appointment[];
+  blockedIntervals?: AgendaBlockedInterval[];
+  openDays?: AgendaScheduleDay[];
+}): boolean {
+  return checkProfessionalSlotAvailability(params).available;
+}
+
 
 function generateSlotsForSelection(params: {
   professional: Professional;
@@ -1019,7 +1089,7 @@ export default function AgendaView({
         return;
       }
 
-      const serviceFitsSelectedSlot = isProfessionalAvailableForSlot({
+      const serviceSlotAvailability = checkProfessionalSlotAvailability({
         professional: selectedProfessionalForAgenda,
         service,
         date: selectedDate,
@@ -1030,8 +1100,8 @@ export default function AgendaView({
         openDays,
       });
 
-      if (!serviceFitsSelectedSlot) {
-        alert("Este serviço não cabe neste horário. Escolha outro horário ou outro serviço.");
+      if (!serviceSlotAvailability.available) {
+        alert(serviceSlotAvailability.reason || "Este serviço não cabe neste horário. Escolha outro horário ou outro serviço.");
         setSelectedServiceId("");
         return;
       }
@@ -1172,7 +1242,7 @@ export default function AgendaView({
       return;
     }
 
-    const isStillAvailable = isProfessionalAvailableForSlot({
+    const slotAvailability = checkProfessionalSlotAvailability({
       professional: selectedProfessional,
       service: selectedService,
       date: selectedDate,
@@ -1183,22 +1253,8 @@ export default function AgendaView({
       openDays,
     });
 
-    if (!isStillAvailable) {
-      const slotStart = timeToMinutes(selectedTime);
-      const slotEnd = slotStart + selectedService.duration;
-      const blockedInterval = slotOverlapsBlockedInterval({
-        blockedIntervals,
-        professionalId: selectedProfessional.id,
-        date: selectedDate,
-        slotStart,
-        slotEnd,
-      });
-
-      alert(
-        blockedInterval
-          ? `Este horário está bloqueado na agenda do profissional. Motivo: ${blockedInterval.reason || "Bloqueado"}.`
-          : "Este horário não está mais disponível. Atualize a agenda e escolha outro horário.",
-      );
+    if (!slotAvailability.available) {
+      alert(slotAvailability.reason || "Este horário não está mais disponível. Atualize a agenda e escolha outro horário.");
       return;
     }
 
