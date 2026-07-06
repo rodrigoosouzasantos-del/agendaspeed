@@ -149,7 +149,8 @@ function getCachedClientAppointments(token: string): ClientAppointmentRow[] {
           isFutureAppointment(appointment.startsAtLocal) &&
           appointment.status !== 'cancelled' &&
           appointment.status !== 'completed' &&
-          appointment.status !== 'absent'
+          appointment.status !== 'absent' &&
+          appointment.status !== 'rescheduled'
         );
       });
   } catch {
@@ -694,7 +695,8 @@ export default function ClientAppointmentsPage({
                 isFutureAppointment(appointment.startsAtLocal) &&
                 appointment.status !== 'cancelled' &&
                 appointment.status !== 'completed' &&
-                appointment.status !== 'absent'
+                appointment.status !== 'absent' &&
+                appointment.status !== 'rescheduled'
               );
             });
 
@@ -721,7 +723,8 @@ export default function ClientAppointmentsPage({
           isFutureAppointment(appointment.startsAtLocal) &&
           appointment.status !== 'cancelled' &&
           appointment.status !== 'completed' &&
-          appointment.status !== 'absent'
+          appointment.status !== 'absent' &&
+          appointment.status !== 'rescheduled'
         );
       });
 
@@ -756,7 +759,8 @@ export default function ClientAppointmentsPage({
       isFutureAppointment(appointment.startsAtLocal) &&
       appointment.status !== 'cancelled' &&
       appointment.status !== 'completed' &&
-      appointment.status !== 'absent'
+      appointment.status !== 'absent' &&
+      appointment.status !== 'rescheduled'
     );
   });
 
