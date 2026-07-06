@@ -4,7 +4,17 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { getLocalState, saveLocalState, resetLocalState, LocalState } from './data';
+import {
+  getLocalState,
+  saveLocalState,
+  resetLocalState,
+  INITIAL_CONFIG,
+  INITIAL_SERVICES,
+  INITIAL_PROFESSIONALS,
+  INITIAL_CLIENTS,
+  INITIAL_APPOINTMENTS,
+  LocalState,
+} from './data';
 import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import ClientBooking from './features/booking/ClientBooking';
@@ -54,6 +64,36 @@ type OwnerContext = {
   user_active?: boolean;
   is_active?: boolean;
 };
+
+
+function isProductionLikeEnvironment(): boolean {
+  if (typeof window === 'undefined') {
+    return Boolean(import.meta.env.PROD);
+  }
+
+  const hostname = window.location.hostname;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  return Boolean(import.meta.env.PROD && !isLocalHost);
+}
+
+function getFallbackLocalState(): LocalState {
+  return {
+    config: { ...INITIAL_CONFIG },
+    services: [...INITIAL_SERVICES],
+    professionals: [...INITIAL_PROFESSIONALS],
+    clients: [...INITIAL_CLIENTS],
+    appointments: [...INITIAL_APPOINTMENTS],
+  };
+}
+
+function getInitialAppState(): LocalState {
+  if (isProductionLikeEnvironment()) {
+    return getFallbackLocalState();
+  }
+
+  return getLocalState();
+}
 
 function normalizePhone(value: string): string {
   return value.replace(/\D/g, '');
@@ -219,9 +259,11 @@ function getNextClientInternalCode(clients: LocalState['clients']): string {
 
 export default function App() {
   const initialView = getInitialViewFromPath();
+  const isProductionLike = isProductionLikeEnvironment();
 
-  // Application local state. Ainda mantém os dados de demonstração das telas existentes.
-  const [appState, setAppState] = useState<LocalState>(getLocalState());
+  // Estado local é apenas fallback visual para telas herdadas.
+  // Em produção, a fonte oficial é sempre Supabase/RPC, nunca localStorage.
+  const [appState, setAppState] = useState<LocalState>(getInitialAppState);
 
   // Simple view router state.
   const [currentView, setCurrentView] = useState<AppView>(initialView);
@@ -358,13 +400,18 @@ export default function App() {
     };
   }, []);
 
-  // Save changes to localStorage on any state modification.
+  // Atualiza o fallback em memória.
+  // localStorage fica restrito ao desenvolvimento para evitar banco paralelo em produção.
   const handleUpdateState = (newState: LocalState) => {
     setAppState(newState);
-    saveLocalState(newState);
+
+    if (!isProductionLike) {
+      saveLocalState(newState);
+    }
   };
 
-  // Callback to insert an appt from public client scheduler.
+  // Callback legado para sincronizar fallback visual após agendamento.
+  // O agendamento real já é gravado no Supabase pela tela/RPC de origem.
   const handleAddAppointment = (newAppt: Appointment) => {
     const updatedAppts = [newAppt, ...appState.appointments];
     const clientPhoneNormalized = normalizePhone(newAppt.clientPhone);
@@ -412,7 +459,8 @@ export default function App() {
     });
   };
 
-  // Callback to modify/update appointment states (completed, cancelled, confirmed).
+  // Callback legado para sincronizar fallback visual de status.
+  // A alteração real de status deve continuar passando pelas RPCs protegidas.
   const handleModifyAppointment = (apptId: string, updates: Partial<Appointment>) => {
     const updatedAppts = appState.appointments.map((appt) => {
       if (appt.id === apptId) {
@@ -495,6 +543,11 @@ export default function App() {
   };
 
   const handleResetData = () => {
+    if (isProductionLike) {
+      alert('Reset de dados fictícios disponível apenas no ambiente de desenvolvimento.');
+      return;
+    }
+
     if (confirm('Tem certeza de que deseja restaurar as tabelas simulação para o formato padrão do sistema? Todos os novos registros serão reiniciados.')) {
       const defaultState = resetLocalState();
       setAppState(defaultState);
@@ -503,7 +556,7 @@ export default function App() {
     }
   };
 
-  const showDemoFloatingBar = false;
+  const showDemoFloatingBar = !isProductionLike && false;
 
   if (authChecking && currentView === 'owner-dashboard') {
     return (
