@@ -143,16 +143,7 @@ function getCachedClientAppointments(token: string): ClientAppointmentRow[] {
 
     return parsedValue
       .map((item) => normalizeRemoteAppointment(item as unknown as Record<string, unknown>))
-      .filter((appointment) => {
-        return (
-          appointment.id &&
-          isFutureAppointment(appointment.startsAtLocal) &&
-          appointment.status !== 'cancelled' &&
-          appointment.status !== 'completed' &&
-          appointment.status !== 'absent' &&
-          appointment.status !== 'rescheduled'
-        );
-      });
+      .filter(isClientAppointmentVisible);
   } catch {
     return [];
   }
@@ -166,6 +157,16 @@ function setCachedClientAppointments(token: string, rows: ClientAppointmentRow[]
       `${CLIENT_APPOINTMENTS_CACHE_PREFIX}${token}`,
       JSON.stringify(rows)
     );
+  } catch {
+    // Cache é apenas otimização. Se falhar, a tela continua funcionando normalmente.
+  }
+}
+
+function clearCachedClientAppointments(token: string): void {
+  if (!token) return;
+
+  try {
+    window.sessionStorage.removeItem(`${CLIENT_APPOINTMENTS_CACHE_PREFIX}${token}`);
   } catch {
     // Cache é apenas otimização. Se falhar, a tela continua funcionando normalmente.
   }
@@ -540,6 +541,36 @@ function normalizeRemoteAppointment(row: Record<string, unknown>): ClientAppoint
   };
 }
 
+
+function isClientAppointmentVisible(appointment: ClientAppointmentRow): boolean {
+  return (
+    Boolean(appointment.id) &&
+    isFutureAppointment(appointment.startsAtLocal) &&
+    appointment.status !== 'cancelled' &&
+    appointment.status !== 'completed' &&
+    appointment.status !== 'absent' &&
+    appointment.status !== 'rescheduled'
+  );
+}
+
+async function fetchRemoteClientAppointments(token: string): Promise<ClientAppointmentRow[]> {
+  const { data, error } = await withTimeout(
+    supabase.rpc('get_client_future_appointments_by_token', {
+      p_token: token
+    }),
+    CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS,
+    'Tempo esgotado ao carregar os agendamentos.'
+  );
+
+  if (error) {
+    throw new Error(error.message || 'Não foi possível carregar os agendamentos.');
+  }
+
+  return (Array.isArray(data) ? data : [])
+    .map((item) => normalizeRemoteAppointment(item as Record<string, unknown>))
+    .filter(isClientAppointmentVisible);
+}
+
 function normalizeRescheduleOption(row: Record<string, unknown>): RescheduleOptionRow {
   const startsAtLocal = String(
     readRecordValue(row, ['starts_at_local', 'startsAtLocal']) || ''
@@ -676,36 +707,15 @@ export default function ClientAppointmentsPage({
       }
 
       try {
-        const { data, error } = await withTimeout(
-          supabase.rpc('get_client_future_appointments_by_token', {
-            p_token: token
-          }),
-          CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS,
-          'Tempo esgotado ao carregar os agendamentos.'
-        );
+        const rows = await fetchRemoteClientAppointments(token);
 
         if (!isMounted) return;
 
-        if (!error) {
-          const rows = (Array.isArray(data) ? data : [])
-            .map((item) => normalizeRemoteAppointment(item as Record<string, unknown>))
-            .filter((appointment) => {
-              return (
-                appointment.id &&
-                isFutureAppointment(appointment.startsAtLocal) &&
-                appointment.status !== 'cancelled' &&
-                appointment.status !== 'completed' &&
-                appointment.status !== 'absent' &&
-                appointment.status !== 'rescheduled'
-              );
-            });
-
-          setCachedClientAppointments(token, rows);
-          setAppointments(rows);
-          setLoadError(rows.length === 0 ? 'Nenhum agendamento futuro foi encontrado para este link.' : '');
-          setLoading(false);
-          return;
-        }
+        setCachedClientAppointments(token, rows);
+        setAppointments(rows);
+        setLoadError(rows.length === 0 ? 'Nenhum agendamento futuro foi encontrado para este link.' : '');
+        setLoading(false);
+        return;
       } catch (error) {
         if (!isMounted) return;
 
@@ -718,15 +728,7 @@ export default function ClientAppointmentsPage({
       const localRows = buildLocalAppointmentRows({
         token,
         state
-      }).filter((appointment) => {
-        return (
-          isFutureAppointment(appointment.startsAtLocal) &&
-          appointment.status !== 'cancelled' &&
-          appointment.status !== 'completed' &&
-          appointment.status !== 'absent' &&
-          appointment.status !== 'rescheduled'
-        );
-      });
+      }).filter(isClientAppointmentVisible);
 
       setAppointments(localRows);
 
@@ -754,15 +756,7 @@ export default function ClientAppointmentsPage({
     state.config.name
   ]);
 
-  const visibleAppointments = appointments.filter((appointment) => {
-    return (
-      isFutureAppointment(appointment.startsAtLocal) &&
-      appointment.status !== 'cancelled' &&
-      appointment.status !== 'completed' &&
-      appointment.status !== 'absent' &&
-      appointment.status !== 'rescheduled'
-    );
-  });
+  const visibleAppointments = appointments.filter(isClientAppointmentVisible);
 
   const groupedRescheduleOptions = useMemo(() => {
     const groups = new Map<string, RescheduleOptionRow[]>();
@@ -897,6 +891,23 @@ export default function ClientAppointmentsPage({
     });
   };
 
+  const refreshAppointmentsAfterClientAction = async (
+    fallbackUpdater: (currentAppointments: ClientAppointmentRow[]) => ClientAppointmentRow[]
+  ) => {
+    clearCachedClientAppointments(token);
+
+    try {
+      const freshRows = await fetchRemoteClientAppointments(token);
+
+      setCachedClientAppointments(token, freshRows);
+      setAppointments(freshRows);
+      setLoadError(freshRows.length === 0 ? 'Nenhum agendamento futuro foi encontrado para este link.' : '');
+    } catch {
+      setAppointments((currentAppointments) => fallbackUpdater(currentAppointments));
+      setLoadError('');
+    }
+  };
+
   const registerClientAction = async (params: {
     appointment: ClientAppointmentRow;
     action: ClientActionType;
@@ -942,7 +953,7 @@ export default function ClientAppointmentsPage({
     }
 
     if (action === 'confirm') {
-      setAppointments((currentAppointments) => {
+      await refreshAppointmentsAfterClientAction((currentAppointments) => {
         return currentAppointments.map((item) => {
           if (item.id !== appointment.id) return item;
 
@@ -966,7 +977,7 @@ export default function ClientAppointmentsPage({
     }
 
     if (action === 'cancel') {
-      setAppointments((currentAppointments) => {
+      await refreshAppointmentsAfterClientAction((currentAppointments) => {
         return currentAppointments.map((item) => {
           if (item.id !== appointment.id) return item;
 
@@ -992,7 +1003,7 @@ export default function ClientAppointmentsPage({
     if (action === 'reschedule' && newDateTime) {
       const oldDateTime = appointment.startsAtLocal;
 
-      setAppointments((currentAppointments) => {
+      await refreshAppointmentsAfterClientAction((currentAppointments) => {
         return currentAppointments.map((item) => {
           if (item.id !== appointment.id) return item;
 
