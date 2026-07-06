@@ -147,6 +147,9 @@ function buildProfessionalAppointmentPayload(appointment: Omit<Appointment, 'id'
 
 
 function mapPublicProfessional(rawProfessional: Record<string, unknown>): Professional {
+  const rawPermissions =
+    (rawProfessional.permissions as Partial<Professional["permissions"]> | undefined) || {};
+
   return {
     id: String(rawProfessional.id || ''),
     name: String(rawProfessional.name || 'Profissional'),
@@ -167,17 +170,16 @@ function mapPublicProfessional(rawProfessional: Record<string, unknown>): Profes
     chairRentalValue: Number(rawProfessional.chairRentalValue || rawProfessional.chair_rental_value || 0),
     chairRentalStatus: String(rawProfessional.chairRentalStatus || rawProfessional.chair_rental_status || 'inactive') as Professional['chairRentalStatus'],
     permissions: {
-      viewOwnCalendar: true,
-      createAppts: true,
-      rescheduleAppts: true,
-      cancelAppts: true,
-      blockCalendar: false,
-      openSpots: true,
-      viewFinancial: true,
-      viewCommission: true,
-      viewChairRental: false,
-      manageOwnCalendar: 'yes',
-      ...((rawProfessional.permissions || {}) as Professional['permissions'])
+      viewOwnCalendar: rawPermissions.viewOwnCalendar ?? true,
+      createAppts: rawPermissions.createAppts ?? true,
+      rescheduleAppts: rawPermissions.rescheduleAppts ?? true,
+      cancelAppts: rawPermissions.cancelAppts ?? true,
+      blockCalendar: rawPermissions.blockCalendar ?? false,
+      openSpots: rawPermissions.openSpots ?? true,
+      viewFinancial: rawPermissions.viewFinancial ?? true,
+      viewCommission: rawPermissions.viewCommission ?? true,
+      viewChairRental: rawPermissions.viewChairRental ?? false,
+      manageOwnCalendar: rawPermissions.manageOwnCalendar ?? 'yes',
     }
   };
 }
@@ -248,6 +250,120 @@ function isPastManualAppointmentDateTime(
   }
 
   return timeToMinutes(time) <= getCurrentTimeMinutes();
+}
+
+
+function normalizeErrorMessage(message: string): string {
+  return message
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+function getProfessionalManualAppointmentErrorFeedback(
+  errorMessage: string
+): ProfessionalDashboardFeedbackState {
+  const normalizedMessage = normalizeErrorMessage(errorMessage);
+
+  if (
+    normalizedMessage.includes('schedule_day') ||
+    normalizedMessage.includes('agenda fechada') ||
+    normalizedMessage.includes('dia fechado') ||
+    normalizedMessage.includes('open schedule') ||
+    normalizedMessage.includes('sem agenda aberta') ||
+    normalizedMessage.includes('professional_schedule_days')
+  ) {
+    return {
+      title: 'Agenda fechada',
+      description: 'A agenda deste profissional está fechada para esta data. Abra o dia na agenda antes de criar o agendamento.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('block') ||
+    normalizedMessage.includes('bloque') ||
+    normalizedMessage.includes('professional_schedule_blocks')
+  ) {
+    return {
+      title: 'Horário bloqueado',
+      description: 'Este horário está bloqueado na agenda do profissional. Escolha outro horário ou remova o bloqueio antes de agendar.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('overlap') ||
+    normalizedMessage.includes('conflit') ||
+    normalizedMessage.includes('sobrepos') ||
+    normalizedMessage.includes('ocupado') ||
+    normalizedMessage.includes('indisponivel') ||
+    normalizedMessage.includes('not available')
+  ) {
+    return {
+      title: 'Horário indisponível',
+      description: 'Este horário conflita com outro atendimento ativo. Atualize a agenda e escolha outro horário disponível.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('almoco') ||
+    normalizedMessage.includes('lunch') ||
+    normalizedMessage.includes('intervalo')
+  ) {
+    return {
+      title: 'Intervalo de almoço',
+      description: 'Este serviço invade o intervalo de almoço do profissional. Escolha outro horário disponível.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('expediente') ||
+    normalizedMessage.includes('work_hours') ||
+    normalizedMessage.includes('fora do horario') ||
+    normalizedMessage.includes('business hours') ||
+    normalizedMessage.includes('working hours')
+  ) {
+    return {
+      title: 'Fora do expediente',
+      description: 'Este serviço não cabe dentro do expediente do profissional. Escolha outro horário disponível.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('past') ||
+    normalizedMessage.includes('passad') ||
+    normalizedMessage.includes('anterior')
+  ) {
+    return {
+      title: 'Agendamento não permitido',
+      description: 'Não é permitido criar agendamento manual em data anterior ou em horário que já passou.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('service') ||
+    normalizedMessage.includes('servico')
+  ) {
+    return {
+      title: 'Serviço não permitido',
+      description: 'Este serviço não está disponível para o profissional selecionado. Revise o cadastro do profissional ou escolha outro serviço.'
+    };
+  }
+
+  if (
+    normalizedMessage.includes('professional') ||
+    normalizedMessage.includes('profissional')
+  ) {
+    return {
+      title: 'Profissional indisponível',
+      description: 'Não foi possível validar a agenda deste profissional. Atualize a página e tente novamente.'
+    };
+  }
+
+  return {
+    title: 'Agendamento não criado',
+    description: errorMessage || 'Não foi possível criar o agendamento no banco de dados.'
+  };
 }
 
 export default function ProfessionalDashboard({
@@ -529,10 +645,11 @@ export default function ProfessionalDashboard({
       });
 
     if (error) {
-      setFeedbackMessage({
-        title: 'Agendamento não criado',
-        description: error.message || 'Não foi possível criar o agendamento no banco de dados.'
-      });
+      setFeedbackMessage(
+        getProfessionalManualAppointmentErrorFeedback(
+          error.message || 'Não foi possível criar o agendamento no banco de dados.'
+        )
+      );
       return;
     }
 
