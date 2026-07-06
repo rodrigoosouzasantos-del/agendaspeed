@@ -544,7 +544,20 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
   }
 ];
 
-// Helper functions to manage localStorage DB
+// -----------------------------------------------------------------------------
+// MOCK / FALLBACK LOCAL DE DESENVOLVIMENTO
+// -----------------------------------------------------------------------------
+// Este arquivo não deve ser tratado como banco da aplicação em produção.
+// A fonte oficial do AgendaSpeed em produção é o Supabase/PostgreSQL via RPCs.
+//
+// O estado local abaixo existe apenas para:
+// - permitir telas de fallback enquanto módulos antigos ainda recebem `state`;
+// - facilitar desenvolvimento local sem depender de dados reais;
+// - manter compatibilidade temporária durante a migração para fonte única Supabase.
+//
+// Em ambiente de produção, as funções abaixo NÃO gravam no localStorage.
+// -----------------------------------------------------------------------------
+
 export interface LocalState {
   config: EstablishmentConfig;
   services: Service[];
@@ -553,49 +566,110 @@ export interface LocalState {
   appointments: Appointment[];
 }
 
-export function getLocalState(): LocalState {
-  try {
-    const data = localStorage.getItem('agendazap_state');
-    if (data) {
-      const parsed = JSON.parse(data);
-      // Double check if everything is there
-      if (parsed.config && parsed.services && parsed.professionals && parsed.clients && parsed.appointments) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error("Error reading localStorage", e);
+const LOCAL_STORAGE_STATE_KEY = 'agendazap_state';
+
+function isBrowserEnvironment(): boolean {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+export function isProductionLikeDataEnvironment(): boolean {
+  if (!isBrowserEnvironment()) {
+    return Boolean(import.meta.env.PROD);
   }
 
-  // Not in localStorage, set initial state
-  const state: LocalState = {
-    config: INITIAL_CONFIG,
-    services: INITIAL_SERVICES,
-    professionals: INITIAL_PROFESSIONALS,
-    clients: INITIAL_CLIENTS,
-    appointments: INITIAL_APPOINTMENTS
+  const hostname = window.location.hostname;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  return Boolean(import.meta.env.PROD && !isLocalHost);
+}
+
+export function buildMockLocalState(): LocalState {
+  return {
+    config: { ...INITIAL_CONFIG },
+    services: INITIAL_SERVICES.map((service) => ({ ...service })),
+    professionals: INITIAL_PROFESSIONALS.map((professional) => ({
+      ...professional,
+      workDays: [...professional.workDays],
+      services: [...professional.services],
+      permissions: { ...professional.permissions },
+    })),
+    clients: INITIAL_CLIENTS.map((client) => ({
+      ...client,
+      phoneHistory: client.phoneHistory ? [...client.phoneHistory] : undefined,
+    })),
+    appointments: INITIAL_APPOINTMENTS.map((appointment) => ({ ...appointment })),
   };
-  saveLocalState(state);
-  return state;
+}
+
+function isValidLocalState(value: unknown): value is LocalState {
+  const state = value as Partial<LocalState> | null;
+
+  return Boolean(
+    state &&
+      state.config &&
+      Array.isArray(state.services) &&
+      Array.isArray(state.professionals) &&
+      Array.isArray(state.clients) &&
+      Array.isArray(state.appointments),
+  );
+}
+
+function cloneLocalState(state: LocalState): LocalState {
+  return JSON.parse(JSON.stringify(state)) as LocalState;
+}
+
+export function getLocalState(): LocalState {
+  if (isProductionLikeDataEnvironment()) {
+    return buildMockLocalState();
+  }
+
+  if (!isBrowserEnvironment()) {
+    return buildMockLocalState();
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(LOCAL_STORAGE_STATE_KEY);
+
+    if (storedValue) {
+      const parsedValue = JSON.parse(storedValue) as unknown;
+
+      if (isValidLocalState(parsedValue)) {
+        return cloneLocalState(parsedValue);
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao ler mock local do AgendaSpeed:', error);
+  }
+
+  const initialState = buildMockLocalState();
+  saveLocalState(initialState);
+  return initialState;
 }
 
 export function saveLocalState(state: LocalState): void {
+  if (isProductionLikeDataEnvironment() || !isBrowserEnvironment()) {
+    return;
+  }
+
   try {
-    localStorage.setItem('agendazap_state', JSON.stringify(state));
-  } catch (e) {
-    console.error("Error writing localStorage", e);
+    window.localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error('Erro ao gravar mock local do AgendaSpeed:', error);
   }
 }
 
-// Resets localStorage state
 export function resetLocalState(): LocalState {
-  const state: LocalState = {
-    config: INITIAL_CONFIG,
-    services: INITIAL_SERVICES,
-    professionals: INITIAL_PROFESSIONALS,
-    clients: INITIAL_CLIENTS,
-    appointments: INITIAL_APPOINTMENTS
-  };
-  saveLocalState(state);
-  return state;
+  const initialState = buildMockLocalState();
+
+  if (isProductionLikeDataEnvironment() || !isBrowserEnvironment()) {
+    return initialState;
+  }
+
+  try {
+    window.localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(initialState));
+  } catch (error) {
+    console.error('Erro ao restaurar mock local do AgendaSpeed:', error);
+  }
+
+  return initialState;
 }
