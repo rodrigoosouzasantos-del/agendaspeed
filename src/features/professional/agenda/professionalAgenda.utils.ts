@@ -91,6 +91,24 @@ export function addMinutesToTime(time: string, minutesToAdd: number): string {
   return minutesToTime(timeToMinutes(time) + minutesToAdd);
 }
 
+function getProfessionalDefaultSlotMinutes(professional: Professional): number {
+  const professionalRecord = professional as Professional & {
+    defaultAppointmentDuration?: number;
+  };
+
+  const defaultDuration = Number(professionalRecord.defaultAppointmentDuration) || 30;
+
+  return Math.max(15, defaultDuration);
+}
+
+function professionalHasLunchBreak(professional: Professional): boolean {
+  const professionalRecord = professional as Professional & {
+    noLunchBreak?: boolean;
+  };
+
+  return !professionalRecord.noLunchBreak;
+}
+
 export function getStatusLabel(status: AppointmentStatus): string {
   const labels: Record<AppointmentStatus, string> = {
     scheduled: 'Não confirmado',
@@ -326,17 +344,10 @@ export function generateBaseTimes(params: {
     selectedDate
   });
 
-  if (dayOverride?.status === 'closed') {
+  if (dayOverride?.status !== 'open') {
     return [];
   }
 
-  const date = new Date(`${selectedDate}T00:00:00`);
-  const dayOfWeek = date.getDay();
-  const isWorkDay = professional.workDays.includes(dayOfWeek);
-
-  if (!isWorkDay && dayOverride?.status !== 'open') {
-    return [];
-  }
 
   const startMinutes = timeToMinutes(professional.workHoursStart);
   const endMinutes = timeToMinutes(professional.workHoursEnd);
@@ -358,6 +369,10 @@ export function isInsideLunch(params: {
     time,
     professional
   } = params;
+
+  if (!professionalHasLunchBreak(professional)) {
+    return false;
+  }
 
   const timeMinutes = timeToMinutes(time);
   const lunchStart = timeToMinutes(professional.lunchStart);
@@ -489,8 +504,9 @@ export function generateProfessionalAgendaSlots({
   dayOverrides = [],
   blockedIntervals = [],
   extraTimes = [],
-  slotMinutes = 30
+  slotMinutes
 }: ProfessionalAgendaGeneratedSlotInput): ProfessionalAgendaTimeSlot[] {
+  const resolvedSlotMinutes = slotMinutes || getProfessionalDefaultSlotMinutes(professional);
   const dayAppointments = getAppointmentsForProfessionalDate({
     appointments,
     professionalId: professional.id,
@@ -514,7 +530,7 @@ export function generateProfessionalAgendaSlots({
     return getAppointmentOccupiedTimes({
       appointment,
       service,
-      slotMinutes
+      slotMinutes: resolvedSlotMinutes
     });
   });
 
@@ -526,7 +542,7 @@ export function generateProfessionalAgendaSlots({
     professional,
     selectedDate,
     dayOverrides,
-    slotMinutes
+    slotMinutes: resolvedSlotMinutes
   });
 
   const dayBlockedIntervals = getBlockedIntervalsForDate({
@@ -535,11 +551,20 @@ export function generateProfessionalAgendaSlots({
     selectedDate
   });
 
-  const dayExtraTimes = getExtraTimesForDate({
+  const dayOverride = findDayOverride({
+    dayOverrides,
     professionalId: professional.id,
-    selectedDate,
-    extraTimes
+    selectedDate
   });
+  const isScheduleDayOpen = dayOverride?.status === 'open';
+
+  const dayExtraTimes = isScheduleDayOpen
+    ? getExtraTimesForDate({
+        professionalId: professional.id,
+        selectedDate,
+        extraTimes
+      })
+    : [];
 
   const slots = buildInitialSlots({
     professional,
@@ -549,7 +574,7 @@ export function generateProfessionalAgendaSlots({
     historicalTimes,
     extraTimes: dayExtraTimes,
     blockedIntervals: dayBlockedIntervals,
-    slotMinutes
+    slotMinutes: resolvedSlotMinutes
   });
 
   blockingAppointments.forEach((appointment) => {
@@ -561,7 +586,7 @@ export function generateProfessionalAgendaSlots({
     const occupiedTimes = getAppointmentOccupiedTimes({
       appointment,
       service,
-      slotMinutes
+      slotMinutes: resolvedSlotMinutes
     });
 
     occupiedTimes.forEach((time, index) => {

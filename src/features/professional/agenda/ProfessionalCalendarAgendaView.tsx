@@ -82,6 +82,27 @@ function normalizeScheduleBlock(rawBlock: Record<string, unknown>): Professional
   };
 }
 
+function normalizeScheduleDay(rawDay: Record<string, unknown>): ProfessionalAgendaDayOverride {
+  const status = String(rawDay.status || 'closed') === 'open' ? 'open' : 'closed';
+
+  return {
+    id: String(rawDay.id || ''),
+    professionalId: String(rawDay.professionalId || rawDay.professional_id || ''),
+    date: String(rawDay.date || rawDay.day_date || '').slice(0, 10),
+    status
+  };
+}
+
+function isDateOutsideProfessionalRegularSchedule(params: {
+  professional: ProfessionalCalendarAgendaViewProps['professional'];
+  date: string;
+}): boolean {
+  const { professional, date } = params;
+  const dateObject = new Date(`${date}T00:00:00`);
+
+  return !professional.workDays.includes(dateObject.getDay());
+}
+
 function getCalendarDayClassName(day: ProfessionalAgendaCalendarDay, selectedDate: string): string {
   const isSelected = day.dateStr === selectedDate;
 
@@ -547,6 +568,7 @@ export default function ProfessionalCalendarAgendaView({
   const [dayOverrides, setDayOverrides] = useState<ProfessionalAgendaDayOverride[]>([]);
   const [blockedIntervals, setBlockedIntervals] = useState<ProfessionalAgendaBlockedInterval[]>([]);
   const [extraTimes, setExtraTimes] = useState<ProfessionalAgendaExtraTime[]>([]);
+  const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
 
   const [showDayAgendaModal, setShowDayAgendaModal] = useState(false);
   const [showBlockIntervalModal, setShowBlockIntervalModal] = useState(false);
@@ -584,6 +606,42 @@ export default function ProfessionalCalendarAgendaView({
     }
 
     loadBlockedIntervals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    professional.id,
+    professionalAccessToken
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadScheduleDays() {
+      const { data, error } = professionalAccessToken
+        ? await supabase.rpc('get_professional_access_schedule_days', {
+            p_token: professionalAccessToken
+          })
+        : await supabase.rpc('get_my_professional_schedule_days', {
+            p_professional_id: professional.id
+          });
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Erro ao carregar dias abertos/fechados da agenda:', error.message);
+        return;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+
+      setDayOverrides(
+        rows.map((row: Record<string, unknown>) => normalizeScheduleDay(row))
+      );
+    }
+
+    loadScheduleDays();
 
     return () => {
       isMounted = false;
@@ -662,28 +720,86 @@ export default function ProfessionalCalendarAgendaView({
     setShowDayAgendaModal(true);
   };
 
-  const handleOpenDay = () => {
+  const updateLocalScheduleDay = (scheduleDay: ProfessionalAgendaDayOverride) => {
     setDayOverrides((currentOverrides) => {
-      const filteredOverrides = currentOverrides.filter((dayOverride) => {
+      const filteredOverrides = currentOverrides.filter((currentOverride) => {
         return !(
-          dayOverride.professionalId === professional.id &&
-          dayOverride.date === selectedDate
+          currentOverride.professionalId === scheduleDay.professionalId &&
+          currentOverride.date === scheduleDay.date
         );
       });
 
       return [
         ...filteredOverrides,
-        {
-          id: `${professional.id}-${selectedDate}-open`,
-          professionalId: professional.id,
-          date: selectedDate,
-          status: 'open'
-        }
+        scheduleDay
       ];
     });
   };
 
-  const handleCloseDay = () => {
+  const saveScheduleDayStatus = async (status: ProfessionalAgendaDayOverride['status']) => {
+    if (scheduleDayActionLoading) {
+      return null;
+    }
+
+    const isOutOfRegularSchedule = isDateOutsideProfessionalRegularSchedule({
+      professional,
+      date: selectedDate
+    });
+
+    if (status === 'open' && isOutOfRegularSchedule) {
+      const shouldOpen = window.confirm('Abrir agenda fora da escala?');
+
+      if (!shouldOpen) {
+        return null;
+      }
+    }
+
+    setScheduleDayActionLoading(true);
+
+    const { data, error } = professionalAccessToken
+      ? await supabase.rpc('upsert_professional_access_schedule_day', {
+          p_token: professionalAccessToken,
+          p_date: selectedDate,
+          p_status: status,
+          p_is_out_of_regular_schedule: isOutOfRegularSchedule
+        })
+      : await supabase.rpc('upsert_my_professional_schedule_day', {
+          p_professional_id: professional.id,
+          p_date: selectedDate,
+          p_status: status,
+          p_is_out_of_regular_schedule: isOutOfRegularSchedule
+        });
+
+    setScheduleDayActionLoading(false);
+
+    if (error) {
+      alert(error.message || 'Não foi possível atualizar a agenda do dia.');
+      return null;
+    }
+
+    const savedRow = (Array.isArray(data) ? data[0] : data) as
+      | Record<string, unknown>
+      | null;
+
+    const savedScheduleDay = savedRow
+      ? normalizeScheduleDay(savedRow)
+      : {
+          id: `${professional.id}-${selectedDate}-${status}`,
+          professionalId: professional.id,
+          date: selectedDate,
+          status
+        };
+
+    updateLocalScheduleDay(savedScheduleDay);
+
+    return savedScheduleDay;
+  };
+
+  const handleOpenDay = async () => {
+    await saveScheduleDayStatus('open');
+  };
+
+  const handleCloseDay = async () => {
     const bookedSlots = timeSlots.filter((slot) => {
       return slot.status === 'booked';
     });
@@ -698,24 +814,11 @@ export default function ProfessionalCalendarAgendaView({
       }
     }
 
-    setDayOverrides((currentOverrides) => {
-      const filteredOverrides = currentOverrides.filter((dayOverride) => {
-        return !(
-          dayOverride.professionalId === professional.id &&
-          dayOverride.date === selectedDate
-        );
-      });
+    const savedScheduleDay = await saveScheduleDayStatus('closed');
 
-      return [
-        ...filteredOverrides,
-        {
-          id: `${professional.id}-${selectedDate}-closed`,
-          professionalId: professional.id,
-          date: selectedDate,
-          status: 'closed'
-        }
-      ];
-    });
+    if (!savedScheduleDay) {
+      return;
+    }
 
     setExtraTimes((currentExtraTimes) => {
       return currentExtraTimes.filter((extraTime) => {
@@ -925,16 +1028,18 @@ export default function ProfessionalCalendarAgendaView({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              disabled={scheduleDayActionLoading}
               onClick={handleOpenDay}
-              className="text-xs font-bold px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition"
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Abrir agenda do dia
             </button>
 
             <button
               type="button"
+              disabled={scheduleDayActionLoading}
               onClick={handleCloseDay}
-              className="text-xs font-bold px-3 py-2 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 transition"
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Fechar agenda do dia
             </button>
