@@ -280,30 +280,26 @@ function getAppointmentFooterStatusLabel(status: AppointmentStatus): string {
 
 function getAppointmentFooterClassName(status: AppointmentStatus): string {
   if (isConfirmedStatus(status)) {
-    return 'text-[#0f4c5c]';
+    return 'border border-emerald-200 bg-emerald-100 text-emerald-800';
   }
 
   if (isPendingStatus(status)) {
-    return 'text-slate-600';
+    return 'border border-amber-200 bg-amber-100 text-amber-800';
   }
 
-  if (status === 'cancelled') {
-    return 'text-neutral-600';
-  }
-
-  if (status === 'absent') {
-    return 'text-slate-600';
+  if (status === 'cancelled' || status === 'absent') {
+    return 'border border-red-200 bg-red-100 text-red-800';
   }
 
   if (status === 'rescheduled') {
-    return 'text-slate-600';
+    return 'border border-orange-200 bg-orange-100 text-orange-800';
   }
 
   if (status === 'completed') {
-    return 'text-[#0f4c5c]';
+    return 'border border-emerald-200 bg-emerald-100 text-emerald-800';
   }
 
-  return 'text-neutral-600';
+  return 'border border-slate-200 bg-slate-100 text-slate-700';
 }
 
 function getNextBusinessDate(params: {
@@ -1074,7 +1070,7 @@ export default function DashboardHomeView({
 
                 <div className="border-t border-black/5 pt-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span className={`text-[10px] font-black uppercase tracking-[0.16em] ${getAppointmentFooterClassName(appointment.status)}`}>
+                    <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${getAppointmentFooterClassName(appointment.status)}`}>
                       {getAppointmentFooterStatusLabel(appointment.status)}
                     </span>
 
