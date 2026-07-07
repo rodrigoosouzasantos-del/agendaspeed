@@ -2986,8 +2986,6 @@ ${professionalAccessLink}`);
       receipts: updatedReceipts,
       cashExpenses,
     } as unknown as typeof state);
-
-    alert("Recebimento confirmado com sucesso.");
   };
 
   const handleConfirmCashExpense = async (payload: {

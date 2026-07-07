@@ -356,6 +356,12 @@ export default function ReceiptsView({
   const [locallyCompletedIds, setLocallyCompletedIds] = useState<string[]>([]);
   const [extraItems, setExtraItems] = useState<ReceiptDraftItem[]>([]);
   const [paymentType, setPaymentType] = useState<PaymentType>('pix');
+  const [cashAmountPaid, setCashAmountPaid] = useState(0);
+  const [useSplitPayment, setUseSplitPayment] = useState(false);
+  const [splitCashAmount, setSplitCashAmount] = useState(0);
+  const [splitPixAmount, setSplitPixAmount] = useState(0);
+  const [splitDebitAmount, setSplitDebitAmount] = useState(0);
+  const [splitCreditAmount, setSplitCreditAmount] = useState(0);
   const [discountValue, setDiscountValue] = useState(0);
   const [notes, setNotes] = useState('');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -510,6 +516,18 @@ export default function ReceiptsView({
 
   const normalizedDiscount = Math.max(0, Math.min(Number(discountValue) || 0, subtotal));
   const total = Math.max(0, subtotal - normalizedDiscount);
+  const normalizedCashAmountPaid = Math.max(0, Number(cashAmountPaid) || 0);
+  const cashChange =
+    paymentType === 'dinheiro'
+      ? Math.max(0, normalizedCashAmountPaid - total)
+      : 0;
+  const splitTotal =
+    Math.max(0, Number(splitCashAmount) || 0) +
+    Math.max(0, Number(splitPixAmount) || 0) +
+    Math.max(0, Number(splitDebitAmount) || 0) +
+    Math.max(0, Number(splitCreditAmount) || 0);
+  const splitChange = useSplitPayment ? Math.max(0, splitTotal - total) : 0;
+  const splitRemaining = useSplitPayment ? Math.max(0, total - splitTotal) : 0;
 
   const todayReceipts = useMemo(() => {
     return receipts
@@ -546,6 +564,12 @@ export default function ReceiptsView({
     setDiscountValue(0);
     setNotes('');
     setPaymentType('pix');
+    setCashAmountPaid(0);
+    setUseSplitPayment(false);
+    setSplitCashAmount(0);
+    setSplitPixAmount(0);
+    setSplitDebitAmount(0);
+    setSplitCreditAmount(0);
   };
 
   const handleMarkCompleted = (appointmentId: string) => {
@@ -720,6 +744,25 @@ export default function ReceiptsView({
     const clientName = selectedAppointment?.clientName || selectedClient?.name || manualClientName || 'Cliente';
     const clientPhone = selectedAppointment?.clientPhone || selectedClient?.phone || manualClientPhone || '';
     const appointmentDate = selectedAppointment ? getAppointmentLabel(selectedAppointment) : '';
+    const paymentDetails = useSplitPayment
+      ? [
+          'Pagamento dividido:',
+          splitCashAmount > 0 ? `Dinheiro ${formatCurrency(splitCashAmount)}` : '',
+          splitPixAmount > 0 ? `Pix ${formatCurrency(splitPixAmount)}` : '',
+          splitDebitAmount > 0 ? `Débito ${formatCurrency(splitDebitAmount)}` : '',
+          splitCreditAmount > 0 ? `Crédito ${formatCurrency(splitCreditAmount)}` : '',
+          splitChange > 0 ? `Troco ${formatCurrency(splitChange)}` : ''
+        ].filter(Boolean).join(' ')
+      : paymentType === 'dinheiro' && normalizedCashAmountPaid > 0
+        ? [
+            `Dinheiro recebido ${formatCurrency(normalizedCashAmountPaid)}.`,
+            cashChange > 0 ? `Troco ${formatCurrency(cashChange)}.` : ''
+          ].filter(Boolean).join(' ')
+        : '';
+    const printNotes = [
+      notes.trim(),
+      paymentDetails
+    ].filter(Boolean).join(' | ');
     const itemsHtml = receiptItems.map((item) => {
       const service = getServiceById(services, item.serviceId);
       const professional = getProfessionalById(professionals, item.professionalId);
@@ -764,7 +807,7 @@ export default function ReceiptsView({
       <div class="row"><span>Desconto</span><span>${formatCurrency(normalizedDiscount)}</span></div>
       <div class="row total"><span>Total</span><span>${formatCurrency(total)}</span></div>
       <div class="row"><span>Pagamento</span><span>${escapeHtml(getPaymentLabel(paymentType))}</span></div>
-      ${notes ? `<div class="line"></div><div class="small">Obs.: ${escapeHtml(notes)}</div>` : ''}
+      ${printNotes ? `<div class="line"></div><div class="small">Obs.: ${escapeHtml(printNotes)}</div>` : ''}
       <div class="line"></div>
       <div class="center small">Obrigado pela preferência!</div>
     `;
@@ -889,6 +932,37 @@ export default function ReceiptsView({
       return;
     }
 
+    if (paymentType === 'dinheiro' && normalizedCashAmountPaid > 0 && normalizedCashAmountPaid < total) {
+      alert('O valor recebido em dinheiro é menor que o total da baixa.');
+      return;
+    }
+
+    if (useSplitPayment && splitTotal < total) {
+      alert('O pagamento dividido ainda não cobre o total da baixa.');
+      return;
+    }
+
+    const paymentDetails = useSplitPayment
+      ? [
+          'Pagamento dividido:',
+          splitCashAmount > 0 ? `Dinheiro ${formatCurrency(splitCashAmount)}` : '',
+          splitPixAmount > 0 ? `Pix ${formatCurrency(splitPixAmount)}` : '',
+          splitDebitAmount > 0 ? `Débito ${formatCurrency(splitDebitAmount)}` : '',
+          splitCreditAmount > 0 ? `Crédito ${formatCurrency(splitCreditAmount)}` : '',
+          splitChange > 0 ? `Troco ${formatCurrency(splitChange)}` : ''
+        ].filter(Boolean).join(' ')
+      : paymentType === 'dinheiro' && normalizedCashAmountPaid > 0
+        ? [
+            `Dinheiro recebido ${formatCurrency(normalizedCashAmountPaid)}.`,
+            cashChange > 0 ? `Troco ${formatCurrency(cashChange)}.` : ''
+          ].filter(Boolean).join(' ')
+        : '';
+
+    const receiptNotes = [
+      notes.trim(),
+      paymentDetails
+    ].filter(Boolean).join(' | ');
+
     const receiptPrintHtml = buildDraftReceiptPrintHtml();
 
     onConfirmReceipt({
@@ -897,9 +971,9 @@ export default function ReceiptsView({
       clientPhone,
       appointmentId: selectedAppointment?.id,
       items: receiptItems,
-      paymentType,
+      paymentType: useSplitPayment ? 'dinheiro' : paymentType,
       discountValue: normalizedDiscount,
-      notes
+      notes: receiptNotes
     });
 
     setPrintAfterConfirmTitle('Comprovante de recebimento');
@@ -1549,6 +1623,107 @@ export default function ReceiptsView({
                       </button>
                     ))}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setUseSplitPayment((current) => !current)}
+                    className={`mt-3 w-full rounded-xl border px-3 py-2 text-xs font-black transition ${
+                      useSplitPayment
+                        ? 'border-[#0f4c5c] bg-[#0f4c5c]/10 text-[#0f4c5c]'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
+                    }`}
+                  >
+                    Pagamento dividido
+                  </button>
+
+                  {!useSplitPayment && paymentType === 'dinheiro' && (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                        Valor recebido em dinheiro
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrencyInput(cashAmountPaid)}
+                        onChange={(event) => setCashAmountPaid(parseCurrencyInput(event.target.value))}
+                        className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                      />
+                      <div className="mt-2 flex items-center justify-between text-xs font-black text-slate-600">
+                        <span>Troco</span>
+                        <span className="text-[#0f4c5c]">{formatCurrency(cashChange)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {useSplitPayment && (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                            Dinheiro
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyInput(splitCashAmount)}
+                            onChange={(event) => setSplitCashAmount(parseCurrencyInput(event.target.value))}
+                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                            Pix
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyInput(splitPixAmount)}
+                            onChange={(event) => setSplitPixAmount(parseCurrencyInput(event.target.value))}
+                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                            Débito
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyInput(splitDebitAmount)}
+                            onChange={(event) => setSplitDebitAmount(parseCurrencyInput(event.target.value))}
+                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                            Crédito
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyInput(splitCreditAmount)}
+                            onChange={(event) => setSplitCreditAmount(parseCurrencyInput(event.target.value))}
+                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs font-black">
+                        <div className="rounded-xl bg-white border border-slate-200 p-2">
+                          <p className="text-slate-400">Informado</p>
+                          <p className="text-slate-900">{formatCurrency(splitTotal)}</p>
+                        </div>
+                        <div className="rounded-xl bg-white border border-slate-200 p-2">
+                          <p className="text-slate-400">Restante</p>
+                          <p className="text-slate-900">{formatCurrency(splitRemaining)}</p>
+                        </div>
+                        <div className="rounded-xl bg-white border border-slate-200 p-2">
+                          <p className="text-slate-400">Troco</p>
+                          <p className="text-[#0f4c5c]">{formatCurrency(splitChange)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
