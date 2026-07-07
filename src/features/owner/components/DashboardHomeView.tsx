@@ -188,15 +188,15 @@ function getAppointmentStatusLabel(status: AppointmentStatus): string {
 
 function getStatusBadgeClassName(status: AppointmentStatus): string {
   if (isConfirmedStatus(status)) {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    return 'bg-[#0f4c5c]/10 text-[#0f4c5c] border-[#0f4c5c]/15';
   }
 
   if (isPendingStatus(status)) {
-    return 'bg-orange-50 text-orange-700 border-orange-100';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
   if (status === 'absent') {
-    return 'bg-red-50 text-red-700 border-red-100';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
   if (status === 'cancelled') {
@@ -208,15 +208,15 @@ function getStatusBadgeClassName(status: AppointmentStatus): string {
 
 function getAppointmentCardAccentClassName(status: AppointmentStatus): string {
   if (isConfirmedStatus(status)) {
-    return 'border-l-4 border-l-emerald-500';
+    return 'border-l-4 border-l-[#0f4c5c]';
   }
 
   if (isPendingStatus(status)) {
-    return 'border-l-4 border-l-yellow-400';
+    return 'border-l-4 border-l-slate-300';
   }
 
   if (status === 'absent') {
-    return 'border-l-4 border-l-red-500';
+    return 'border-l-4 border-l-slate-300';
   }
 
   if (status === 'cancelled') {
@@ -228,15 +228,15 @@ function getAppointmentCardAccentClassName(status: AppointmentStatus): string {
 
 function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
   if (isConfirmedStatus(status)) {
-    return 'border-emerald-200 bg-emerald-50/75';
+    return 'border-slate-200 bg-slate-50';
   }
 
   if (isPendingStatus(status)) {
-    return 'border-yellow-300 bg-yellow-50';
+    return 'border-slate-200 bg-slate-50';
   }
 
   if (status === 'absent') {
-    return 'border-red-200 bg-red-50/80';
+    return 'border-slate-200 bg-slate-50';
   }
 
   if (status === 'cancelled' || status === 'rescheduled') {
@@ -244,7 +244,7 @@ function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
   }
 
   if (status === 'completed') {
-    return 'border-sky-200 bg-sky-50/75';
+    return 'border-slate-200 bg-slate-50';
   }
 
   return 'border-neutral-200 bg-white';
@@ -280,11 +280,11 @@ function getAppointmentFooterStatusLabel(status: AppointmentStatus): string {
 
 function getAppointmentFooterClassName(status: AppointmentStatus): string {
   if (isConfirmedStatus(status)) {
-    return 'text-emerald-800';
+    return 'text-[#0f4c5c]';
   }
 
   if (isPendingStatus(status)) {
-    return 'text-yellow-900';
+    return 'text-slate-600';
   }
 
   if (status === 'cancelled') {
@@ -292,15 +292,15 @@ function getAppointmentFooterClassName(status: AppointmentStatus): string {
   }
 
   if (status === 'absent') {
-    return 'text-red-800';
+    return 'text-slate-600';
   }
 
   if (status === 'rescheduled') {
-    return 'text-orange-800';
+    return 'text-slate-600';
   }
 
   if (status === 'completed') {
-    return 'text-sky-800';
+    return 'text-[#0f4c5c]';
   }
 
   return 'text-neutral-600';
@@ -831,40 +831,40 @@ export default function DashboardHomeView({
       label: 'Clientes do dia',
       count: operationalTodayAppointments.length,
       icon: Users,
-      numberClassName: 'text-neutral-950',
-      iconClassName: 'text-indigo-600 bg-indigo-50'
+      numberClassName: 'text-[#0f4c5c]',
+      iconClassName: 'text-[#0f4c5c] bg-[#0f4c5c]/10'
     },
     {
       value: 'confirmed' as DashboardFilter,
       label: 'Confirmados',
       count: confirmedTodayCount,
       icon: CheckCircle2,
-      numberClassName: 'text-emerald-600',
-      iconClassName: 'text-emerald-600 bg-emerald-50'
+      numberClassName: 'text-[#0f4c5c]',
+      iconClassName: 'text-[#0f4c5c] bg-[#0f4c5c]/10'
     },
     {
       value: 'not_confirmed' as DashboardFilter,
       label: 'Não confirmados',
       count: notConfirmedTodayCount,
       icon: Clock,
-      numberClassName: 'text-orange-600',
-      iconClassName: 'text-orange-600 bg-orange-50'
+      numberClassName: 'text-[#0f4c5c]',
+      iconClassName: 'text-[#0f4c5c] bg-[#0f4c5c]/10'
     },
     {
       value: 'free' as DashboardFilter,
       label: 'Horários livres',
       count: freeSlotsTodayCount,
       icon: CalendarDays,
-      numberClassName: 'text-neutral-950',
-      iconClassName: 'text-slate-600 bg-slate-50'
+      numberClassName: 'text-[#0f4c5c]',
+      iconClassName: 'text-[#0f4c5c] bg-[#0f4c5c]/10'
     },
     {
       value: 'absent' as DashboardFilter,
       label: 'Faltas do dia',
       count: absencesTodayCount,
       icon: UserRoundX,
-      numberClassName: 'text-red-600',
-      iconClassName: 'text-red-600 bg-red-50'
+      numberClassName: 'text-[#0f4c5c]',
+      iconClassName: 'text-[#0f4c5c] bg-[#0f4c5c]/10'
     }
   ];
 
@@ -940,7 +940,7 @@ export default function DashboardHomeView({
           <button
             type="button"
             onClick={handleOpenAgenda}
-            className="mt-4 rounded-xl bg-neutral-950 px-4 py-3 text-xs font-black text-white hover:bg-neutral-800 transition"
+            className="mt-4 rounded-xl bg-[#0f4c5c] px-4 py-3 text-xs font-black text-white hover:bg-[#123945] transition"
           >
             Ver horários livres
           </button>
@@ -976,29 +976,29 @@ export default function DashboardHomeView({
           return (
             <div
               key={appointment.id}
-              className={`rounded-2xl border px-4 py-4 shadow-sm transition ${getAppointmentCardSurfaceClassName(appointment.status)} ${getAppointmentCardAccentClassName(appointment.status)}`}
+              className={`rounded-2xl border px-3 py-3 shadow-sm transition hover:border-slate-300 ${getAppointmentCardSurfaceClassName(appointment.status)} ${getAppointmentCardAccentClassName(appointment.status)}`}
             >
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-mono text-lg font-black tracking-tight text-neutral-950">
+                      <span className="text-lg font-black tracking-tight text-neutral-950">
                         {appointmentTime}
                       </span>
 
                       <span className="hidden sm:block h-5 w-px bg-neutral-300" />
 
-                      <h4 className="text-base font-black uppercase leading-tight tracking-tight text-neutral-950">
+                      <h4 className="text-sm font-black uppercase leading-tight tracking-tight text-neutral-950">
                         CLIENTE: {appointment.clientName}
                       </h4>
                     </div>
 
                     <div className="space-y-1.5 pl-0 sm:pl-0">
-                      <p className="text-[13px] font-extrabold leading-snug text-slate-800">
+                      <p className="text-xs font-extrabold leading-snug text-slate-800">
                         {service?.name || 'Serviço'}
                       </p>
 
-                      <p className="text-[12px] font-bold uppercase tracking-wide text-slate-500">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                         Profissional: {professionalName}
                       </p>
                     </div>
@@ -1022,8 +1022,8 @@ export default function DashboardHomeView({
                       onClick={() => handleAppointmentStatusChange(appointment.id, 'confirmed')}
                       className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
                         isAlreadyConfirmed || isInactive
-                          ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                          ? 'bg-[#0f4c5c]/10 text-[#0f4c5c] cursor-not-allowed'
+                          : 'bg-[#0f4c5c] text-white hover:bg-[#123945] shadow-sm'
                       }`}
                     >
                       {isAlreadyConfirmed ? 'Confirmado' : 'Confirmar'}
@@ -1036,7 +1036,7 @@ export default function DashboardHomeView({
                       className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
                         isInactive
                           ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                          : 'bg-orange-600 text-white hover:bg-orange-700 shadow-sm'
+                          : 'bg-[#0f4c5c] text-white hover:bg-[#123945] shadow-sm'
                       }`}
                     >
                       Reagendar
@@ -1049,7 +1049,7 @@ export default function DashboardHomeView({
                       className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
                         appointment.status === 'cancelled'
                           ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
-                          : 'bg-neutral-800 text-white hover:bg-neutral-950 shadow-sm'
+                          : 'bg-slate-700 text-white hover:bg-slate-800 shadow-sm'
                       }`}
                     >
                       Cancelou
@@ -1061,8 +1061,8 @@ export default function DashboardHomeView({
                       onClick={() => handleAppointmentStatusChange(appointment.id, 'absent')}
                       className={`rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-tight transition ${
                         appointment.status === 'absent'
-                          ? 'bg-red-200 text-red-800 cursor-not-allowed'
-                          : 'bg-red-700 text-white hover:bg-red-800 shadow-sm'
+                          ? 'bg-slate-200 text-slate-600 cursor-not-allowed'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 shadow-sm'
                       }`}
                     >
                       Faltou
@@ -1088,7 +1088,7 @@ export default function DashboardHomeView({
                         })}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-tight text-orange-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#0f4c5c]/20 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-tight text-[#0f4c5c] shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         Reenviar confirmação
@@ -1105,29 +1105,31 @@ export default function DashboardHomeView({
   };
 
   return (
-    <div id="view-painel" className="space-y-6 text-left animate-none">
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-neutral-950">
-            Painel Operacional
-          </h2>
+    <div id="view-painel" className="space-y-3 text-left animate-none">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-[#0f4c5c]" />
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+              AGENDASPEED
+            </p>
+            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+              Painel Operacional
+            </h2>
+          </div>
 
-          <p className="text-sm text-slate-500 mt-1">
-            
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowServicesAnalysis(true)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-slate-50 sm:w-max flex items-center justify-center gap-2"
+          >
+            <BarChart3 className="w-4 h-4 text-[#0f4c5c]" />
+            Serviços mais procurados
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowServicesAnalysis(true)}
-          className="w-full sm:w-max bg-white border border-neutral-200 hover:border-orange-500 text-neutral-800 text-xs font-black px-4 py-3 rounded-xl shadow-xs transition flex items-center justify-center gap-2"
-        >
-          <BarChart3 className="w-4 h-4 text-orange-600" />
-          Serviços mais procurados
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
         {filterCards.map((card) => {
           const Icon = card.icon;
           const isActive = activeFilter === card.value;
@@ -1137,10 +1139,10 @@ export default function DashboardHomeView({
               key={card.value}
               type="button"
               onClick={() => setActiveFilter(card.value)}
-              className={`bg-white border rounded-2xl p-3.5 shadow-sm text-left transition hover:shadow-md ${
+              className={`bg-white border rounded-2xl p-3 shadow-sm text-left transition hover:shadow-md ${
                 isActive
-                  ? 'border-orange-500 ring-2 ring-orange-100'
-                  : 'border-neutral-200 hover:border-neutral-300'
+                  ? 'border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10'
+                  : 'border-slate-200 hover:border-slate-300'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -1163,9 +1165,9 @@ export default function DashboardHomeView({
         })}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <section className="bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 text-white px-5 py-3.5 flex items-center justify-between gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-[#0f4c5c] text-white px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
 
@@ -1179,7 +1181,7 @@ export default function DashboardHomeView({
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-50/60">
+          <div className="p-3 bg-slate-50/70">
             {renderAppointmentList(
               filteredTodayAppointments,
               'Não há agendamentos para hoje neste filtro.',
@@ -1188,8 +1190,8 @@ export default function DashboardHomeView({
           </div>
         </section>
 
-        <section className="bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-orange-600 to-orange-500 text-white px-5 py-3.5 flex items-center justify-between gap-3">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-[#0f4c5c] text-white px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
 
@@ -1209,7 +1211,7 @@ export default function DashboardHomeView({
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-50/60">
+          <div className="p-3 bg-slate-50/70">
             {renderAppointmentList(
               filteredNextBusinessAppointments,
               'Não há agendamentos para o próximo dia útil neste filtro.',
@@ -1221,7 +1223,7 @@ export default function DashboardHomeView({
 
       {showServicesAnalysis && (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full border text-left shadow-2xl relative space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full border text-left shadow-2xl relative space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b pb-3">
               <div>
                 <h3 className="text-lg font-black text-neutral-950">
@@ -1252,7 +1254,7 @@ export default function DashboardHomeView({
                 })}
                 className={`px-4 py-2.5 rounded-xl text-xs font-black border transition ${
                   servicesAnalysisPeriod.type === 'today'
-                    ? 'bg-orange-600 text-white border-orange-600'
+                    ? 'bg-[#0f4c5c] text-white border-[#0f4c5c]'
                     : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
                 }`}
               >
@@ -1268,7 +1270,7 @@ export default function DashboardHomeView({
                 })}
                 className={`px-4 py-2.5 rounded-xl text-xs font-black border transition ${
                   servicesAnalysisPeriod.type === 'last7'
-                    ? 'bg-orange-600 text-white border-orange-600'
+                    ? 'bg-[#0f4c5c] text-white border-[#0f4c5c]'
                     : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
                 }`}
               >
@@ -1290,7 +1292,7 @@ export default function DashboardHomeView({
                     type: 'custom',
                     startDate: event.target.value
                   }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-orange-500"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                 />
               </label>
 
@@ -1307,7 +1309,7 @@ export default function DashboardHomeView({
                     type: 'custom',
                     endDate: event.target.value
                   }))}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-orange-500"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                 />
               </label>
             </div>
