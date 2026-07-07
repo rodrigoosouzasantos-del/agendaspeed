@@ -188,6 +188,10 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function normalizePhone(value: string): string {
   return value.replace(/\D/g, "").slice(0, 11);
 }
@@ -2068,6 +2072,19 @@ export default function AgendaView({
 
       setScheduleDayActionLoading(true);
 
+      if (!isValidUuid(selectedProfessional.id)) {
+        updateLocalScheduleDay({
+          id: `local-${selectedProfessional.id}-${selectedDateSafe}`,
+          professionalId: selectedProfessional.id,
+          date: selectedDateSafe,
+          status,
+          isOutOfRegularSchedule: isOpeningOutsideRegularSchedule,
+        });
+
+        setScheduleDayActionLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.rpc("upsert_my_professional_schedule_day", {
         p_professional_id: selectedProfessional.id,
         p_date: selectedDateSafe,
@@ -2113,6 +2130,26 @@ export default function AgendaView({
       }
 
       setScheduleDayActionLoading(true);
+
+      if (!isValidUuid(selectedProfessional.id)) {
+        dateOptions.forEach((dateOption) => {
+          const isOutsideRegularSchedule = isDateOutsideProfessionalRegularSchedule({
+            professional: selectedProfessional,
+            date: dateOption,
+          });
+
+          updateLocalScheduleDay({
+            id: `local-${selectedProfessional.id}-${dateOption}`,
+            professionalId: selectedProfessional.id,
+            date: dateOption,
+            status: "open",
+            isOutOfRegularSchedule: isOutsideRegularSchedule,
+          });
+        });
+
+        setScheduleDayActionLoading(false);
+        return;
+      }
 
       const results: AgendaScheduleDay[] = [];
 
@@ -2594,10 +2631,10 @@ export default function AgendaView({
                 Visualize horários livres, horários marcados e ações rápidas do dia.
               </p>
 
-              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 font-mono text-[10px] font-extrabold uppercase tracking-[0.14em] ${
+              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
                 selectedScheduleDayOpen
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-neutral-200 bg-neutral-100 text-neutral-600"
+                  ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                  : "border-red-200 bg-red-100 text-red-800"
               }`}>
                 {selectedScheduleDayOpen ? "Agenda aberta" : "Agenda fechada"}
                 {selectedScheduleDayOpen && selectedDateOutsideRegularSchedule ? " · fora da escala" : ""}
@@ -2670,36 +2707,7 @@ export default function AgendaView({
           </div>
         </div>
 
-        <div className="border-b bg-neutral-50/70 p-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-700">Confirmados</span>
-              <strong className="mt-2 block text-2xl font-extrabold text-emerald-900">{confirmedCount}</strong>
-            </div>
-
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-amber-700">Não confirmados</span>
-              <strong className="mt-2 block text-2xl font-extrabold text-amber-900">{pendingCount}</strong>
-            </div>
-
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-3">
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-red-700">Faltas</span>
-              <strong className="mt-2 block text-2xl font-extrabold text-red-900">{absentCount}</strong>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-300 bg-white p-3">
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-neutral-500">Livres</span>
-              <strong className="mt-2 block text-2xl font-extrabold text-neutral-950">{freeCount}</strong>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-100 p-3">
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-neutral-500">Bloqueados</span>
-              <strong className="mt-2 block text-2xl font-extrabold text-neutral-950">{blockedCount}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-2 p-4">
+        <div className="space-y-2 p-3">
           {daySlots.map((slot) => {
             if (slot.type === "appointment" && slot.appointment) {
               return renderAppointmentSlot(slot.appointment, slot.historicalAppointments || []);
