@@ -438,6 +438,194 @@ function mapSupabaseClientToAppClient(client: SupabaseClientResponse): Client {
   };
 }
 
+const SUPABASE_RECEIPTS_SELECT =
+  "id,tenant_id,client_id,appointment_id,client_name,client_phone,payment_type,status,subtotal,discount_value,total_amount,notes,paid_at,created_at,updated_at";
+
+const SUPABASE_RECEIPT_ITEMS_SELECT =
+  "id,tenant_id,receipt_id,appointment_id,service_id,service_name,professional_id,professional_name,price,commission_value,item_type,created_at";
+
+const SUPABASE_CASH_EXPENSES_SELECT =
+  "id,tenant_id,description,amount,payment_type,expense_date,notes,created_at,updated_at";
+
+type SupabaseReceiptResponse = {
+  id: string;
+  tenant_id: string;
+  client_id: string | null;
+  appointment_id: string | null;
+  client_name: string;
+  client_phone: string;
+  payment_type: PaymentType | string;
+  status: Receipt["status"] | string;
+  subtotal: number;
+  discount_value: number;
+  total_amount: number;
+  notes: string | null;
+  paid_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type SupabaseReceiptItemResponse = {
+  id: string;
+  tenant_id: string;
+  receipt_id: string;
+  appointment_id: string | null;
+  service_id: string | null;
+  service_name: string;
+  professional_id: string | null;
+  professional_name: string;
+  price: number;
+  commission_value: number;
+  item_type: ReceiptItem["itemType"] | string;
+  created_at: string;
+};
+
+type SupabaseCashExpenseResponse = {
+  id: string;
+  tenant_id: string;
+  description: string;
+  amount: number;
+  payment_type: PaymentType | string;
+  expense_date: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function isUuid(value: string | null | undefined): boolean {
+  return Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value,
+      ),
+  );
+}
+
+function toNullableUuid(value: string | null | undefined): string | null {
+  return isUuid(value) ? String(value) : null;
+}
+
+function normalizeReceiptPaymentType(value: unknown): PaymentType {
+  return ["dinheiro", "pix", "debito", "credito", "pendente", "cortesia"].includes(
+    String(value),
+  )
+    ? (value as PaymentType)
+    : "dinheiro";
+}
+
+function normalizeReceiptStatus(value: unknown): Receipt["status"] {
+  return String(value) === "cancelled" ? "cancelled" : "paid";
+}
+
+function normalizeReceiptItemType(value: unknown): ReceiptItem["itemType"] {
+  return ["appointment", "extra", "manual"].includes(String(value))
+    ? (value as ReceiptItem["itemType"])
+    : "appointment";
+}
+
+function mapSupabaseReceiptItemToAppReceiptItem(
+  item: SupabaseReceiptItemResponse,
+): ReceiptItem {
+  return {
+    id: item.id,
+    receiptId: item.receipt_id,
+    appointmentId: item.appointment_id || undefined,
+    serviceId: item.service_id || "",
+    serviceName: item.service_name || "Serviço personalizado",
+    professionalId: item.professional_id || "",
+    professionalName: item.professional_name || "Profissional",
+    price: Number(item.price) || 0,
+    commissionValue: Number(item.commission_value) || 0,
+    itemType: normalizeReceiptItemType(item.item_type),
+  };
+}
+
+function mapSupabaseReceiptToAppReceipt(params: {
+  receipt: SupabaseReceiptResponse;
+  items: SupabaseReceiptItemResponse[];
+}): Receipt {
+  const { receipt, items } = params;
+
+  return {
+    id: receipt.id,
+    clientId: receipt.client_id || undefined,
+    clientName: receipt.client_name || "",
+    clientPhone: receipt.client_phone || "",
+    appointmentId: receipt.appointment_id || undefined,
+    items: items.map(mapSupabaseReceiptItemToAppReceiptItem),
+    paymentType: normalizeReceiptPaymentType(receipt.payment_type),
+    status: normalizeReceiptStatus(receipt.status),
+    subtotal: Number(receipt.subtotal) || 0,
+    discountValue: Number(receipt.discount_value) || 0,
+    totalAmount: Number(receipt.total_amount) || 0,
+    notes: receipt.notes || "",
+    paidAt: String(receipt.paid_at || receipt.created_at || "").slice(0, 16),
+    createdAt: String(receipt.created_at || receipt.paid_at || "").slice(0, 16),
+  };
+}
+
+function mapSupabaseCashExpenseToAppCashExpense(
+  expense: SupabaseCashExpenseResponse,
+): CashExpense {
+  const expenseDate = String(expense.expense_date || "").slice(0, 10);
+  const createdAt = String(expense.created_at || "").slice(0, 16);
+
+  return {
+    id: expense.id,
+    description: expense.description || "Despesa manual",
+    amount: Number(expense.amount) || 0,
+    paymentType: normalizeReceiptPaymentType(expense.payment_type),
+    status: "paid",
+    notes: expense.notes || "",
+    paidAt: expenseDate ? `${expenseDate}T00:00` : createdAt,
+    createdAt,
+  };
+}
+
+function buildReceiptInsertPayload(params: {
+  tenantId: string;
+  payload: ReceiptPayload;
+  subtotal: number;
+  discountValue: number;
+  totalAmount: number;
+}) {
+  const { tenantId, payload, subtotal, discountValue, totalAmount } = params;
+
+  return {
+    tenant_id: tenantId,
+    client_id: toNullableUuid(payload.clientId),
+    appointment_id: toNullableUuid(payload.appointmentId),
+    client_name: payload.clientName,
+    client_phone: payload.clientPhone,
+    payment_type: payload.paymentType,
+    status: "paid",
+    subtotal,
+    discount_value: discountValue,
+    total_amount: totalAmount,
+    notes: payload.notes || null,
+  };
+}
+
+function buildReceiptItemInsertPayload(params: {
+  tenantId: string;
+  receiptItem: ReceiptItem;
+}) {
+  const { tenantId, receiptItem } = params;
+
+  return {
+    tenant_id: tenantId,
+    receipt_id: receiptItem.receiptId,
+    appointment_id: toNullableUuid(receiptItem.appointmentId),
+    service_id: toNullableUuid(receiptItem.serviceId),
+    service_name: receiptItem.serviceName || "Serviço personalizado",
+    professional_id: toNullableUuid(receiptItem.professionalId),
+    professional_name: receiptItem.professionalName || "Profissional",
+    price: Number(receiptItem.price) || 0,
+    commission_value: Number(receiptItem.commissionValue) || 0,
+    item_type: normalizeReceiptItemType(receiptItem.itemType),
+  };
+}
+
 function buildOwnerAppointmentPayload(
   appointment: Omit<Appointment, "id"> & { id?: string | null },
 ) {
@@ -713,19 +901,10 @@ export default function OwnerDashboard({
   const clients = liveClients;
 
   const [activeTab, setActiveTab] = useState<OwnerTab>("painel");
-  const [receipts, setReceipts] = useState<Receipt[]>(() => {
-    const stateRecord = state as unknown as Record<string, unknown>;
-    return Array.isArray(stateRecord.receipts)
-      ? (stateRecord.receipts as Receipt[])
-      : [];
-  });
-
-  const [cashExpenses, setCashExpenses] = useState<CashExpense[]>(() => {
-    const stateRecord = state as unknown as Record<string, unknown>;
-    return Array.isArray(stateRecord.cashExpenses)
-      ? (stateRecord.cashExpenses as CashExpense[])
-      : [];
-  });
+  // Recebimentos e despesas também deixam de iniciar pelo mock/localStorage.
+  // A fonte oficial do caixa em produção passa a ser receipts, receipt_items e cash_expenses no Supabase.
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
 
   const [clientSearch, setClientSearch] = useState("");
   const [professionalFilter, setProfessionalFilter] = useState<string>("all");
@@ -847,6 +1026,10 @@ export default function OwnerDashboard({
   const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [clientsLoadError, setClientsLoadError] = useState("");
+  const [isLoadingFinancialRecords, setIsLoadingFinancialRecords] =
+    useState(true);
+  const [financialRecordsLoadError, setFinancialRecordsLoadError] =
+    useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1164,6 +1347,159 @@ export default function OwnerDashboard({
     // Carrega clientes reais ao abrir o painel. A tabela clients é a fonte oficial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadFinancialRecordsFromSupabase = async (
+    showLoading = true,
+  ): Promise<{
+    receipts: Receipt[];
+    cashExpenses: CashExpense[];
+  }> => {
+    if (!tenantId) {
+      return {
+        receipts: [],
+        cashExpenses: [],
+      };
+    }
+
+    if (showLoading) {
+      setIsLoadingFinancialRecords(true);
+    }
+
+    setFinancialRecordsLoadError("");
+
+    const receiptsResult = await supabase
+      .from("receipts")
+      .select(SUPABASE_RECEIPTS_SELECT)
+      .eq("tenant_id", tenantId)
+      .order("paid_at", { ascending: false });
+
+    if (receiptsResult.error) {
+      console.error(
+        "Erro ao carregar recebimentos:",
+        receiptsResult.error.message,
+      );
+      setFinancialRecordsLoadError(
+        receiptsResult.error.message || "Erro ao carregar recebimentos.",
+      );
+      setIsLoadingFinancialRecords(false);
+      return {
+        receipts: [],
+        cashExpenses,
+      };
+    }
+
+    const receiptRows = (Array.isArray(receiptsResult.data)
+      ? receiptsResult.data
+      : []) as SupabaseReceiptResponse[];
+    const receiptIds = receiptRows.map((receipt) => receipt.id).filter(Boolean);
+
+    let receiptItemRows: SupabaseReceiptItemResponse[] = [];
+
+    if (receiptIds.length > 0) {
+      const receiptItemsResult = await supabase
+        .from("receipt_items")
+        .select(SUPABASE_RECEIPT_ITEMS_SELECT)
+        .eq("tenant_id", tenantId)
+        .in("receipt_id", receiptIds);
+
+      if (receiptItemsResult.error) {
+        console.error(
+          "Erro ao carregar itens dos recebimentos:",
+          receiptItemsResult.error.message,
+        );
+        setFinancialRecordsLoadError(
+          receiptItemsResult.error.message ||
+            "Erro ao carregar itens dos recebimentos.",
+        );
+        setIsLoadingFinancialRecords(false);
+        return {
+          receipts,
+          cashExpenses,
+        };
+      }
+
+      receiptItemRows = (Array.isArray(receiptItemsResult.data)
+        ? receiptItemsResult.data
+        : []) as SupabaseReceiptItemResponse[];
+    }
+
+    const expensesResult = await supabase
+      .from("cash_expenses")
+      .select(SUPABASE_CASH_EXPENSES_SELECT)
+      .eq("tenant_id", tenantId)
+      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (expensesResult.error) {
+      console.error("Erro ao carregar despesas:", expensesResult.error.message);
+      setFinancialRecordsLoadError(
+        expensesResult.error.message || "Erro ao carregar despesas.",
+      );
+      setIsLoadingFinancialRecords(false);
+      return {
+        receipts,
+        cashExpenses,
+      };
+    }
+
+    const receiptItemsByReceiptId = receiptItemRows.reduce<
+      Record<string, SupabaseReceiptItemResponse[]>
+    >((accumulator, receiptItem) => {
+      if (!accumulator[receiptItem.receipt_id]) {
+        accumulator[receiptItem.receipt_id] = [];
+      }
+
+      accumulator[receiptItem.receipt_id].push(receiptItem);
+      return accumulator;
+    }, {});
+
+    const nextReceipts = receiptRows.map((receipt) => {
+      return mapSupabaseReceiptToAppReceipt({
+        receipt,
+        items: receiptItemsByReceiptId[receipt.id] || [],
+      });
+    });
+
+    const expenseRows = (Array.isArray(expensesResult.data)
+      ? expensesResult.data
+      : []) as SupabaseCashExpenseResponse[];
+    const nextCashExpenses = expenseRows.map(mapSupabaseCashExpenseToAppCashExpense);
+
+    setReceipts(nextReceipts);
+    setCashExpenses(nextCashExpenses);
+    setIsLoadingFinancialRecords(false);
+
+    return {
+      receipts: nextReceipts,
+      cashExpenses: nextCashExpenses,
+    };
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadInitialFinancialRecords() {
+      if (!tenantId) return;
+
+      const loadedRecords = await loadFinancialRecordsFromSupabase(true);
+
+      if (!isMounted) return;
+
+      onUpdateState({
+        ...state,
+        receipts: loadedRecords.receipts,
+        cashExpenses: loadedRecords.cashExpenses,
+      } as unknown as typeof state);
+    }
+
+    loadInitialFinancialRecords();
+
+    return () => {
+      isMounted = false;
+    };
+    // Carrega caixa real quando o tenant é identificado. Supabase é a fonte oficial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   const baseDateStr = new Date().toLocaleDateString("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -2516,41 +2852,114 @@ ${professionalAccessLink}`);
     } as unknown as typeof state);
   };
 
-  const handleConfirmReceipt = (payload: ReceiptPayload) => {
-    const receiptId = `receipt-${Date.now()}`;
-    const receiptItems = buildReceiptItems({
+  const handleConfirmReceipt = async (payload: ReceiptPayload) => {
+    if (!tenantId) {
+      alert("Não foi possível identificar a empresa para salvar o recebimento.");
+      return;
+    }
+
+    const draftReceiptItems = buildReceiptItems({
       draftItems: payload.items,
-      receiptId,
+      receiptId: "pending-receipt",
       services,
       professionals,
     });
 
-    const subtotal = receiptItems.reduce((sum, item) => sum + item.price, 0);
+    const subtotal = draftReceiptItems.reduce((sum, item) => sum + item.price, 0);
     const discountValue = Math.max(
       0,
       Math.min(Number(payload.discountValue) || 0, subtotal),
     );
     const totalAmount = Math.max(0, subtotal - discountValue);
-    const now = new Date().toISOString();
 
-    const receipt: Receipt = {
-      id: receiptId,
-      clientId: payload.clientId,
-      clientName: payload.clientName,
-      clientPhone: payload.clientPhone,
-      appointmentId: payload.appointmentId,
-      items: receiptItems,
-      paymentType: payload.paymentType,
-      status: "paid",
-      subtotal,
-      discountValue,
-      totalAmount,
-      notes: payload.notes,
-      paidAt: now,
-      createdAt: now,
-    };
+    const { data: receiptData, error: receiptError } = await supabase
+      .from("receipts")
+      .insert(
+        buildReceiptInsertPayload({
+          tenantId,
+          payload,
+          subtotal,
+          discountValue,
+          totalAmount,
+        }),
+      )
+      .select(SUPABASE_RECEIPTS_SELECT)
+      .limit(1);
 
-    const updatedReceipts = [receipt, ...receipts];
+    if (receiptError) {
+      alert(receiptError.message || "Não foi possível salvar o recebimento.");
+      return;
+    }
+
+    const savedReceiptRow = (Array.isArray(receiptData)
+      ? receiptData[0]
+      : null) as SupabaseReceiptResponse | null;
+
+    if (!savedReceiptRow?.id) {
+      alert("Recebimento salvo, mas não foi possível confirmar o registro.");
+      void loadFinancialRecordsFromSupabase(false);
+      return;
+    }
+
+    const receiptItems = buildReceiptItems({
+      draftItems: payload.items,
+      receiptId: savedReceiptRow.id,
+      services,
+      professionals,
+    });
+
+    const receiptItemsPayload = receiptItems.map((receiptItem) => {
+      return buildReceiptItemInsertPayload({
+        tenantId,
+        receiptItem,
+      });
+    });
+
+    let savedReceiptItemRows: SupabaseReceiptItemResponse[] = [];
+
+    if (receiptItemsPayload.length > 0) {
+      const { data: receiptItemsData, error: receiptItemsError } = await supabase
+        .from("receipt_items")
+        .insert(receiptItemsPayload)
+        .select(SUPABASE_RECEIPT_ITEMS_SELECT);
+
+      if (receiptItemsError) {
+        await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
+        alert(
+          receiptItemsError.message ||
+            "Não foi possível salvar os itens do recebimento.",
+        );
+        void loadFinancialRecordsFromSupabase(false);
+        return;
+      }
+
+      savedReceiptItemRows = (Array.isArray(receiptItemsData)
+        ? receiptItemsData
+        : []) as SupabaseReceiptItemResponse[];
+    }
+
+    if (toNullableUuid(payload.appointmentId)) {
+      const { error: appointmentStatusError } = await supabase.rpc(
+        "update_my_appointment_status",
+        {
+          p_appointment_id: payload.appointmentId,
+          p_status: "completed",
+        },
+      );
+
+      if (appointmentStatusError) {
+        console.error(
+          "Recebimento salvo, mas o status do atendimento não foi atualizado:",
+          appointmentStatusError.message,
+        );
+      }
+    }
+
+    const savedReceipt = mapSupabaseReceiptToAppReceipt({
+      receipt: savedReceiptRow,
+      items: savedReceiptItemRows,
+    });
+    const updatedReceipts = [savedReceipt, ...receipts];
 
     const updatedAppointments = appointments.map((appointment) => {
       if (appointment.id !== payload.appointmentId) {
@@ -2567,36 +2976,13 @@ ${professionalAccessLink}`);
       };
     });
 
-    const updatedClients = upsertClientFromAppointment({
-      clients,
-      clientName: payload.clientName,
-      clientPhone: payload.clientPhone,
-      preferredProfessionalId:
-        updatedAppointments.find((appointment) => {
-          return appointment.id === payload.appointmentId;
-        })?.professionalId || null,
-      notes: "Cliente atualizado pelo módulo de Recebimentos.",
-    }).map((client) => {
-      const clientPhoneKey = normalizeClientPhone(client.phone);
-      const payloadPhoneKey = normalizeClientPhone(payload.clientPhone);
-
-      if (clientPhoneKey !== payloadPhoneKey) {
-        return client;
-      }
-
-      return {
-        ...client,
-        totalSpent: (client.totalSpent || 0) + totalAmount,
-      };
-    });
-
     setReceipts(updatedReceipts);
     setLiveAppointments(updatedAppointments);
+    void loadClientsFromSupabase(false);
 
     onUpdateState({
       ...state,
       appointments: updatedAppointments,
-      clients: updatedClients,
       receipts: updatedReceipts,
       cashExpenses,
     } as unknown as typeof state);
@@ -2604,26 +2990,52 @@ ${professionalAccessLink}`);
     alert("Recebimento confirmado com sucesso.");
   };
 
-  const handleConfirmCashExpense = (payload: {
+  const handleConfirmCashExpense = async (payload: {
     description: string;
     amount: number;
     paymentType: PaymentType;
     notes?: string;
   }) => {
-    const now = new Date().toISOString();
+    if (!tenantId) {
+      alert("Não foi possível identificar a empresa para salvar a despesa.");
+      return;
+    }
 
-    const expense: CashExpense = {
-      id: `expense-${Date.now()}`,
-      description: payload.description,
-      amount: Number(payload.amount) || 0,
-      paymentType: payload.paymentType,
-      status: "paid",
-      notes: payload.notes,
-      paidAt: now,
-      createdAt: now,
-    };
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    });
 
-    const updatedExpenses = [expense, ...cashExpenses];
+    const { data, error } = await supabase
+      .from("cash_expenses")
+      .insert({
+        tenant_id: tenantId,
+        description: payload.description,
+        amount: Number(payload.amount) || 0,
+        payment_type: payload.paymentType,
+        expense_date: today,
+        notes: payload.notes || null,
+      })
+      .select(SUPABASE_CASH_EXPENSES_SELECT)
+      .limit(1);
+
+    if (error) {
+      alert(error.message || "Não foi possível salvar a despesa.");
+      return;
+    }
+
+    const savedRow = (Array.isArray(data)
+      ? data[0]
+      : null) as SupabaseCashExpenseResponse | null;
+
+    if (!savedRow) {
+      alert("Despesa salva, mas não foi possível recarregar o registro.");
+      void loadFinancialRecordsFromSupabase(false);
+      return;
+    }
+
+    const savedExpense = mapSupabaseCashExpenseToAppCashExpense(savedRow);
+    const updatedExpenses = [savedExpense, ...cashExpenses];
+
     setCashExpenses(updatedExpenses);
 
     onUpdateState({
@@ -2762,6 +3174,18 @@ ${professionalAccessLink}`);
               onAddClient={handleAddManualClient}
               onUpdateClient={handleUpdateClient}
             />
+          )}
+
+          {activeTab === "recebimentos" && financialRecordsLoadError && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+              Não foi possível carregar o caixa real do Supabase: {financialRecordsLoadError}
+            </div>
+          )}
+
+          {activeTab === "recebimentos" && isLoadingFinancialRecords && (
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+              Carregando recebimentos e despesas reais do Supabase...
+            </div>
           )}
 
           {activeTab === "recebimentos" && (
