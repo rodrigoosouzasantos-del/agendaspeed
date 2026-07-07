@@ -666,11 +666,10 @@ export default function OwnerDashboard({
 }: OwnerDashboardProps) {
   const { config, professionals, services, clients } = state;
 
-  // A agenda precisa ser sempre uma fonte viva dentro do painel.
-  // Ela é carregada do Supabase e atualizada localmente sem depender dos dados demo do App.
-  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>(
-    state.appointments,
-  );
+  // A agenda do painel do dono não deve iniciar a partir do mock/localStorage do App.
+  // Em produção, a fonte oficial dos agendamentos é sempre o Supabase via RPC.
+  // O estado abaixo começa vazio e é preenchido somente pelo carregamento real.
+  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const appointments = liveAppointments;
 
   const [activeTab, setActiveTab] = useState<OwnerTab>("painel");
@@ -803,7 +802,8 @@ export default function OwnerDashboard({
   const [isSavingTenantSettings, setIsSavingTenantSettings] = useState(false);
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(false);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
-  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
+  const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1020,12 +1020,17 @@ export default function OwnerDashboard({
         setIsLoadingAppointments(true);
       }
 
+      setAppointmentsLoadError("");
+
       const { data, error } = await supabase.rpc("get_my_appointments");
 
       if (!isMounted) return;
 
       if (error) {
         console.error("Erro ao carregar agendamentos:", error.message);
+        setAppointmentsLoadError(
+          error.message || "Não foi possível carregar a agenda real do Supabase.",
+        );
         setIsLoadingAppointments(false);
         return;
       }
@@ -2458,6 +2463,17 @@ ${professionalAccessLink}`);
           id="admin-workspace-pane"
           className="flex-1 p-4 sm:p-6 space-y-6 overflow-hidden"
         >
+          {appointmentsLoadError && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+              Não foi possível carregar a agenda real do Supabase: {appointmentsLoadError}
+            </div>
+          )}
+
+          {isLoadingAppointments && (
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+              Carregando agenda real do Supabase...
+            </div>
+          )}
           {activeTab === "painel" && (
             <DashboardHomeView
               baseDateStr={baseDateStr}
