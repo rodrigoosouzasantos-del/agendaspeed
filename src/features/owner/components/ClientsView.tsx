@@ -1,12 +1,13 @@
 /**
- * Tela de Clientes do Painel do Dono - AgendaZap.
+ * Tela de Clientes do Painel do Dono - AgendaSpeed.
  *
  * Responsável por:
  * - exibir carteira limpa de clientes;
  * - buscar cliente por nome ou WhatsApp;
- * - permitir cadastro manual de cliente;
- * - abrir WhatsApp do cliente;
- * - exibir dados, histórico e métricas dentro do modal do cliente.
+ * - destacar aniversariantes do dia;
+ * - abrir WhatsApp com mensagem rápida ou mensagem automática de aniversário;
+ * - exibir dados, histórico e métricas dentro do modal do cliente;
+ * - imprimir relatório individual ou geral do período selecionado.
  */
 
 import React, {
@@ -16,10 +17,14 @@ import React, {
 
 import {
   CalendarDays,
+  Cake,
   Eye,
+  MessageCircle,
   Phone,
   Plus,
+  Printer,
   Search,
+  Send,
   User,
   X
 } from 'lucide-react';
@@ -72,8 +77,33 @@ interface PeriodState {
   endDate: string;
 }
 
+interface ClientStats {
+  presences: number;
+  reschedules: number;
+  absences: number;
+  cancellations: number;
+  totalSpent: number;
+  appointmentsCount: number;
+}
+
 function onlyDigits(value: string): string {
   return value.replace(/\D/g, '');
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function formatPhoneMask(value: string): string {
@@ -117,6 +147,7 @@ function getLocalDateStr(date: Date): string {
 function getDefaultPeriod(): PeriodState {
   const today = new Date();
   const startDate = new Date(today);
+
   startDate.setMonth(today.getMonth() - 12);
 
   return {
@@ -157,6 +188,35 @@ function filterAppointmentsByPeriod(params: {
   });
 }
 
+function getClientStats(params: {
+  client: Client;
+  appointments: Appointment[];
+  period: PeriodState;
+}): ClientStats {
+  const periodAppointments = filterAppointmentsByPeriod({
+    appointments: getClientAppointments({
+      client: params.client,
+      appointments: params.appointments
+    }),
+    period: params.period
+  });
+
+  const completedAppointments = periodAppointments.filter((appointment) => {
+    return appointment.status === 'completed';
+  });
+
+  return {
+    presences: completedAppointments.length,
+    reschedules: periodAppointments.filter((appointment) => appointment.status === 'rescheduled').length,
+    absences: periodAppointments.filter((appointment) => appointment.status === 'absent').length,
+    cancellations: periodAppointments.filter((appointment) => appointment.status === 'cancelled').length,
+    totalSpent: completedAppointments.reduce((total, appointment) => {
+      return total + appointment.price;
+    }, 0),
+    appointmentsCount: periodAppointments.length
+  };
+}
+
 function getServiceName(
   services: Service[],
   serviceId: string
@@ -175,8 +235,33 @@ function getProfessionalName(
   return professional?.name || 'Profissional não localizado';
 }
 
-function getWhatsAppUrl(phone: string): string {
-  return `https://api.whatsapp.com/send?phone=55${onlyDigits(phone)}`;
+function getWhatsAppUrl(phone: string, message?: string): string {
+  const digits = onlyDigits(phone);
+  const encodedMessage = message ? `&text=${encodeURIComponent(message)}` : '';
+
+  return `https://api.whatsapp.com/send?phone=55${digits}${encodedMessage}`;
+}
+
+function getBirthdayMessage(clientName: string): string {
+  const firstName = clientName.trim().split(/\s+/)[0] || clientName;
+
+  return `Olá ${firstName}, passando para desejar um feliz aniversário! 🎉 Que seu dia seja muito especial, com muita saúde, alegria e sucesso. Um abraço!`;
+}
+
+function isClientBirthdayToday(client: Client, todayDate: Date): boolean {
+  if (!client.birthDate || !client.birthDate.includes('-')) {
+    return false;
+  }
+
+  const [, month, day] = client.birthDate.split('-');
+  const todayMonth = String(todayDate.getMonth() + 1).padStart(2, '0');
+  const todayDay = String(todayDate.getDate()).padStart(2, '0');
+
+  return month === todayMonth && day === todayDay;
+}
+
+function getBirthdayStorageKey(clientId: string, currentYear: number): string {
+  return `agendaspeed-birthday-greeted-${currentYear}-${clientId}`;
 }
 
 function getClientInternalCode(client: Client): string {
@@ -193,6 +278,99 @@ function getClientInternalCode(client: Client): string {
     : onlyDigits(client.phone).slice(-6).padStart(6, '0');
 
   return `CLI-${fallbackNumber}`;
+}
+
+function buildReportHtml(params: {
+  clients: Client[];
+  appointments: Appointment[];
+  services: Service[];
+  professionals: Professional[];
+  period: PeriodState;
+  title: string;
+}): string {
+  const rows = params.clients.map((client) => {
+    const stats = getClientStats({
+      client,
+      appointments: params.appointments,
+      period: params.period
+    });
+    const latestAppointment = getClientAppointments({
+      client,
+      appointments: params.appointments
+    })[0];
+    const latestService = latestAppointment
+      ? getServiceName(params.services, latestAppointment.serviceId)
+      : 'Sem histórico';
+
+    return `
+      <tr>
+        <td>${escapeHtml(client.name)}</td>
+        <td>${escapeHtml(formatPhoneMask(client.phone))}</td>
+        <td>${escapeHtml(client.birthDate ? formatDateBr(client.birthDate) : 'Não informado')}</td>
+        <td>${stats.presences}</td>
+        <td>${stats.reschedules}</td>
+        <td>${stats.absences}</td>
+        <td>${stats.cancellations}</td>
+        <td>${escapeHtml(formatCurrency(stats.totalSpent))}</td>
+        <td>${escapeHtml(latestService)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <title>${escapeHtml(params.title)}</title>
+        <meta charset="utf-8" />
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
+          h1 { font-size: 20px; margin: 0; }
+          p { margin: 6px 0 18px; color: #64748b; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { text-align: left; background: #0f4c5c; color: white; padding: 8px; }
+          td { border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
+          .total { margin-top: 16px; font-weight: 700; color: #0f4c5c; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(params.title)}</h1>
+        <p>Período: ${escapeHtml(formatDateBr(params.period.startDate))} até ${escapeHtml(formatDateBr(params.period.endDate))}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>WhatsApp</th>
+              <th>Aniversário</th>
+              <th>Presenças</th>
+              <th>Reagend.</th>
+              <th>Faltas</th>
+              <th>Cancel.</th>
+              <th>Receita</th>
+              <th>Último serviço</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="total">Total de clientes no relatório: ${params.clients.length}</div>
+        <script>window.onload = () => window.print();</script>
+      </body>
+    </html>
+  `;
+}
+
+function printHtml(html: string) {
+  const printWindow = window.open('', '_blank', 'width=1100,height=800');
+
+  if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.');
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 export default function ClientsView({
@@ -222,6 +400,49 @@ export default function ClientsView({
       phone: '',
       birthDate: ''
     });
+  const currentYear = new Date().getFullYear();
+  const todayDate = new Date();
+
+  const [birthdayGreetingKeys, setBirthdayGreetingKeys] = useState<string[]>(() => {
+    return clients
+      .filter((client) => {
+        const storageKey = getBirthdayStorageKey(client.id, currentYear);
+        return localStorage.getItem(storageKey) === 'sent';
+      })
+      .map((client) => getBirthdayStorageKey(client.id, currentYear));
+  });
+
+  const filteredClients = useMemo(() => {
+    const normalizedSearch = normalizeSearch(clientSearch);
+
+    return [...clients]
+      .filter((client) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        return [
+          client.name,
+          client.phone,
+          client.birthDate || '',
+          getClientInternalCode(client)
+        ].some((value) => normalizeSearch(value).includes(normalizedSearch));
+      })
+      .sort((firstClient, secondClient) => {
+        const firstBirthday = isClientBirthdayToday(firstClient, todayDate);
+        const secondBirthday = isClientBirthdayToday(secondClient, todayDate);
+
+        if (firstBirthday !== secondBirthday) {
+          return firstBirthday ? -1 : 1;
+        }
+
+        return firstClient.name.localeCompare(secondClient.name, 'pt-BR');
+      });
+  }, [clients, clientSearch, todayDate]);
+
+  const birthdayClients = useMemo(() => {
+    return clients.filter((client) => isClientBirthdayToday(client, todayDate));
+  }, [clients, todayDate]);
 
   const selectedClientAppointments = useMemo(() => {
     if (!selectedClient) {
@@ -274,6 +495,12 @@ export default function ClientsView({
   const cancellationsInPeriod = useMemo(() => {
     return periodAppointments.filter((appointment) => {
       return appointment.status === 'cancelled';
+    }).length;
+  }, [periodAppointments]);
+
+  const reschedulesInPeriod = useMemo(() => {
+    return periodAppointments.filter((appointment) => {
+      return appointment.status === 'rescheduled';
     }).length;
   }, [periodAppointments]);
 
@@ -389,129 +616,297 @@ export default function ClientsView({
     setShowManualClientModal(false);
   };
 
+  const handleBirthdayWhatsAppClick = (client: Client) => {
+    const storageKey = getBirthdayStorageKey(client.id, currentYear);
+
+    localStorage.setItem(storageKey, 'sent');
+
+    setBirthdayGreetingKeys((currentKeys) => {
+      if (currentKeys.includes(storageKey)) {
+        return currentKeys;
+      }
+
+      return [...currentKeys, storageKey];
+    });
+  };
+
+  const handlePrintAllClientsReport = () => {
+    printHtml(
+      buildReportHtml({
+        clients: filteredClients,
+        appointments,
+        services,
+        professionals,
+        period,
+        title: 'Relatório de clientes'
+      })
+    );
+  };
+
+  const handlePrintSelectedClientReport = () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    printHtml(
+      buildReportHtml({
+        clients: [selectedClient],
+        appointments,
+        services,
+        professionals,
+        period,
+        title: `Relatório do cliente ${selectedClient.name}`
+      })
+    );
+  };
+
   return (
-    <div id="view-clientes" className="space-y-6 text-left animate-none">
+    <div id="view-clientes" className="space-y-3 text-left animate-none">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-[#0f4c5c]" />
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-neutral-950">
-            Carteira de Clientes
-          </h2>
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+              AGENDASPEED
+            </p>
 
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Consulte clientes, abra o WhatsApp rapidamente e acompanhe dados detalhados em uma tela limpa.
-          </p>
+            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+              Clientes
+            </h2>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 lg:max-w-3xl lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+
+              <input
+                id="input-client-search"
+                type="search"
+                placeholder="Buscar por nome, WhatsApp ou código"
+                value={clientSearch}
+                onChange={(event) => onChangeClientSearch(event.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handlePrintAllClientsReport}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-700 shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-slate-50 flex items-center justify-center gap-1.5"
+              >
+                <Printer className="h-4 w-4 text-[#0f4c5c]" />
+                Relatório
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowManualClientModal(true)}
+                className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Cadastrar Cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {birthdayClients.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
+          <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-amber-600 shadow-sm">
+                <Cake className="h-5 w-5" />
+              </span>
+
+              <div>
+                <h3 className="text-sm font-black text-amber-900">
+                  Aniversariantes de hoje
+                </h3>
+                <p className="text-xs font-semibold text-amber-700">
+                  Clique no WhatsApp rápido para abrir a mensagem automática de aniversário.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {birthdayClients.slice(0, 6).map((client) => {
+                const storageKey = getBirthdayStorageKey(client.id, currentYear);
+                const alreadyGreeted = birthdayGreetingKeys.includes(storageKey);
+
+                return (
+                  <a
+                    key={client.id}
+                    href={getWhatsAppUrl(client.phone, getBirthdayMessage(client.name))}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => handleBirthdayWhatsAppClick(client)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                      alreadyGreeted
+                        ? 'border-emerald-200 bg-emerald-100 text-emerald-800'
+                        : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-100'
+                    }`}
+                  >
+                    {client.name.split(' ')[0]} {alreadyGreeted ? '✓ felicitado' : '🎂 felicitar'}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid grid-cols-[1.35fr_1fr_1.4fr_170px] border-b border-slate-200 bg-[#0f4c5c] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white">
+          <div>Nome do Cliente</div>
+          <div>WhatsApp</div>
+          <div>Dados do Cliente</div>
+          <div className="text-center">WhatsApp Rápido</div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowManualClientModal(true)}
-          className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Cadastrar Cliente
-        </button>
-      </div>
+        <div className="divide-y divide-slate-100">
+          {filteredClients.map((client) => {
+            const clientAppointments = getClientAppointments({
+              client,
+              appointments
+            });
+            const stats = getClientStats({
+              client,
+              appointments,
+              period
+            });
+            const isBirthday = isClientBirthdayToday(client, todayDate);
+            const birthdayStorageKey = getBirthdayStorageKey(client.id, currentYear);
+            const birthdayAlreadyGreeted = birthdayGreetingKeys.includes(birthdayStorageKey);
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-400" />
-
-        <input 
-          id="input-client-search"
-          type="text" 
-          placeholder="Buscar por nome ou número do WhatsApp..."
-          value={clientSearch}
-          onChange={(event) => onChangeClientSearch(event.target.value)}
-          className="w-full bg-white border rounded-xl py-2.5 pl-10 pr-4 text-xs outline-none focus:border-orange-500 shadow-xs"
-        />
-      </div>
-
-      <div className="overflow-x-auto border rounded-3xl bg-white shadow-xs">
-        <table className="w-full text-xs text-left">
-          <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
-            <tr>
-              <th className="py-3.5 px-4 font-mono">
-                Nome do Cliente
-              </th>
-
-              <th className="py-3.5 px-4 font-mono">
-                WhatsApp
-              </th>
-
-              <th className="py-3.5 px-4 font-mono text-center">
-                Dados do Cliente
-              </th>
-
-              <th className="py-3.5 px-4 font-mono text-center">
-                WhatsApp Rápido
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y">
-            {clients.map((client) => (
-              <tr
+            return (
+              <div
                 id={`client-row-${client.id}`}
                 key={client.id}
-                className="hover:bg-neutral-50/50 transition"
+                className={`grid grid-cols-1 gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[1.35fr_1fr_1.4fr_170px] lg:items-center ${
+                  isBirthday ? 'bg-amber-50/80' : 'bg-white'
+                }`}
               >
-                <td className="py-3.5 px-4 font-extrabold text-neutral-950">
-                  {client.name}
-                </td>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-black text-slate-950">
+                      {client.name}
+                    </p>
 
-                <td className="py-3.5 px-4 font-mono font-medium text-neutral-600">
-                  {formatPhoneMask(client.phone)}
-                </td>
+                    {isBirthday && (
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] ${
+                        birthdayAlreadyGreeted
+                          ? 'border-emerald-200 bg-emerald-100 text-emerald-800'
+                          : 'border-amber-200 bg-amber-100 text-amber-800'
+                      }`}>
+                        {birthdayAlreadyGreeted ? 'Felicitado' : 'Aniversariante'}
+                      </span>
+                    )}
+                  </div>
 
-                <td className="py-3.5 px-4 text-center">
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    {getClientInternalCode(client)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-700">
+                    {formatPhoneMask(client.phone)}
+                  </p>
+
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                    Aniv.: {client.birthDate ? formatDateBr(client.birthDate) : 'não informado'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+                    <p className="text-[9px] font-black uppercase text-slate-400">Presenças</p>
+                    <p className="text-sm font-black text-[#0f4c5c]">{stats.presences}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+                    <p className="text-[9px] font-black uppercase text-slate-400">Reagend.</p>
+                    <p className="text-sm font-black text-slate-700">{stats.reschedules}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+                    <p className="text-[9px] font-black uppercase text-slate-400">Faltas</p>
+                    <p className="text-sm font-black text-red-600">{stats.absences}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+                    <p className="text-[9px] font-black uppercase text-slate-400">Receita</p>
+                    <p className="text-xs font-black text-[#0f4c5c]">{formatCurrency(stats.totalSpent)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => handleOpenClientDetails(client)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 border text-neutral-700 text-xs font-bold transition"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5 hover:text-[#0f4c5c] flex items-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    Dados do Cliente
+                    Dados
                   </button>
-                </td>
 
-                <td className="py-3.5 px-4 text-center">
-                  <a 
-                    href={getWhatsAppUrl(client.phone)}
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 text-xs font-bold transition"
+                  <a
+                    href={getWhatsAppUrl(
+                      client.phone,
+                      isBirthday ? getBirthdayMessage(client.name) : undefined
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      if (isBirthday) {
+                        handleBirthdayWhatsAppClick(client);
+                      }
+                    }}
+                    className={`rounded-xl px-3 py-2 text-xs font-black transition flex items-center gap-1.5 ${
+                      isBirthday
+                        ? birthdayAlreadyGreeted
+                          ? 'border border-emerald-200 bg-emerald-100 text-emerald-800'
+                          : 'border border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                        : 'border border-[#0f4c5c]/20 bg-[#0f4c5c] text-white hover:bg-[#123945]'
+                    }`}
                   >
-                    <Phone className="w-3.5 h-3.5" />
-                    Mensagem
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {isBirthday ? 'Aniversário' : 'Mensagem'}
                   </a>
-                </td>
-              </tr>
-            ))}
+                </div>
 
-            {clients.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="py-12 text-center text-neutral-400"
-                >
-                  Nenhum cliente correspondente encontrado na busca.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                {clientAppointments.length === 0 && (
+                  <div className="text-[11px] font-semibold text-slate-400 lg:col-span-4">
+                    Cliente ainda sem histórico de agendamentos no período carregado.
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {filteredClients.length === 0 && (
+            <div className="p-12 text-center text-sm font-semibold text-slate-400">
+              Nenhum cliente correspondente encontrado na busca.
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedClient && (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full border text-left shadow-2xl relative space-y-5 max-h-[92vh] overflow-y-auto">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border bg-white p-5 text-left shadow-2xl sm:p-6">
             <div className="flex items-start justify-between border-b pb-3 gap-3">
               <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+                  AGENDASPEED
+                </p>
                 <h3 className="text-lg font-black text-neutral-950">
                   Dados do Cliente
                 </h3>
-
-                <p className="text-xs text-neutral-500 mt-1">
+                <p className="mt-1 text-xs font-semibold text-slate-500">
                   {selectedClient.name}
                 </p>
               </div>
@@ -521,11 +916,20 @@ export default function ClientsView({
                   <button
                     type="button"
                     onClick={handleStartEditingClient}
-                    className="px-3 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-black transition"
+                    className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945]"
                   >
                     Editar
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handlePrintSelectedClientReport}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50 flex items-center gap-1.5"
+                >
+                  <Printer className="h-3.5 w-3.5 text-[#0f4c5c]" />
+                  Imprimir
+                </button>
 
                 <button
                   type="button"
@@ -540,11 +944,11 @@ export default function ClientsView({
             {isEditingClient ? (
               <form
                 onSubmit={handleSubmitClientEdit}
-                className="bg-neutral-50 border rounded-3xl p-4 space-y-4"
+                className="mt-4 rounded-2xl border bg-slate-50 p-4 space-y-4"
               >
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider block">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
                       Nome
                     </label>
 
@@ -557,13 +961,13 @@ export default function ClientsView({
                           name: event.target.value
                         }));
                       }}
-                      className="w-full bg-white border rounded-xl py-2.5 px-3 text-xs outline-none focus:border-orange-500"
+                      className="w-full rounded-xl border bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
                       required
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider block">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
                       WhatsApp
                     </label>
 
@@ -577,13 +981,13 @@ export default function ClientsView({
                         }));
                       }}
                       placeholder="(99) 99999-9999"
-                      className="w-full bg-white border rounded-xl py-2.5 px-3 text-xs outline-none focus:border-orange-500"
+                      className="w-full rounded-xl border bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
                       required
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider block">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
                       Aniversário
                     </label>
 
@@ -596,7 +1000,7 @@ export default function ClientsView({
                           birthDate: event.target.value
                         }));
                       }}
-                      className="w-full bg-white border rounded-xl py-2.5 px-3 text-xs outline-none focus:border-orange-500"
+                      className="w-full rounded-xl border bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
                     />
                   </div>
                 </div>
@@ -605,33 +1009,33 @@ export default function ClientsView({
                   <button
                     type="button"
                     onClick={handleCancelEditingClient}
-                    className="px-4 py-2.5 rounded-xl border bg-white text-neutral-700 text-xs font-black hover:bg-neutral-50 transition"
+                    className="rounded-xl border bg-white px-4 py-2.5 text-xs font-black text-neutral-700 transition hover:bg-neutral-50"
                   >
                     Cancelar
                   </button>
 
                   <button
                     type="submit"
-                    className="px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-black transition"
+                    className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945]"
                   >
                     Salvar dados
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-neutral-50 border rounded-2xl p-4">
-                  <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                     Nome
                   </span>
 
-                  <p className="text-sm font-black text-neutral-950 mt-1">
+                  <p className="mt-1 text-sm font-black text-neutral-950">
                     {selectedClient.name}
                   </p>
                 </div>
 
-                <div className="bg-neutral-50 border rounded-2xl p-4">
-                  <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                     WhatsApp
                   </span>
 
@@ -639,19 +1043,19 @@ export default function ClientsView({
                     href={getWhatsAppUrl(selectedClient.phone)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-black text-emerald-700 mt-1 inline-flex items-center gap-1.5 hover:underline"
+                    className="mt-1 inline-flex items-center gap-1.5 text-sm font-black text-[#0f4c5c] hover:underline"
                   >
                     <Phone className="w-3.5 h-3.5" />
                     {formatPhoneMask(selectedClient.phone)}
                   </a>
                 </div>
 
-                <div className="bg-neutral-50 border rounded-2xl p-4">
-                  <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                     Aniversário
                   </span>
 
-                  <p className="text-sm font-black text-neutral-950 mt-1">
+                  <p className="mt-1 text-sm font-black text-neutral-950">
                     {selectedClient.birthDate
                       ? formatDateBr(selectedClient.birthDate)
                       : 'Não informado'}
@@ -660,166 +1064,152 @@ export default function ClientsView({
               </div>
             )}
 
-            <div className="border rounded-3xl p-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h4 className="text-sm font-black text-neutral-950">
-                  Histórico de Consumo
-                </h4>
+            <div className="mt-4 rounded-2xl border p-4 space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-neutral-950">
+                    Histórico e métricas
+                  </h4>
 
-                <button
-                  type="button"
-                  onClick={() => setShowMetrics((currentValue) => !currentValue)}
-                  className="px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-black transition"
-                >
-                  Métricas
-                </button>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                    Ajuste o período para consultar presenças, reagendamentos, faltas, cancelamentos e receita.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Data inicial
+                    </span>
+
+                    <input
+                      type="date"
+                      value={period.startDate}
+                      onChange={(event) => {
+                        setPeriod((currentPeriod) => ({
+                          ...currentPeriod,
+                          startDate: event.target.value
+                        }));
+                      }}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold outline-none focus:border-[#0f4c5c]"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Data final
+                    </span>
+
+                    <input
+                      type="date"
+                      value={period.endDate}
+                      onChange={(event) => {
+                        setPeriod((currentPeriod) => ({
+                          ...currentPeriod,
+                          endDate: event.target.value
+                        }));
+                      }}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold outline-none focus:border-[#0f4c5c]"
+                    />
+                  </label>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border rounded-2xl">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div className="rounded-2xl border bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Presenças
+                  </span>
+
+                  <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                    {completedPeriodAppointments.length}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Reagend.
+                  </span>
+
+                  <p className="mt-1 text-xl font-black text-orange-600">
+                    {reschedulesInPeriod}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Faltas
+                  </span>
+
+                  <p className="mt-1 text-xl font-black text-red-600">
+                    {absencesInPeriod}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Cancel.
+                  </span>
+
+                  <p className="mt-1 text-xl font-black text-slate-700">
+                    {cancellationsInPeriod}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Receita
+                  </span>
+
+                  <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                    {formatCurrency(periodTotalSpent)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="py-3 px-4">
-                        Último serviço
-                      </th>
-
-                      <th className="py-3 px-4">
-                        Profissional
-                      </th>
-
-                      <th className="py-3 px-4">
-                        Data
-                      </th>
-
-                      <th className="py-3 px-4 text-right">
-                        Total gasto no período
-                      </th>
+                      <th className="px-4 py-3">Serviço</th>
+                      <th className="px-4 py-3">Profissional</th>
+                      <th className="px-4 py-3">Data</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Valor</th>
                     </tr>
                   </thead>
 
-                  <tbody>
-                    <tr>
-                      <td className="py-3.5 px-4 font-bold text-neutral-900">
-                        {latestCompletedAppointment
-                          ? getServiceName(services, latestCompletedAppointment.serviceId)
-                          : 'Nenhum serviço concluído'}
-                      </td>
+                  <tbody className="divide-y divide-slate-100">
+                    {periodAppointments.slice(0, 12).map((appointment) => (
+                      <tr key={appointment.id}>
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          {getServiceName(services, appointment.serviceId)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {getProfessionalName(professionals, appointment.professionalId)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {formatDateBr(getAppointmentDate(appointment))}
+                        </td>
+                        <td className="px-4 py-3 font-black uppercase text-slate-500">
+                          {appointment.status}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-[#0f4c5c]">
+                          {formatCurrency(appointment.price)}
+                        </td>
+                      </tr>
+                    ))}
 
-                      <td className="py-3.5 px-4 text-neutral-600">
-                        {latestCompletedAppointment
-                          ? getProfessionalName(professionals, latestCompletedAppointment.professionalId)
-                          : 'Não informado'}
-                      </td>
-
-                      <td className="py-3.5 px-4 font-mono text-neutral-700">
-                        {latestCompletedAppointment
-                          ? formatDateBr(getAppointmentDate(latestCompletedAppointment))
-                          : 'Não informado'}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-black text-neutral-950 font-mono">
-                        {formatCurrency(periodTotalSpent)}
-                      </td>
-                    </tr>
+                    {periodAppointments.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                          Nenhum atendimento encontrado no período.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-
-              {showMetrics && (
-                <div className="bg-neutral-50 border rounded-2xl p-4 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-                    <div>
-                      <h5 className="text-sm font-black text-neutral-950">
-                        Métricas
-                      </h5>
-
-                      <p className="text-xs text-neutral-500 mt-0.5">
-                        Padrão: últimos 12 meses. Ajuste as datas se quiser outro período.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <label className="space-y-1">
-                        <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                          Data inicial
-                        </span>
-
-                        <input
-                          type="date"
-                          value={period.startDate}
-                          onChange={(event) => {
-                            setPeriod((currentPeriod) => ({
-                              ...currentPeriod,
-                              startDate: event.target.value
-                            }));
-                          }}
-                          className="w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold outline-none focus:border-orange-500"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                          Data final
-                        </span>
-
-                        <input
-                          type="date"
-                          value={period.endDate}
-                          onChange={(event) => {
-                            setPeriod((currentPeriod) => ({
-                              ...currentPeriod,
-                              endDate: event.target.value
-                            }));
-                          }}
-                          className="w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold outline-none focus:border-orange-500"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="bg-white border rounded-2xl p-4">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                        Presenças
-                      </span>
-
-                      <p className="text-xl font-black text-neutral-950 mt-1">
-                        {completedPeriodAppointments.length}
-                      </p>
-                    </div>
-
-                    <div className="bg-white border rounded-2xl p-4">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                        Faltas
-                      </span>
-
-                      <p className="text-xl font-black text-red-600 mt-1">
-                        {absencesInPeriod}
-                      </p>
-                    </div>
-
-                    <div className="bg-white border rounded-2xl p-4">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                        Cancelamentos
-                      </span>
-
-                      <p className="text-xl font-black text-neutral-950 mt-1">
-                        {cancellationsInPeriod}
-                      </p>
-                    </div>
-
-                    <div className="bg-white border rounded-2xl p-4">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                        Gasto total
-                      </span>
-
-                      <p className="text-xl font-black text-neutral-950 mt-1">
-                        {formatCurrency(periodTotalSpent)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -827,7 +1217,7 @@ export default function ClientsView({
 
       {showManualClientModal && (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border text-left shadow-2xl relative space-y-4">
+          <div className="w-full max-w-md rounded-3xl border bg-white p-6 text-left shadow-2xl sm:p-8">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-lg font-black text-neutral-950">
                 Cadastrar Cliente
@@ -844,10 +1234,10 @@ export default function ClientsView({
 
             <form
               onSubmit={handleSubmitManualClient}
-              className="space-y-4 text-xs"
+              className="mt-4 space-y-4 text-xs"
             >
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-700">
                   Nome do Cliente
                 </label>
 
@@ -862,14 +1252,14 @@ export default function ClientsView({
                         name: event.target.value
                       });
                     }}
-                    className="w-full bg-neutral-50 border rounded-xl py-2.5 pl-10 pr-3.5 text-xs outline-none"
+                    className="w-full rounded-xl border bg-slate-50 py-2.5 pl-10 pr-3.5 text-xs outline-none focus:border-[#0f4c5c]"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-700">
                   WhatsApp
                 </label>
 
@@ -885,15 +1275,15 @@ export default function ClientsView({
                       });
                     }}
                     placeholder="(99) 99999-9999"
-                    className="w-full bg-neutral-50 border rounded-xl py-2.5 pl-10 pr-3.5 text-xs outline-none"
+                    className="w-full rounded-xl border bg-slate-50 py-2.5 pl-10 pr-3.5 text-xs outline-none focus:border-[#0f4c5c]"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
-                  Aniversário
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-700">
+                  Data de nascimento
                 </label>
 
                 <div className="relative">
@@ -907,14 +1297,14 @@ export default function ClientsView({
                         birthDate: event.target.value
                       });
                     }}
-                    className="w-full bg-neutral-50 border rounded-xl py-2.5 pl-10 pr-3.5 text-xs outline-none"
+                    className="w-full rounded-xl border bg-slate-50 py-2.5 pl-10 pr-3.5 text-xs outline-none focus:border-[#0f4c5c]"
                   />
                 </div>
               </div>
 
-              <button 
+              <button
                 type="submit"
-                className="w-full bg-neutral-950 hover:bg-neutral-800 text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer"
+                className="w-full rounded-xl bg-[#0f4c5c] py-3 text-sm font-bold text-white transition hover:bg-[#123945]"
               >
                 Salvar Cliente
               </button>
@@ -922,7 +1312,6 @@ export default function ClientsView({
           </div>
         </div>
       )}
-
     </div>
   );
 }
