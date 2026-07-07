@@ -403,6 +403,41 @@ function mapSupabaseAppointmentToAppAppointment(
   };
 }
 
+const SUPABASE_CLIENTS_SELECT =
+  "id,name,phone,email,notes,total_spent,client_cancel_count,client_reschedule_count,created_at,updated_at";
+
+type SupabaseClientResponse = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  notes: string | null;
+  total_spent: number;
+  client_cancel_count: number;
+  client_reschedule_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapSupabaseClientToAppClient(client: SupabaseClientResponse): Client {
+  const normalizedPhone = normalizeClientPhone(client.phone || "");
+
+  return {
+    id: client.id,
+    internalCode: `CLI-${String(client.id || normalizedPhone).replace(/\D/g, "").slice(-6).padStart(6, "0")}`,
+    name: client.name || "",
+    phone: client.phone || "",
+    phoneNormalized: normalizedPhone,
+    phoneHistory: [],
+    email: client.email || undefined,
+    preferredProfessionalId: null,
+    notes: client.notes || "",
+    absences: 0,
+    cancellations: Number(client.client_cancel_count) || 0,
+    totalSpent: Number(client.total_spent) || 0,
+  };
+}
+
 function buildOwnerAppointmentPayload(
   appointment: Omit<Appointment, "id"> & { id?: string | null },
 ) {
@@ -664,13 +699,18 @@ export default function OwnerDashboard({
   onNavigateToClient,
   onLogOut,
 }: OwnerDashboardProps) {
-  const { config, professionals, services, clients } = state;
+  const { config, professionals, services } = state;
 
   // A agenda do painel do dono não deve iniciar a partir do mock/localStorage do App.
   // Em produção, a fonte oficial dos agendamentos é sempre o Supabase via RPC.
   // O estado abaixo começa vazio e é preenchido somente pelo carregamento real.
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const appointments = liveAppointments;
+
+  // Em produção, a carteira de clientes também precisa vir do Supabase.
+  // state.clients fica apenas como legado/fallback de memória enquanto os módulos restantes são migrados.
+  const [liveClients, setLiveClients] = useState<Client[]>([]);
+  const clients = liveClients;
 
   const [activeTab, setActiveTab] = useState<OwnerTab>("painel");
   const [receipts, setReceipts] = useState<Receipt[]>(() => {
@@ -799,11 +839,14 @@ export default function OwnerDashboard({
   const [bookingLunchStart, setBookingLunchStart] = useState("12:00");
   const [bookingLunchEnd, setBookingLunchEnd] = useState("13:00");
 
+  const [tenantId, setTenantId] = useState("");
   const [isSavingTenantSettings, setIsSavingTenantSettings] = useState(false);
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(false);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
   const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [clientsLoadError, setClientsLoadError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -826,6 +869,8 @@ export default function OwnerDashboard({
       ) as TenantSettingsResponse | null;
 
       if (!firstSettings) return;
+
+      setTenantId(firstSettings.tenant_id || "");
 
       const nextConfig = mapTenantSettingsToConfig(config, firstSettings);
 
@@ -1069,6 +1114,57 @@ export default function OwnerDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const loadClientsFromSupabase = async (showLoading = true): Promise<Client[]> => {
+    if (showLoading) {
+      setIsLoadingClients(true);
+    }
+
+    setClientsLoadError("");
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select(SUPABASE_CLIENTS_SELECT)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao carregar clientes:", error.message);
+      setClientsLoadError(error.message || "Erro ao carregar clientes.");
+      setIsLoadingClients(false);
+      return [];
+    }
+
+    const rows = (Array.isArray(data) ? data : []) as SupabaseClientResponse[];
+    const nextClients = rows.map(mapSupabaseClientToAppClient);
+
+    setLiveClients(nextClients);
+    setIsLoadingClients(false);
+
+    return nextClients;
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadInitialClients() {
+      const loadedClients = await loadClientsFromSupabase(true);
+
+      if (!isMounted) return;
+
+      onUpdateState({
+        ...state,
+        clients: loadedClients,
+      });
+    }
+
+    loadInitialClients();
+
+    return () => {
+      isMounted = false;
+    };
+    // Carrega clientes reais ao abrir o painel. A tabela clients é a fonte oficial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const baseDateStr = new Date().toLocaleDateString("en-CA", {
     timeZone: "America/Sao_Paulo",
   });
@@ -1244,6 +1340,8 @@ export default function OwnerDashboard({
       appointments: syncedAppointments,
       clients: updatedClients,
     });
+
+    void loadClientsFromSupabase(false);
   };
 
   const handleAddManualAppt = async (event: React.FormEvent) => {
@@ -1330,6 +1428,8 @@ export default function OwnerDashboard({
       clients: updatedClients,
     });
 
+    void loadClientsFromSupabase(false);
+
     setShowApptModal(false);
     resetAppointmentForm();
   };
@@ -1405,6 +1505,8 @@ export default function OwnerDashboard({
       appointments: nextAppointments,
       clients: updatedClients,
     });
+
+    void loadClientsFromSupabase(false);
 
     const tokenResult = await supabase.rpc(
       "get_my_client_public_access_token_by_appointment",
@@ -2209,19 +2311,69 @@ ${professionalAccessLink}`);
     phone: string;
     birthDate?: string;
   }) => {
-    const updatedClients = upsertClientFromAppointment({
-      clients,
-      clientName: clientData.name,
-      clientPhone: clientData.phone,
-      preferredProfessionalId: null,
-      birthDate: clientData.birthDate,
-      notes: "Cliente cadastrado manualmente pelo estabelecimento.",
+    const newPhoneNormalized = normalizeClientPhone(clientData.phone);
+
+    const alreadyExists = clients.some((client) => {
+      const clientPhoneNormalized =
+        client.phoneNormalized || normalizeClientPhone(client.phone);
+
+      return clientPhoneNormalized === newPhoneNormalized;
     });
 
-    onUpdateState({
-      ...state,
-      clients: updatedClients,
-    });
+    if (alreadyExists) {
+      alert("Já existe um cliente cadastrado com este WhatsApp.");
+      return;
+    }
+
+    if (!tenantId) {
+      alert("Não foi possível identificar a empresa para cadastrar o cliente.");
+      return;
+    }
+
+    const notes = [
+      "Cliente cadastrado manualmente pelo estabelecimento.",
+      clientData.birthDate ? `Nascimento informado na tela: ${clientData.birthDate}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({
+          tenant_id: tenantId,
+          name: clientData.name,
+          phone: clientData.phone,
+          notes,
+        })
+        .select(SUPABASE_CLIENTS_SELECT)
+        .limit(1);
+
+      if (error) {
+        alert(error.message || "Não foi possível cadastrar o cliente.");
+        return;
+      }
+
+      const savedRow = (
+        Array.isArray(data) ? data[0] : null
+      ) as SupabaseClientResponse | null;
+
+      if (!savedRow) {
+        alert("Cliente salvo, mas não foi possível recarregar o registro.");
+        void loadClientsFromSupabase(false);
+        return;
+      }
+
+      const savedClient = mapSupabaseClientToAppClient(savedRow);
+      const nextClients = [savedClient, ...clients];
+
+      setLiveClients(nextClients);
+
+      onUpdateState({
+        ...state,
+        clients: nextClients,
+      });
+    })();
   };
 
   const handleUpdateClient = (
@@ -2248,7 +2400,9 @@ ${professionalAccessLink}`);
       return false;
     }
 
-    const updatedClients: Client[] = clients.map((client) => {
+    const previousClients = clients;
+
+    const optimisticClients: Client[] = clients.map((client) => {
       if (client.id !== clientId) {
         return client;
       }
@@ -2278,10 +2432,56 @@ ${professionalAccessLink}`);
       };
     });
 
+    setLiveClients(optimisticClients);
+
     onUpdateState({
       ...state,
-      clients: updatedClients,
+      clients: optimisticClients,
     });
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .update({
+          name: updates.name,
+          phone: updates.phone,
+        })
+        .eq("id", clientId)
+        .select(SUPABASE_CLIENTS_SELECT)
+        .limit(1);
+
+      if (error) {
+        alert(error.message || "Não foi possível atualizar o cliente.");
+        setLiveClients(previousClients);
+
+        onUpdateState({
+          ...state,
+          clients: previousClients,
+        });
+        return;
+      }
+
+      const savedRow = (
+        Array.isArray(data) ? data[0] : null
+      ) as SupabaseClientResponse | null;
+
+      if (!savedRow) {
+        void loadClientsFromSupabase(false);
+        return;
+      }
+
+      const savedClient = mapSupabaseClientToAppClient(savedRow);
+      const syncedClients = optimisticClients.map((client) => {
+        return client.id === savedClient.id ? savedClient : client;
+      });
+
+      setLiveClients(syncedClients);
+
+      onUpdateState({
+        ...state,
+        clients: syncedClients,
+      });
+    })();
 
     return true;
   };
@@ -2537,6 +2737,18 @@ ${professionalAccessLink}`);
               onDisableCategory={handleDisableServiceCategory}
               onChangeCategoryOrder={handleChangeServiceCategoryOrder}
             />
+          )}
+
+          {activeTab === "clientes" && clientsLoadError && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+              Não foi possível carregar clientes reais do Supabase: {clientsLoadError}
+            </div>
+          )}
+
+          {activeTab === "clientes" && isLoadingClients && (
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+              Carregando clientes reais do Supabase...
+            </div>
           )}
 
           {activeTab === "clientes" && (
