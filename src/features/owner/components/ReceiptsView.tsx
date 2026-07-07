@@ -2,9 +2,9 @@
  * Tela de Recebimentos - AgendaZap.
  *
  * Fluxo operacional do caixa:
- * - buscar cliente por WhatsApp;
- * - localizar atendimentos pendentes de recebimento;
- * - baixar atendimento para concluído;
+ * - listar atendimentos do dia para baixa rápida;
+ * - destacar valores antigos a receber;
+ * - baixar pagamento vinculando cliente, serviço e profissional;
  * - abrir uma segunda tela para fechamento definitivo;
  * - incluir serviços extras vinculados a profissionais;
  * - imprimir filipeta térmica do recebimento ou resumo do dia;
@@ -117,6 +117,23 @@ function formatPhoneForDisplay(value: string): string {
 function getAppointmentLabel(appointment: Appointment): string {
   return `${formatDateBr(getAppointmentDate(appointment))} às ${getAppointmentTime(appointment)}`;
 }
+
+function isReceivableAppointmentStatus(status: Appointment['status']): boolean {
+  return (
+    status === 'scheduled' ||
+    status === 'confirmed' ||
+    status === 'attending' ||
+    status === 'completed'
+  );
+}
+
+function getReceivableStatusLabel(status: Appointment['status']): string {
+  if (status === 'confirmed') return 'Confirmado';
+  if (status === 'attending') return 'Em atendimento';
+  if (status === 'completed') return 'Atendimento concluído';
+  return 'Agendado';
+}
+
 
 function getServiceById(services: Service[], serviceId: string): Service | undefined {
   return services.find((service) => service.id === serviceId);
@@ -267,50 +284,56 @@ export default function ReceiptsView({
     }) || null;
   }, [clients, phoneKey]);
 
-  const clientAppointments = useMemo(() => {
-    if (phoneKey.length < 8) {
-      return [];
-    }
-
-    const alreadyReceivedAppointmentIds = new Set(
+  const alreadyReceivedAppointmentIds = useMemo(() => {
+    return new Set(
       receipts
         .filter((receipt) => receipt.status === 'paid')
         .map((receipt) => receipt.appointmentId)
         .filter(Boolean)
     );
+  }, [receipts]);
 
+  const receivableAppointments = useMemo(() => {
     return appointments
       .filter((appointment) => {
-        const appointmentPhone = normalizePhone(appointment.clientPhone);
+        const appointmentDate = getAppointmentDate(appointment);
 
         return (
+          Boolean(appointmentDate) &&
+          appointmentDate <= currentDayKey &&
           !alreadyReceivedAppointmentIds.has(appointment.id) &&
-          (appointmentPhone.includes(phoneKey) || phoneKey.includes(appointmentPhone)) &&
-          appointment.status !== 'cancelled' &&
-          appointment.status !== 'absent'
+          isReceivableAppointmentStatus(appointment.status)
         );
       })
-      .sort((a, b) => b.dateTime.localeCompare(a.dateTime));
-  }, [appointments, phoneKey, receipts]);
+      .sort((firstAppointment, secondAppointment) => {
+        return firstAppointment.dateTime.localeCompare(secondAppointment.dateTime);
+      });
+  }, [appointments, alreadyReceivedAppointmentIds, currentDayKey]);
+
+  const dayAppointments = useMemo(() => {
+    return receivableAppointments.filter((appointment) => {
+      return getAppointmentDate(appointment) === currentDayKey;
+    });
+  }, [receivableAppointments, currentDayKey]);
+
+  const pendingReceivableAppointments = useMemo(() => {
+    return receivableAppointments.filter((appointment) => {
+      return getAppointmentDate(appointment) < currentDayKey;
+    });
+  }, [receivableAppointments, currentDayKey]);
 
   const selectedAppointment = useMemo(() => {
     if (!selectedAppointmentId) {
       return null;
     }
 
-    return clientAppointments.find((appointment) => appointment.id === selectedAppointmentId) || null;
-  }, [clientAppointments, selectedAppointmentId]);
+    return receivableAppointments.find((appointment) => appointment.id === selectedAppointmentId) || null;
+  }, [receivableAppointments, selectedAppointmentId]);
 
-  const selectedAppointmentIsCompleted = Boolean(
-    selectedAppointment &&
-    (
-      selectedAppointment.status === 'completed' ||
-      locallyCompletedIds.includes(selectedAppointment.id)
-    )
-  );
+  const selectedAppointmentIsCompleted = Boolean(selectedAppointment);
 
   const appointmentItem = useMemo<ReceiptDraftItem | null>(() => {
-    if (!selectedAppointment || !selectedAppointmentIsCompleted) {
+    if (!selectedAppointment) {
       return null;
     }
 
@@ -322,7 +345,7 @@ export default function ReceiptsView({
       price: selectedAppointment.price,
       itemType: 'appointment'
     };
-  }, [selectedAppointment, selectedAppointmentIsCompleted]);
+  }, [selectedAppointment]);
 
   const receiptItems = useMemo(() => {
     return [
@@ -415,8 +438,8 @@ export default function ReceiptsView({
 
     setSelectedAppointmentId(null);
     setCheckoutMode('manual');
-    setManualClientPhone(phoneSearch);
-    setManualClientName(selectedClient?.name || '');
+    setManualClientPhone('');
+    setManualClientName('');
     resetCheckoutDraft();
     setExtraItems([defaultItem]);
     setIsCheckoutOpen(true);
@@ -533,8 +556,8 @@ export default function ReceiptsView({
   };
 
   const buildDraftReceiptPrintHtml = () => {
-    const clientName = selectedClient?.name || selectedAppointment?.clientName || manualClientName || 'Cliente';
-    const clientPhone = selectedClient?.phone || selectedAppointment?.clientPhone || manualClientPhone || '';
+    const clientName = selectedAppointment?.clientName || selectedClient?.name || manualClientName || 'Cliente';
+    const clientPhone = selectedAppointment?.clientPhone || selectedClient?.phone || manualClientPhone || '';
     const appointmentDate = selectedAppointment ? getAppointmentLabel(selectedAppointment) : '';
     const itemsHtml = receiptItems.map((item) => {
       const service = getServiceById(services, item.serviceId);
@@ -669,8 +692,8 @@ export default function ReceiptsView({
   const handleConfirmReceipt = () => {
     const isManualReceipt = checkoutMode === 'manual';
 
-    if (!isManualReceipt && (!selectedAppointment || !selectedAppointmentIsCompleted)) {
-      alert('Para receber, primeiro o atendimento precisa estar concluído.');
+    if (!isManualReceipt && !selectedAppointment) {
+      alert('Selecione um atendimento para baixar o pagamento.');
       return;
     }
 
@@ -681,10 +704,10 @@ export default function ReceiptsView({
 
     const clientName = isManualReceipt
       ? manualClientName.trim() || selectedClient?.name || 'Cliente balcão'
-      : selectedClient?.name || selectedAppointment?.clientName || 'Cliente';
+      : selectedAppointment?.clientName || selectedClient?.name || 'Cliente';
     const clientPhone = isManualReceipt
       ? manualClientPhone.trim() || phoneSearch
-      : selectedClient?.phone || selectedAppointment?.clientPhone || phoneSearch;
+      : selectedAppointment?.clientPhone || selectedClient?.phone || phoneSearch;
 
     if (!normalizePhone(clientPhone)) {
       alert('Informe o WhatsApp do cliente para concluir o recebimento.');
@@ -844,6 +867,77 @@ export default function ReceiptsView({
     );
   };
 
+  const renderReceivableAppointmentCard = (appointment: Appointment, variant: 'day' | 'pending') => {
+    const service = getServiceById(services, appointment.serviceId);
+    const professional = getProfessionalById(professionals, appointment.professionalId);
+    const appointmentDate = getAppointmentDate(appointment);
+    const isPending = variant === 'pending';
+
+    return (
+      <div
+        key={appointment.id}
+        className={`rounded-2xl border p-4 transition ${
+          isPending
+            ? 'border-orange-200 bg-orange-50/70 hover:border-orange-300'
+            : 'border-neutral-200 bg-white hover:border-orange-200'
+        }`}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-neutral-400">
+                {getAppointmentTime(appointment)} • {getReceivableStatusLabel(appointment.status)}
+              </p>
+              <h3 className="mt-1 text-base font-black text-neutral-950 truncate">
+                {appointment.clientName || 'Cliente'}
+              </h3>
+              <p className="mt-1 text-xs font-bold text-neutral-500">
+                {formatPhoneForDisplay(appointment.clientPhone)}
+              </p>
+            </div>
+
+            <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black ${
+              isPending
+                ? 'border-orange-200 bg-white text-orange-700'
+                : 'border-orange-200 bg-orange-50 text-orange-700'
+            }`}>
+              {formatCurrency(appointment.price)}
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-white/80 p-3">
+            <p className="text-sm font-black text-neutral-900">
+              {service?.name || 'Serviço'}
+            </p>
+            <p className="mt-1 text-xs font-bold text-neutral-500">
+              {professional?.name || 'Profissional'} • {formatDateBr(appointmentDate)} às {getAppointmentTime(appointment)}
+            </p>
+          </div>
+
+          {isPending && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-xs font-black text-red-700">
+                ⚠️ Valor antigo sem baixa. Priorize este recebimento.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => handleOpenCheckout(appointment.id)}
+            className={`w-full rounded-xl px-4 py-2.5 text-xs font-black text-white transition ${
+              isPending
+                ? 'bg-emerald-600 hover:bg-emerald-700'
+                : 'bg-orange-600 hover:bg-orange-700'
+            }`}
+          >
+            Baixar pagamento
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderHistory = () => (
     <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
       <button
@@ -990,7 +1084,7 @@ export default function ReceiptsView({
     </div>
   );
 
-  const canShowCheckout = checkoutMode === 'manual' || Boolean(selectedAppointment && selectedAppointmentIsCompleted);
+  const canShowCheckout = checkoutMode === 'manual' || Boolean(selectedAppointment);
 
   if (isExpenseOpen) {
     return (
@@ -1316,11 +1410,11 @@ export default function ReceiptsView({
               Recebimentos
             </h1>
             <p className="text-sm text-neutral-500 font-medium">
-              Encontre atendimentos, lance pagamento manual ou registre uma despesa do caixa.
+              Baixe pagamentos do dia, acompanhe valores a receber e lance atendimentos manuais.
             </p>
           </div>
 
-          <div className="w-full lg:max-w-md space-y-3">
+          <div className="w-full lg:max-w-md">
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
@@ -1328,7 +1422,7 @@ export default function ReceiptsView({
                 className="flex-1 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Incluir pagamento manual
+                Atendimento manual
               </button>
 
               <button
@@ -1340,126 +1434,75 @@ export default function ReceiptsView({
                 Incluir despesa
               </button>
             </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">
-                WhatsApp do cliente
-              </label>
-              <div className="mt-2 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                <input
-                  value={phoneSearch}
-                  onChange={(event) => {
-                    setPhoneSearch(event.target.value);
-                    setSelectedAppointmentId(null);
-                    resetCheckoutDraft();
-                  }}
-                  placeholder="Digite o WhatsApp para buscar"
-                  className="w-full rounded-2xl border border-neutral-300 bg-white pl-10 pr-4 py-3 text-sm font-bold outline-none focus:border-orange-500"
-                />
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
-      {phoneKey.length >= 8 && (
-        <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-neutral-200 flex items-center justify-between gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="rounded-3xl border border-orange-200 bg-white shadow-sm overflow-hidden min-h-[420px]">
+          <div className="bg-orange-600 px-4 py-4 text-white flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-neutral-950">
-                Atendimentos encontrados
+              <h2 className="text-sm font-black uppercase tracking-tight">
+                Atendimentos do Dia
               </h2>
-              <p className="text-xs font-semibold text-neutral-500">
-                Baixe o atendimento quando terminar. Depois clique em fechamento.
+              <p className="mt-1 text-xs font-semibold text-white/80">
+                Clientes atendendo ou aguardando baixa hoje.
               </p>
             </div>
-
-            {selectedClient && (
-              <div className="rounded-2xl bg-neutral-50 border border-neutral-200 px-4 py-2 text-right">
-                <p className="text-xs font-black text-neutral-950">
-                  {selectedClient.name}
-                </p>
-                <p className="text-[11px] font-bold text-neutral-500">
-                  {formatPhoneForDisplay(selectedClient.phone)}
-                </p>
-              </div>
-            )}
+            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black">
+              {dayAppointments.length}
+            </span>
           </div>
 
           <div className="p-4 space-y-3">
-            {clientAppointments.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center">
-                <AlertCircle className="w-8 h-8 mx-auto text-neutral-400 mb-2" />
-                <p className="text-sm font-black text-neutral-700">
-                  Nenhum atendimento pendente de recebimento para este WhatsApp.
+            {dayAppointments.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50/50 p-8 text-center">
+                <CheckCircle2 className="w-9 h-9 mx-auto text-orange-500 mb-2" />
+                <p className="text-sm font-black text-neutral-800">
+                  Nenhum atendimento do dia aguardando baixa.
                 </p>
                 <p className="text-xs font-semibold text-neutral-500 mt-1">
-                  Confira se o WhatsApp foi digitado corretamente ou se este cliente já foi recebido.
+                  Quando todos pagarem, esta coluna fica limpa.
                 </p>
               </div>
             )}
 
-            {clientAppointments.map((appointment) => {
-              const service = getServiceById(services, appointment.serviceId);
-              const professional = getProfessionalById(professionals, appointment.professionalId);
-              const isCompleted = appointment.status === 'completed' || locallyCompletedIds.includes(appointment.id);
-
-              return (
-                <div
-                  key={appointment.id}
-                  className="rounded-2xl border border-neutral-200 bg-white p-4 transition hover:border-orange-200"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-neutral-950">
-                        {service?.name || 'Serviço'}
-                      </p>
-                      <p className="text-xs font-bold text-neutral-500 mt-1">
-                        {professional?.name || 'Profissional'} • {getAppointmentLabel(appointment)}
-                      </p>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-black ${
-                          isCompleted
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {isCompleted ? 'Concluído' : 'Aguardando baixa'}
-                        </span>
-                        <span className="px-3 py-1 rounded-full text-[11px] font-black bg-neutral-100 text-neutral-700 border border-neutral-200">
-                          {formatCurrency(appointment.price)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                      {!isCompleted && (
-                        <button
-                          type="button"
-                          onClick={() => handleMarkCompleted(appointment.id)}
-                          className="rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-700 transition"
-                        >
-                          Baixar atendimento
-                        </button>
-                      )}
-
-                      {isCompleted && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCheckout(appointment.id)}
-                          className="rounded-xl bg-neutral-950 px-4 py-2.5 text-xs font-black text-white hover:bg-neutral-800 transition"
-                        >
-                          Fechamento
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {dayAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'day'))}
           </div>
         </div>
-      )}
+
+        <div className="rounded-3xl border border-emerald-200 bg-white shadow-sm overflow-hidden min-h-[420px]">
+          <div className="bg-emerald-600 px-4 py-4 text-white flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-tight">
+                Valores a Receber
+              </h2>
+              <p className="mt-1 text-xs font-semibold text-white/80">
+                Atendimentos antigos sem baixa de pagamento.
+              </p>
+            </div>
+            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black">
+              {pendingReceivableAppointments.length}
+            </span>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {pendingReceivableAppointments.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-8 text-center">
+                <CheckCircle2 className="w-9 h-9 mx-auto text-emerald-500 mb-2" />
+                <p className="text-sm font-black text-neutral-800">
+                  Nenhum valor antigo pendente.
+                </p>
+                <p className="text-xs font-semibold text-neutral-500 mt-1">
+                  Se o dono esquecer uma baixa, ela aparece aqui no dia seguinte.
+                </p>
+              </div>
+            )}
+
+            {pendingReceivableAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'pending'))}
+          </div>
+        </div>
+      </div>
 
       {renderHistory()}
 
