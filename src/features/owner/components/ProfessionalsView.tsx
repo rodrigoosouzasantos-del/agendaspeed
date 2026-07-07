@@ -18,6 +18,7 @@ import {
   Plus,
   Power,
   Search,
+  Trash2,
 } from "lucide-react";
 
 import { Professional } from "../../../types";
@@ -27,6 +28,7 @@ interface ProfessionalsViewProps {
   onOpenCreateProfessional: () => void;
   onEditProfessional: (professional: Professional) => void;
   onDeleteProfessional: (professionalId: string) => void;
+  onHardDeleteProfessional: (professionalId: string) => void;
   onOpenPermissions: (professional: Professional) => void;
   onGenerateProfessionalLink: (professional: Professional) => void;
   onOpenProfessionalAgenda: (professional: Professional) => void;
@@ -52,6 +54,7 @@ export default function ProfessionalsView({
   onOpenCreateProfessional,
   onEditProfessional,
   onDeleteProfessional,
+  onHardDeleteProfessional,
   onOpenPermissions,
   onGenerateProfessionalLink,
   onOpenProfessionalAgenda,
@@ -260,12 +263,21 @@ export default function ProfessionalsView({
                     <button
                       type="button"
                       onClick={() => onDeleteProfessional(professional.id)}
-                      className="rounded-xl border border-red-200 bg-white p-2 text-red-600 transition hover:bg-red-50"
-                      title="Desativar profissional e bloquear o link de acesso à agenda"
+                      className="rounded-xl border border-amber-200 bg-white p-2 text-amber-700 transition hover:bg-amber-50"
+                      title="Inativar profissional e bloquear o link de acesso à agenda"
                     >
                       <Power className="h-4 w-4" />
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => onHardDeleteProfessional(professional.id)}
+                    className="rounded-xl border border-red-200 bg-white p-2 text-red-600 transition hover:bg-red-50"
+                    title="Excluir definitivamente este profissional"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </article>

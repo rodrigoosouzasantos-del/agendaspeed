@@ -74,6 +74,10 @@ function normalizeClientPhone(value: string): string {
   return digits;
 }
 
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 type TenantSettingsResponse = {
   tenant_id: string;
   name: string;
@@ -206,9 +210,7 @@ function mapSupabaseProfessionalToAppProfessional(
     email: professional.email || "",
     role: professional.role || "",
     displayOrder: Number(professional.display_order) || 999,
-    avatar:
-      professional.avatar ||
-      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=120&h=120&fit=crop",
+    avatar: professional.avatar || "",
     active: professional.active !== false,
     workDays: Array.isArray(professional.work_days)
       ? professional.work_days
@@ -1989,15 +1991,13 @@ export default function OwnerDashboard({
     }
 
     const professionalToSave: Professional = {
-      id: editingProf?.id || `prof-${Date.now()}`,
+      id: editingProf?.id || "",
       name: profName,
       phone: profPhone,
       email: profEmail || editingProf?.email || "",
       role: profRole,
       displayOrder: Number(profDisplayOrder) || 999,
-      avatar:
-        profAvatar ||
-        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=120&h=120&fit=crop",
+      avatar: profAvatar.trim(),
       active: editingProf ? profActive : true,
       workDays: profWorkDays,
       workHoursStart: profHoursStart,
@@ -2058,7 +2058,20 @@ export default function OwnerDashboard({
   };
 
   const handleDeleteProf = async (professionalId: string) => {
-    if (!confirm("Tem certeza que deseja inativar este colaborador?")) {
+    if (!confirm("Tem certeza que deseja inativar este profissional?")) {
+      return;
+    }
+
+    if (!isValidUuid(professionalId)) {
+      const updatedProfessionals = professionals.filter((professional) => {
+        return professional.id !== professionalId;
+      });
+
+      onUpdateState({
+        ...state,
+        professionals: updatedProfessionals,
+      });
+
       return;
     }
 
@@ -2097,6 +2110,60 @@ export default function OwnerDashboard({
     });
   };
 
+  const handleHardDeleteProf = async (professionalId: string) => {
+    const targetProfessional = professionals.find((professional) => {
+      return professional.id === professionalId;
+    });
+
+    if (!targetProfessional) {
+      alert("Profissional não encontrado.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Atenção: você está prestes a excluir definitivamente o profissional ${targetProfessional.name}.\n\nEsta ação remove o cadastro da lista. Se houver agendamentos vinculados no banco, o Supabase pode bloquear a exclusão para preservar o histórico.\n\nDeseja continuar?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    if (!isValidUuid(professionalId)) {
+      const updatedProfessionals = professionals.filter((professional) => {
+        return professional.id !== professionalId;
+      });
+
+      onUpdateState({
+        ...state,
+        professionals: updatedProfessionals,
+      });
+
+      return;
+    }
+
+    const { error } = await supabase
+      .from("professionals")
+      .delete()
+      .eq("id", professionalId);
+
+    if (error) {
+      alert(
+        error.message ||
+          "Não foi possível excluir o profissional. Verifique se existem agendamentos vinculados a ele.",
+      );
+      return;
+    }
+
+    const updatedProfessionals = professionals.filter((professional) => {
+      return professional.id !== professionalId;
+    });
+
+    onUpdateState({
+      ...state,
+      professionals: updatedProfessionals,
+    });
+  };
+
   const handleOpenProfessionalAgenda = (professional: Professional) => {
     if (!professional.active) {
       alert("Este profissional está inativo e sem acesso à agenda.");
@@ -2111,8 +2178,10 @@ export default function OwnerDashboard({
   const handleGenerateProfessionalAccessLink = async (
     professional: Professional,
   ) => {
-    if (!professional.id) {
-      alert("Profissional inválido para geração de link.");
+    if (!professional.id || !isValidUuid(professional.id)) {
+      alert(
+        "Este profissional ainda é um registro local/de teste. Salve ou recadastre o profissional no Supabase antes de gerar o link de acesso.",
+      );
       return;
     }
 
@@ -3124,6 +3193,7 @@ ${professionalAccessLink}`);
               onOpenCreateProfessional={handleOpenCreateProfessional}
               onEditProfessional={handleEditProfTrigger}
               onDeleteProfessional={handleDeleteProf}
+              onHardDeleteProfessional={handleHardDeleteProf}
               onOpenPermissions={setShowPermissionModal}
               onGenerateProfessionalLink={handleGenerateProfessionalAccessLink}
               onOpenProfessionalAgenda={handleOpenProfessionalAgenda}

@@ -1,11 +1,10 @@
 /**
- * Modal de Cadastro/Edição de Profissional - AgendaZap.
+ * Modal de Cadastro/Edição de Profissional - AgendaSpeed.
  *
  * Responsável por:
  * - cadastrar novo profissional;
  * - editar profissional existente;
- * - definir ordem de exibição na Vitrine;
- * - escolher foto do profissional;
+ * - escolher foto sem imagem pré-configurada;
  * - definir comissão simples;
  * - definir horário de trabalho;
  * - definir dias de atendimento;
@@ -85,6 +84,7 @@ function compressImageFile(params: {
       const maxSize = 400;
       const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
       const canvas = document.createElement('canvas');
+
       canvas.width = Math.max(1, Math.round(image.width * scale));
       canvas.height = Math.max(1, Math.round(image.height * scale));
 
@@ -190,7 +190,7 @@ export default function ProfessionalModal({
         <div className="flex items-center justify-between border-b pb-3">
           <h3 className="text-lg font-black text-neutral-950">
             {editingProfessional
-              ? `Editar Colaborador: ${editingProfessional.name.split(' ')[0]}`
+              ? `Editar Profissional: ${editingProfessional.name.split(' ')[0]}`
               : 'Cadastrar Novo Profissional'}
           </h3>
 
@@ -216,7 +216,7 @@ export default function ProfessionalModal({
                 placeholder="Ex: João da Silva"
                 value={name}
                 onChange={(event) => onChangeName(event.target.value)}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
+                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none focus:border-[#0f4c5c]"
                 required
               />
             </div>
@@ -232,7 +232,7 @@ export default function ProfessionalModal({
                 placeholder="Ex: Barbeiro, Esteticista, Massagista"
                 value={role}
                 onChange={(event) => onChangeRole(event.target.value)}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
+                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none focus:border-[#0f4c5c]"
                 required
               />
             </div>
@@ -250,7 +250,7 @@ export default function ProfessionalModal({
                 placeholder="11900008888"
                 value={phone}
                 onChange={(event) => onChangePhone(event.target.value)}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
+                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none focus:border-[#0f4c5c]"
                 required
               />
             </div>
@@ -267,7 +267,7 @@ export default function ProfessionalModal({
                 placeholder="Ex: 1"
                 value={displayOrder}
                 onChange={(event) => onChangeDisplayOrder(Number(event.target.value))}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
+                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none focus:border-[#0f4c5c]"
               />
             </div>
           </div>
@@ -280,12 +280,18 @@ export default function ProfessionalModal({
 
           <div className="bg-neutral-50 border rounded-2xl p-3 space-y-3">
             <div className="flex items-center gap-3">
-              <img
-                src={avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=120&h=120&fit=crop'}
-                alt="Foto do profissional"
-                className="w-16 h-16 rounded-2xl object-cover border bg-white shrink-0"
-                referrerPolicy="no-referrer"
-              />
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt="Foto do profissional"
+                  className="w-16 h-16 rounded-2xl object-cover border bg-white shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl border border-dashed border-neutral-300 bg-white shrink-0 flex items-center justify-center text-[10px] font-black text-neutral-400 uppercase text-center leading-tight">
+                  Sem<br />foto
+                </div>
+              )}
 
               <div className="space-y-1 flex-1">
                 <strong className="block text-neutral-800 font-bold">
@@ -293,18 +299,30 @@ export default function ProfessionalModal({
                 </strong>
 
                 <p className="text-[10px] text-neutral-500">
-                  Escolha uma imagem do computador ou celular. Não é necessário usar URL.
+                  Escolha uma imagem do computador ou celular. Não existe foto pré-configurada.
                 </p>
               </div>
             </div>
 
-            <label
-              htmlFor="input-prof-avatar-file"
-              className="w-full bg-neutral-950 hover:bg-neutral-800 text-white font-bold py-2.5 rounded-xl transition text-xs cursor-pointer flex items-center justify-center gap-2"
-            >
-              <ImagePlus className="w-4 h-4" />
-              Escolher foto
-            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+              <label
+                htmlFor="input-prof-avatar-file"
+                className="w-full bg-[#0f4c5c] hover:bg-[#123945] text-white font-bold py-2.5 rounded-xl transition text-xs cursor-pointer flex items-center justify-center gap-2"
+              >
+                <ImagePlus className="w-4 h-4" />
+                Escolher foto
+              </label>
+
+              {avatar && (
+                <button
+                  type="button"
+                  onClick={() => onChangeAvatar('')}
+                  className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-black text-neutral-600 hover:bg-neutral-50"
+                >
+                  Remover
+                </button>
+              )}
+            </div>
 
             <input
               id="input-prof-avatar-file"
@@ -336,19 +354,19 @@ export default function ProfessionalModal({
                 type="checkbox"
                 checked={active}
                 onChange={(event) => onChangeActive(event.target.checked)}
-                className="w-4 h-4 text-orange-600 rounded"
+                className="w-4 h-4 text-[#0f4c5c] rounded"
               />
             </div>
           )}
 
-          <div className="bg-orange-50/50 p-4 rounded-2xl space-y-3 border border-orange-200">
-            <h4 className="text-[11px] font-bold text-orange-900 uppercase tracking-widest font-mono">
+          <div className="bg-[#0f4c5c]/5 p-4 rounded-2xl space-y-3 border border-[#0f4c5c]/15">
+            <h4 className="text-[11px] font-bold text-[#0f4c5c] uppercase tracking-widest">
               Remuneração e Comissão
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-bold text-orange-850">
+                <label className="font-bold text-neutral-700">
                   Tipo
                 </label>
 
@@ -356,7 +374,7 @@ export default function ProfessionalModal({
                   id="select-prof-rem-type"
                   value={normalizedRemunerationType}
                   onChange={(event) => onChangeRemunerationType(event.target.value as RemunerationType)}
-                  className="w-full bg-white border rounded-lg p-2 outline-none font-sans"
+                  className="w-full bg-white border rounded-lg p-2 outline-none font-sans focus:border-[#0f4c5c]"
                 >
                   <option value="commission_percent">Percentual (%)</option>
                   <option value="commission_fixed">Valor fixo (R$)</option>
@@ -364,7 +382,7 @@ export default function ProfessionalModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-orange-850">
+                <label className="font-bold text-neutral-700">
                   {normalizedRemunerationType === 'commission_fixed'
                     ? 'Valor fixo por atendimento'
                     : 'Percentual de comissão'}
@@ -374,14 +392,14 @@ export default function ProfessionalModal({
                   type="number"
                   value={remunerationValue}
                   onChange={(event) => onChangeRemunerationValue(Number(event.target.value))}
-                  className="w-full bg-white border rounded-lg p-2 outline-none"
+                  className="w-full bg-white border rounded-lg p-2 outline-none focus:border-[#0f4c5c]"
                 />
               </div>
             </div>
           </div>
 
           <div className="bg-neutral-50 p-4 rounded-2xl border space-y-3">
-            <h4 className="text-[11px] font-bold text-neutral-800 uppercase tracking-widest font-mono">
+            <h4 className="text-[11px] font-bold text-neutral-800 uppercase tracking-widest">
               Horários e Escala semanal
             </h4>
 
@@ -395,7 +413,7 @@ export default function ProfessionalModal({
                   type="time"
                   value={workHoursStart}
                   onChange={(event) => onChangeWorkHoursStart(event.target.value)}
-                  className="bg-white border rounded p-1.5 w-full text-center"
+                  className="bg-white border rounded p-1.5 w-full text-center focus:border-[#0f4c5c]"
                 />
               </div>
 
@@ -408,7 +426,7 @@ export default function ProfessionalModal({
                   type="time"
                   value={workHoursEnd}
                   onChange={(event) => onChangeWorkHoursEnd(event.target.value)}
-                  className="bg-white border rounded p-1.5 w-full text-center"
+                  className="bg-white border rounded p-1.5 w-full text-center focus:border-[#0f4c5c]"
                 />
               </div>
 
@@ -425,7 +443,7 @@ export default function ProfessionalModal({
                   className={`border rounded p-1.5 w-full text-center ${
                     noLunchBreak
                       ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                      : 'bg-white'
+                      : 'bg-white focus:border-[#0f4c5c]'
                   }`}
                 />
               </div>
@@ -443,7 +461,7 @@ export default function ProfessionalModal({
                   className={`border rounded p-1.5 w-full text-center ${
                     noLunchBreak
                       ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                      : 'bg-white'
+                      : 'bg-white focus:border-[#0f4c5c]'
                   }`}
                 />
               </div>
@@ -461,7 +479,7 @@ export default function ProfessionalModal({
                   step="5"
                   value={defaultAppointmentDuration}
                   onChange={(event) => onChangeDefaultAppointmentDuration(Number(event.target.value))}
-                  className="bg-white border rounded-lg p-2 w-28 text-center font-bold outline-none"
+                  className="bg-white border rounded-lg p-2 w-28 text-center font-bold outline-none focus:border-[#0f4c5c]"
                 />
 
                 <span className="text-xs font-semibold text-neutral-500">
@@ -479,7 +497,7 @@ export default function ProfessionalModal({
                 type="checkbox"
                 checked={noLunchBreak}
                 onChange={(event) => onChangeNoLunchBreak(event.target.checked)}
-                className="mt-0.5 w-4 h-4 text-orange-600 rounded"
+                className="mt-0.5 w-4 h-4 text-[#0f4c5c] rounded"
               />
 
               <span className="space-y-0.5">
@@ -509,7 +527,7 @@ export default function ProfessionalModal({
                       onClick={() => handleToggleWorkDay(index)}
                       className={`px-2 py-1 rounded text-[11px] font-bold border transition cursor-pointer ${
                         isWorking
-                          ? 'bg-neutral-900 border-neutral-900 text-white'
+                          ? 'bg-[#0f4c5c] border-[#0f4c5c] text-white'
                           : 'bg-white hover:bg-neutral-100 text-neutral-600'
                       }`}
                     >
@@ -537,7 +555,7 @@ export default function ProfessionalModal({
                     onClick={() => handleToggleService(service.id)}
                     className={`px-2 py-1.5 rounded-lg border text-[11px] text-left transition font-semibold cursor-pointer ${
                       checked
-                        ? 'bg-orange-50 text-orange-850 border-orange-400'
+                        ? 'bg-[#0f4c5c]/5 text-[#0f4c5c] border-[#0f4c5c]/40'
                         : 'bg-white text-neutral-600 hover:border-neutral-350'
                     }`}
                   >
@@ -551,11 +569,11 @@ export default function ProfessionalModal({
           <button
             id="btn-prof-form-submit"
             type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer"
+            className="w-full bg-[#0f4c5c] hover:bg-[#123945] text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer"
           >
             {editingProfessional
               ? 'Salvar Alterações de Cadastro'
-              : 'Cadastrar Colaborador'}
+              : 'Cadastrar Profissional'}
           </button>
         </form>
       </div>
