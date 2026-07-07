@@ -155,8 +155,8 @@ function getAppointmentSearchText(params: {
     appointment.clientName,
     appointment.clientPhone,
     normalizePhone(appointment.clientPhone),
-    service?.name || '',
-    professional?.name || '',
+    getAppointmentServiceName(appointment, services),
+    getAppointmentProfessionalName(appointment, professionals),
     getReceivableStatusLabel(appointment.status),
     getAppointmentTime(appointment),
     formatDateBr(getAppointmentDate(appointment))
@@ -173,6 +173,81 @@ function getProfessionalById(
   professionalId: string
 ): Professional | undefined {
   return professionals.find((professional) => professional.id === professionalId);
+}
+
+function getAppointmentRecordText(
+  appointment: Appointment | null | undefined,
+  keys: string[]
+): string {
+  if (!appointment) {
+    return '';
+  }
+
+  const record = appointment as unknown as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+
+  return '';
+}
+
+function getAppointmentServiceName(
+  appointment: Appointment,
+  services: Service[]
+): string {
+  const service = getServiceById(services, appointment.serviceId);
+
+  return (
+    service?.name ||
+    getAppointmentRecordText(appointment, [
+      'serviceName',
+      'service_name',
+      'serviceTitle',
+      'service_title'
+    ]) ||
+    'Serviço não localizado'
+  );
+}
+
+function getAppointmentProfessionalName(
+  appointment: Appointment,
+  professionals: Professional[]
+): string {
+  const professional = getProfessionalById(professionals, appointment.professionalId);
+
+  return (
+    professional?.name ||
+    getAppointmentRecordText(appointment, [
+      'professionalName',
+      'professional_name',
+      'professionalTitle',
+      'professional_title'
+    ]) ||
+    'Profissional não localizado'
+  );
+}
+
+function getAppointmentServiceDescription(
+  appointment: Appointment | null,
+  services: Service[]
+): string {
+  if (!appointment) {
+    return '';
+  }
+
+  const service = getServiceById(services, appointment.serviceId);
+  const remoteDescription = getAppointmentRecordText(appointment, [
+    'serviceDescription',
+    'service_description',
+    'description'
+  ]);
+
+  return service?.description || remoteDescription || '';
 }
 
 function todayKey(): string {
@@ -648,11 +723,25 @@ export default function ReceiptsView({
     const itemsHtml = receiptItems.map((item) => {
       const service = getServiceById(services, item.serviceId);
       const professional = getProfessionalById(professionals, item.professionalId);
+      const linkedAppointment =
+        item.itemType === 'appointment' && selectedAppointment
+          ? selectedAppointment
+          : null;
+      const serviceName = linkedAppointment
+        ? getAppointmentServiceName(linkedAppointment, services)
+        : service?.name || 'Serviço não localizado';
+      const professionalName = linkedAppointment
+        ? getAppointmentProfessionalName(linkedAppointment, professionals)
+        : professional?.name || 'Profissional não localizado';
+      const serviceDescription = linkedAppointment
+        ? getAppointmentServiceDescription(linkedAppointment, services)
+        : service?.description || '';
 
       return `
         <div class="item">
-          <div class="strong">${escapeHtml(service?.name || 'Serviço')}</div>
-          <div class="small">Prof.: ${escapeHtml(professional?.name || 'Profissional')}</div>
+          <div class="strong">${escapeHtml(serviceName)}</div>
+          <div class="small">Prof.: ${escapeHtml(professionalName)}</div>
+          ${serviceDescription ? `<div class="small">Desc.: ${escapeHtml(serviceDescription)}</div>` : ''}
           <div class="row"><span>${item.itemType === 'appointment' ? 'Agendado' : item.itemType === 'manual' ? 'Manual' : 'Extra'}</span><span>${formatCurrency(item.price)}</span></div>
         </div>
       `;
@@ -816,6 +905,11 @@ export default function ReceiptsView({
     setPrintAfterConfirmTitle('Comprovante de recebimento');
     setPrintAfterConfirmHtml(receiptPrintHtml);
     setPhoneSearch('');
+    if (selectedAppointment?.id) {
+      setCheckoutQueueIds((currentIds) =>
+        currentIds.filter((currentId) => currentId !== selectedAppointment.id)
+      );
+    }
     setSelectedAppointmentId(null);
     setCheckoutMode(null);
     setIsCheckoutOpen(false);
@@ -863,23 +957,36 @@ export default function ReceiptsView({
     const service = getServiceById(services, item.serviceId);
     const professional = getProfessionalById(professionals, item.professionalId);
     const isEditableItem = item.itemType !== 'appointment';
+    const linkedAppointment =
+      item.itemType === 'appointment' && selectedAppointment
+        ? selectedAppointment
+        : null;
+    const serviceName = linkedAppointment
+      ? getAppointmentServiceName(linkedAppointment, services)
+      : service?.name || 'Serviço não localizado';
+    const professionalName = linkedAppointment
+      ? getAppointmentProfessionalName(linkedAppointment, professionals)
+      : professional?.name || 'Profissional não localizado';
+    const serviceDescription = linkedAppointment
+      ? getAppointmentServiceDescription(linkedAppointment, services)
+      : service?.description || '';
 
     return (
       <div
         key={item.id}
-        className="rounded-2xl border border-neutral-200 bg-white p-3"
+        className="rounded-2xl border border-slate-200 bg-white p-3"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_140px_auto] gap-3 lg:items-end">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_120px_auto] gap-3 lg:items-end">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400">
-              {item.itemType === 'appointment' ? 'Serviço agendado' : item.itemType === 'manual' ? 'Serviço manual' : 'Serviço extra'}
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              {item.itemType === 'appointment' ? 'Serviço prestado' : item.itemType === 'manual' ? 'Serviço manual' : 'Serviço extra'}
             </p>
 
             {isEditableItem ? (
               <select
                 value={item.serviceId}
                 onChange={(event) => handleChangeExtraService(item.id, event.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
               >
                 {services.filter((serviceOption) => serviceOption.active).map((option) => (
                   <option key={option.id} value={option.id}>
@@ -888,14 +995,21 @@ export default function ReceiptsView({
                 ))}
               </select>
             ) : (
-              <p className="mt-1 text-sm font-black text-neutral-950">
-                {service?.name || 'Serviço'}
-              </p>
+              <>
+                <p className="mt-1 text-base font-black text-slate-950">
+                  {serviceName}
+                </p>
+                {serviceDescription && (
+                  <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
+                    {serviceDescription}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               Profissional
             </p>
 
@@ -903,7 +1017,7 @@ export default function ReceiptsView({
               <select
                 value={item.professionalId}
                 onChange={(event) => handleChangeExtraProfessional(item.id, event.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
               >
                 {professionals.filter((professionalOption) => professionalOption.active).map((option) => (
                   <option key={option.id} value={option.id}>
@@ -912,14 +1026,14 @@ export default function ReceiptsView({
                 ))}
               </select>
             ) : (
-              <p className="mt-1 text-sm font-black text-neutral-950">
-                {professional?.name || 'Profissional'}
+              <p className="mt-1 text-sm font-black text-slate-950">
+                {professionalName}
               </p>
             )}
           </div>
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               Valor
             </p>
 
@@ -929,10 +1043,10 @@ export default function ReceiptsView({
                 inputMode="numeric"
                 value={formatCurrencyInput(item.price)}
                 onChange={(event) => handleChangeExtraPrice(item.id, parseCurrencyInput(event.target.value))}
-                className="mt-1 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-black outline-none focus:border-orange-500"
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-black outline-none focus:border-[#0f4c5c]"
               />
             ) : (
-              <p className="mt-1 text-sm font-black text-neutral-950">
+              <p className="mt-1 text-sm font-black text-slate-950">
                 {formatCurrency(item.price)}
               </p>
             )}
@@ -942,7 +1056,7 @@ export default function ReceiptsView({
             <button
               type="button"
               onClick={() => handleRemoveExtra(item.id)}
-              className="h-10 w-10 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center"
+              className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center justify-center"
               title="Remover serviço extra"
             >
               <Trash2 className="w-4 h-4" />
@@ -954,8 +1068,9 @@ export default function ReceiptsView({
   };
 
   const renderReceivableAppointmentCard = (appointment: Appointment, variant: 'day' | 'pending') => {
-    const service = getServiceById(services, appointment.serviceId);
-    const professional = getProfessionalById(professionals, appointment.professionalId);
+    const serviceName = getAppointmentServiceName(appointment, services);
+    const professionalName = getAppointmentProfessionalName(appointment, professionals);
+    const serviceDescription = getAppointmentServiceDescription(appointment, services);
     const appointmentDate = getAppointmentDate(appointment);
     const isPending = variant === 'pending';
     const isOverdue = appointmentDate < currentDayKey;
@@ -967,7 +1082,7 @@ export default function ReceiptsView({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-slate-400">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
               {getAppointmentTime(appointment)} • {getReceivableStatusLabel(appointment.status)}
             </p>
             <h3 className="mt-1 text-base font-black text-slate-950 truncate">
@@ -985,11 +1100,19 @@ export default function ReceiptsView({
 
         <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-sm font-black text-slate-900 truncate">
-            {service?.name || 'Serviço'}
+            {serviceName}
           </p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
-            {professional?.name || 'Profissional'} • {formatDateBr(appointmentDate)} às {getAppointmentTime(appointment)}
+            Profissional: {professionalName}
           </p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
+            {formatDateBr(appointmentDate)} às {getAppointmentTime(appointment)}
+          </p>
+          {serviceDescription && (
+            <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-relaxed text-slate-500">
+              {serviceDescription}
+            </p>
+          )}
         </div>
 
         {isPending && isOverdue && (
@@ -1289,29 +1412,30 @@ export default function ReceiptsView({
 
   if (isCheckoutOpen) {
     return (
-      <section className="space-y-4">
-        <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleBackToSearch}
-            className="rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2 w-fit"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </button>
+      <section className="space-y-3">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-[#0f4c5c]" />
+          <div className="relative px-4 py-3 text-center">
+            <button
+              type="button"
+              onClick={handleBackToSearch}
+              className="absolute left-4 top-3 rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white hover:bg-[#123945] transition flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </button>
 
-          <div className="text-left lg:text-right">
-            <h1 className="text-2xl font-black tracking-tight text-neutral-950">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+              AGENDASPEED
+            </p>
+            <h1 className="text-xl font-black tracking-tight text-neutral-950">
               Fechamento do pagamento
             </h1>
-            <p className="text-sm text-neutral-500 font-medium">
-              Baixa definitiva, extras, forma de pagamento e impressão.
-            </p>
           </div>
         </div>
 
         {checkoutMode === 'appointment' && !selectedAppointment && (
-          <div className="rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
             <AlertCircle className="w-9 h-9 mx-auto text-neutral-400 mb-2" />
             <p className="text-sm font-black text-neutral-700">
               Nenhum atendimento selecionado.
@@ -1319,33 +1443,52 @@ export default function ReceiptsView({
           </div>
         )}
 
-        {checkoutMode === 'appointment' && selectedAppointment && !selectedAppointmentIsCompleted && (
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">
-            <p className="text-sm font-black text-amber-700">
-              Este atendimento precisa ser baixado como concluído antes do recebimento.
-            </p>
-          </div>
-        )}
-
         {canShowCheckout && (
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
-            <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-neutral-200">
-                <h2 className="text-lg font-black text-neutral-950">
-                  Serviços do recebimento
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-[#0f4c5c] px-4 py-3 text-white">
+                <h2 className="text-sm font-black uppercase tracking-tight">
+                  Serviço prestado
                 </h2>
-                <p className="text-xs font-semibold text-neutral-500">
-                  Confira os serviços realizados. Em pagamento manual, escolha serviço e profissional.
+                <p className="mt-0.5 text-[11px] font-semibold text-white/80">
+                  Confira cliente, serviço, profissional e extras.
                 </p>
               </div>
 
               <div className="p-4 space-y-3">
+                {checkoutMode === 'appointment' && selectedAppointment && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                          Cliente
+                        </p>
+                        <p className="mt-1 text-lg font-black text-slate-950">
+                          {selectedAppointment.clientName || 'Cliente'}
+                        </p>
+                        <p className="text-xs font-semibold text-slate-500">
+                          {formatPhoneForDisplay(selectedAppointment.clientPhone || '')}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-right">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                          Atendimento
+                        </p>
+                        <p className="text-sm font-black text-slate-950">
+                          {formatDateBr(getAppointmentDate(selectedAppointment))} às {getAppointmentTime(selectedAppointment)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {receiptItems.map(renderDraftItem)}
 
                 <button
                   type="button"
                   onClick={handleAddExtraItem}
-                  className="w-full rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 hover:bg-orange-100 transition flex items-center justify-center gap-2"
+                  className="w-full rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 py-2.5 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/10 transition flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
@@ -1353,50 +1496,41 @@ export default function ReceiptsView({
               </div>
             </div>
 
-            <aside className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden h-fit">
-              <div className="p-4 border-b border-neutral-200">
-                <h2 className="text-lg font-black text-neutral-950">
-                  Baixa definitiva
+            <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit">
+              <div className="bg-[#0f4c5c] px-4 py-3 text-white">
+                <h2 className="text-sm font-black uppercase tracking-tight">
+                  Baixa rápida
                 </h2>
-                <p className="text-xs font-semibold text-neutral-500">
-                  Confirmou aqui, entra no caixa e no financeiro.
+                <p className="mt-0.5 text-[11px] font-semibold text-white/80">
+                  Forma de pagamento, desconto e confirmação.
                 </p>
               </div>
 
               <div className="p-4 space-y-4">
-                <div className="rounded-2xl bg-neutral-50 border border-neutral-200 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400">
-                    Cliente
-                  </p>
-                  {checkoutMode === 'manual' ? (
+                {checkoutMode === 'manual' && (
+                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Cliente
+                    </p>
                     <div className="mt-2 grid grid-cols-1 gap-2">
                       <input
                         value={manualClientPhone}
                         onChange={(event) => setManualClientPhone(event.target.value)}
                         placeholder="WhatsApp do cliente"
-                        className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
                       />
                       <input
                         value={manualClientName}
                         onChange={(event) => setManualClientName(event.target.value)}
                         placeholder="Nome do cliente"
-                        className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
                       />
                     </div>
-                  ) : (
-                    <>
-                      <p className="text-sm font-black text-neutral-950 mt-1">
-                        {selectedClient?.name || selectedAppointment?.clientName}
-                      </p>
-                      <p className="text-xs font-bold text-neutral-500">
-                        {formatPhoneForDisplay(selectedClient?.phone || selectedAppointment?.clientPhone || '')}
-                      </p>
-                    </>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500 mb-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">
                     Forma de pagamento
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -1405,10 +1539,10 @@ export default function ReceiptsView({
                         type="button"
                         key={option}
                         onClick={() => setPaymentType(option)}
-                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-black transition ${
                           paymentType === option
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-200'
+                            ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
                         }`}
                       >
                         {getPaymentLabel(option)}
@@ -1418,7 +1552,7 @@ export default function ReceiptsView({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
+                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                     Desconto
                   </label>
                   <input
@@ -1426,12 +1560,12 @@ export default function ReceiptsView({
                     inputMode="numeric"
                     value={formatCurrencyInput(discountValue)}
                     onChange={(event) => setDiscountValue(parseCurrencyInput(event.target.value))}
-                    className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                    className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
+                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                     Observações do caixa
                   </label>
                   <textarea
@@ -1439,43 +1573,45 @@ export default function ReceiptsView({
                     onChange={(event) => setNotes(event.target.value)}
                     placeholder="Ex.: cliente pagou parte em pix e parte em dinheiro."
                     rows={3}
-                    className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-semibold outline-none focus:border-orange-500 resize-none"
+                    className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c] resize-none"
                   />
                 </div>
 
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm font-bold text-neutral-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
                     <span>Subtotal</span>
                     <span>{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm font-bold text-neutral-600">
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
                     <span>Desconto</span>
                     <span>- {formatCurrency(normalizedDiscount)}</span>
                   </div>
-                  <div className="pt-2 border-t border-neutral-200 flex items-center justify-between">
-                    <span className="text-sm font-black text-neutral-950">Total</span>
-                    <span className="text-xl font-black text-neutral-950">{formatCurrency(total)}</span>
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-950">Total</span>
+                    <span className="text-2xl font-black text-[#0f4c5c]">{formatCurrency(total)}</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handlePrintDraftReceipt}
-                  className="w-full rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 hover:bg-orange-100 transition flex items-center justify-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  Imprimir
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrintDraftReceipt}
+                    className="rounded-xl border border-[#0f4c5c]/20 bg-white px-4 py-3 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/5 transition flex items-center justify-center gap-2"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Imprimir
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleConfirmReceipt}
-                  disabled={receiptItems.length === 0}
-                  className="w-full rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white hover:bg-orange-700 disabled:bg-neutral-200 disabled:text-neutral-400 transition flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Confirmar recebimento
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmReceipt}
+                    disabled={receiptItems.length === 0}
+                    className="rounded-xl bg-[#0f4c5c] px-4 py-3 text-sm font-black text-white hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400 transition flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Baixar
+                  </button>
+                </div>
               </div>
             </aside>
           </div>
@@ -1483,6 +1619,7 @@ export default function ReceiptsView({
       </section>
     );
   }
+
 
   return (
     <section className="space-y-3">
