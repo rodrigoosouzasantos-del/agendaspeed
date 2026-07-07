@@ -704,6 +704,8 @@ export default function AgendaView({
     useState<OutsideScaleConfirmRequest>(null);
   const [openDays, setOpenDays] = useState<AgendaScheduleDay[]>([]);
   const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
+  const [showPastProfessionalAgendaSlots, setShowPastProfessionalAgendaSlots] =
+    useState(false);
 
   const todayStr = getTodayStr();
 
@@ -833,6 +835,10 @@ export default function AgendaView({
       });
     }
   }, [currentStep]);
+
+  useEffect(() => {
+    setShowPastProfessionalAgendaSlots(false);
+  }, [selectedProfessionalId, selectedDate]);
 
   const dateOptions = useMemo(() => {
     return Array.from({ length: LOOKAHEAD_DAYS }, (_, index) => {
@@ -2465,6 +2471,22 @@ export default function AgendaView({
       (slot) => slot.type === "lunch" || slot.type === "past" || slot.type === "blocked",
     ).length;
 
+    const currentDayMinute = getCurrentTimeInMinutes();
+    const shouldSeparatePastSlot = (slot: (typeof daySlots)[number]) => {
+      if (selectedDateSafe !== todayStr) {
+        return false;
+      }
+
+      return slot.end <= currentDayMinute;
+    };
+    const pastDaySlots = daySlots.filter(shouldSeparatePastSlot);
+    const currentAndFutureDaySlots = daySlots.filter((slot) => {
+      return !shouldSeparatePastSlot(slot);
+    });
+    const slotsToRender = showPastProfessionalAgendaSlots
+      ? daySlots
+      : currentAndFutureDaySlots;
+
     const handleCreateAppointmentFromFreeSlot = (startMinute: number) => {
       setSelectedProfessionalId(selectedProfessional.id);
       setSelectedDate(selectedDateSafe);
@@ -2708,7 +2730,27 @@ export default function AgendaView({
         </div>
 
         <div className="space-y-2 p-3">
-          {daySlots.map((slot) => {
+          {pastDaySlots.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowPastProfessionalAgendaSlots((current) => !current)}
+              className="w-full rounded-xl border border-[#0f4c5c]/20 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-[#0f4c5c] transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5"
+            >
+              {showPastProfessionalAgendaSlots
+                ? "Ocultar horários anteriores"
+                : `+ Ver horários anteriores (${pastDaySlots.length})`}
+            </button>
+          )}
+
+          {showPastProfessionalAgendaSlots && pastDaySlots.length > 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Horários anteriores do dia
+              </p>
+            </div>
+          )}
+
+          {slotsToRender.map((slot) => {
             if (slot.type === "appointment" && slot.appointment) {
               return renderAppointmentSlot(slot.appointment, slot.historicalAppointments || []);
             }
