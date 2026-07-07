@@ -660,7 +660,7 @@ function getAvailabilityBadge(count: number): {
   if (count <= 3) {
     return {
       label: `${count} horários livres`,
-      className: "bg-orange-50 text-orange-700 border-orange-100",
+      className: "bg-[#0f4c5c]/5 text-[#0f4c5c] border-orange-100",
     };
   }
 
@@ -965,6 +965,16 @@ export default function AgendaView({
     setWhatsAppConfirmUrl("");
     setServiceSearch("");
     setProfessionalSearch("");
+  };
+
+  const openProfessionalAgendaManager = (professionalId: string) => {
+    resetFlow();
+    setMode("professionalAgenda");
+    setSelectedProfessionalId(professionalId);
+    setSelectedServiceId("");
+    setSelectedTime("");
+    setSelectedDate(todayStr);
+    setCurrentStep("professionalAgenda");
   };
 
   const startMode = (nextMode: AgendaStartMode) => {
@@ -1400,65 +1410,83 @@ export default function AgendaView({
     }, 0);
   };
 
-  const renderModeCards = () => {
-    const cards = [
-      {
-        id: "date" as AgendaStartMode,
-        title: "Agendar por Data",
-        description: "Cliente perguntou se tem horário em um dia específico.",
-        icon: CalendarDays,
-      },
-      {
-        id: "service" as AgendaStartMode,
-        title: "Agendar por Serviço",
-        description: `Buscar horários pelo serviço nos próximos ${LOOKAHEAD_DAYS} dias.`,
-        icon: Briefcase,
-      },
-      {
-        id: "professional" as AgendaStartMode,
-        title: "Agendar com Profissional",
-        description: "Cliente pediu horário com um profissional específico.",
-        icon: UserRound,
-      },
-      {
-        id: "professionalAgenda" as AgendaStartMode,
-        title: "Agenda por Profissional",
-        description:
-          "Abrir agenda individual para cancelar, remarcar ou marcar faltou.",
-        icon: UsersRound,
-      },
-    ];
-
+  const renderProfessionalManagerCards = () => {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {cards.map((card) => {
-          const Icon = card.icon;
+      <div className="space-y-4">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-[#0f4c5c]" />
+          <div className="px-4 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+                AGENDASPEED
+              </p>
+              <h3 className="text-lg font-black tracking-tight text-neutral-950 mt-1">
+                Gerenciador de agenda dos profissionais
+              </h3>
+              <p className="text-xs text-slate-500 font-semibold mt-1">
+                Clique no profissional para abrir a agenda individual e controlar horários, aberturas, bloqueios, agendamentos e confirmações.
+              </p>
+            </div>
 
-          return (
-            <button
-              key={card.id}
-              type="button"
-              onClick={() => startMode(card.id)}
-              className="bg-white rounded-2xl border border-neutral-200 p-4 text-left shadow-sm transition hover:border-orange-300 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="w-11 h-11 rounded-xl bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5" />
-                </span>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 flex items-center gap-2">
+              <Info className="w-4 h-4 text-slate-400" />
+              Dias passados não aparecem.
+            </div>
+          </div>
+        </div>
 
-                <span className="min-w-0">
-                  <strong className="text-sm font-black text-neutral-950 block">
-                    {card.title}
-                  </strong>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {activeProfessionals.map((professional) => {
+            return (
+              <button
+                key={professional.id}
+                type="button"
+                onClick={() => openProfessionalAgendaManager(professional.id)}
+                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:border-[#0f4c5c]/35 hover:shadow-md"
+              >
+                <div className="h-1.5 bg-[#0f4c5c]" />
+                <div className="p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                      {professional.avatar ? (
+                        <img
+                          src={professional.avatar}
+                          alt={professional.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="text-lg font-black text-slate-700">
+                          {professional.name.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </span>
 
-                  <span className="text-[11px] text-neutral-500 font-semibold leading-snug block mt-1">
-                    {card.description}
-                  </span>
-                </span>
-              </div>
-            </button>
-          );
-        })}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f4c5c]">
+                        Profissional
+                      </p>
+                      <h4 className="mt-1 text-base font-black text-neutral-950 truncate">
+                        {professional.name}
+                      </h4>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 line-clamp-2 min-h-[32px]">
+                        {professional.role || 'Especialidade não informada'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center rounded-full border border-[#0f4c5c]/15 bg-[#0f4c5c]/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#0f4c5c]">
+                      Abrir agenda
+                    </span>
+
+                    <ChevronRight className="w-5 h-5 text-slate-400 transition group-hover:text-[#0f4c5c]" />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -1489,10 +1517,10 @@ export default function AgendaView({
                 onClick={() => handleSelectDateFirst(dateOption)}
                 className={`rounded-2xl border p-3 text-center transition ${
                   isSelected
-                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
+                    ? "bg-[#0f4c5c]/5 border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10"
                     : freeSlots === 0
                       ? "bg-red-50/40 border-red-100 hover:border-red-200"
-                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
+                      : "bg-white border-neutral-200 hover:border-[#0f4c5c]/40 hover:shadow-md"
                 }`}
               >
                 <span className="text-[10px] font-black uppercase text-neutral-400 block">
@@ -1559,7 +1587,7 @@ export default function AgendaView({
               value={serviceSearch}
               onChange={(event) => setServiceSearch(event.target.value)}
               placeholder="Buscar serviço..."
-              className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2.5 text-xs font-semibold outline-none focus:border-orange-300"
+              className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2.5 text-xs font-semibold outline-none focus:border-[#0f4c5c]"
             />
           </div>
         </div>
@@ -1637,15 +1665,15 @@ export default function AgendaView({
                 disabled={isSoldOut}
                 className={`rounded-2xl border p-3 text-left transition ${
                   selectedServiceId === service.id
-                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
+                    ? "bg-[#0f4c5c]/5 border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10"
                     : isSoldOut
                       ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
-                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
+                      : "bg-white border-neutral-200 hover:border-[#0f4c5c]/40 hover:shadow-md"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                    <span className="w-10 h-10 rounded-2xl bg-[#0f4c5c]/5 text-[#0f4c5c] flex items-center justify-center shrink-0">
                       <Briefcase className="w-5 h-5" />
                     </span>
 
@@ -1671,7 +1699,7 @@ export default function AgendaView({
                     </strong>
 
                     {service.requireDeposit && (
-                      <span className="text-[10px] font-black text-orange-600 block mt-1">
+                      <span className="text-[10px] font-black text-[#0f4c5c] block mt-1">
                         Sinal {formatCurrency(service.depositValue || 0)}
                       </span>
                     )}
@@ -1733,7 +1761,7 @@ export default function AgendaView({
               value={professionalSearch}
               onChange={(event) => setProfessionalSearch(event.target.value)}
               placeholder="Buscar profissional..."
-              className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2.5 text-xs font-semibold outline-none focus:border-orange-300"
+              className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2.5 text-xs font-semibold outline-none focus:border-[#0f4c5c]"
             />
           </div>
         </div>
@@ -1760,10 +1788,10 @@ export default function AgendaView({
                 disabled={isSoldOut}
                 className={`w-full rounded-2xl border p-3 text-left transition ${
                   selectedProfessionalId === professional.id
-                    ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
+                    ? "bg-[#0f4c5c]/5 border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10"
                     : isSoldOut
                       ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
-                      : "bg-white border-neutral-200 hover:border-orange-300 hover:shadow-md"
+                      : "bg-white border-neutral-200 hover:border-[#0f4c5c]/40 hover:shadow-md"
                 }`}
               >
                 <div className="flex items-center justify-between gap-4">
@@ -1888,10 +1916,10 @@ export default function AgendaView({
                     disabled={slotsForDate === 0}
                     className={`min-w-[96px] rounded-2xl border px-3 py-2.5 text-center transition ${
                       isSelected
-                        ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
+                        ? "bg-[#0f4c5c]/5 border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10"
                         : slotsForDate === 0
                           ? "bg-red-50/40 border-red-100 opacity-80 cursor-not-allowed"
-                          : "bg-white border-neutral-200 hover:border-orange-300"
+                          : "bg-white border-neutral-200 hover:border-[#0f4c5c]/40"
                     }`}
                   >
                     <span className="text-[10px] font-black uppercase text-neutral-400 block">
@@ -1954,8 +1982,8 @@ export default function AgendaView({
                       onClick={() => setSelectedTime(slot.time)}
                       className={`rounded-xl border px-3 py-2.5 text-left transition ${
                         isSelected
-                          ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100"
-                          : "bg-white border-neutral-200 hover:border-orange-300"
+                          ? "bg-[#0f4c5c]/5 border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10"
+                          : "bg-white border-neutral-200 hover:border-[#0f4c5c]/40"
                       }`}
                     >
                       <strong className="text-sm font-black text-neutral-950 block">
@@ -1979,7 +2007,7 @@ export default function AgendaView({
               onClick={() => setCurrentStep("clientData")}
               className={`w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-black transition flex items-center justify-center gap-2 ${
                 canGoClientData
-                  ? "bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                  ? "bg-[#0f4c5c] hover:bg-[#123945] text-white shadow-sm"
                   : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
               }`}
             >
@@ -2624,8 +2652,8 @@ export default function AgendaView({
                     onClick={() => setSelectedDate(dateOption)}
                     className={`min-w-[78px] rounded-xl border px-3 py-2 text-center transition ${
                       isSelected
-                        ? "border-orange-500 bg-orange-600 text-white shadow-sm"
-                        : "border-neutral-200 bg-white text-neutral-600 hover:border-orange-300"
+                        ? "border-[#0f4c5c] bg-orange-600 text-white shadow-sm"
+                        : "border-neutral-200 bg-white text-neutral-600 hover:border-[#0f4c5c]/40"
                     }`}
                   >
                     <span className="block text-[10px] font-extrabold uppercase tracking-wider">
@@ -2716,14 +2744,14 @@ export default function AgendaView({
 
             if (slot.type === "lunch") {
               return (
-                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-orange-100 bg-orange-50/70 p-3">
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-orange-100 bg-[#0f4c5c]/5/70 p-3">
                   <div className="font-mono">
-                    <strong className="block text-lg text-orange-700">{minutesToTime(slot.start)}</strong>
+                    <strong className="block text-lg text-[#0f4c5c]">{minutesToTime(slot.start)}</strong>
                     <span className="text-[11px] text-orange-500">até {minutesToTime(slot.end)}</span>
                   </div>
                   <div>
                     <strong className="text-sm font-extrabold text-orange-800">Intervalo de almoço</strong>
-                    <p className="mt-1 text-xs font-medium text-orange-700">Horário bloqueado pelo intervalo cadastrado.</p>
+                    <p className="mt-1 text-xs font-medium text-[#0f4c5c]">Horário bloqueado pelo intervalo cadastrado.</p>
                   </div>
                 </div>
               );
@@ -2784,8 +2812,8 @@ export default function AgendaView({
 
         {outsideScaleConfirmRequest && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-sm rounded-3xl border border-orange-200 bg-white p-5 text-center shadow-2xl">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+            <div className="w-full max-w-sm rounded-3xl border border-[#0f4c5c]/15 bg-white p-5 text-center shadow-2xl">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0f4c5c]/5 text-[#0f4c5c]">
                 <AlertTriangle className="h-8 w-8" />
               </div>
 
@@ -2851,7 +2879,7 @@ export default function AgendaView({
                     handleClientPhoneChange(event.target.value)
                   }
                   placeholder="(14) 99999-9999"
-                  className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2 text-sm font-semibold outline-none focus:border-orange-300"
+                  className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
                   autoFocus
                 />
               </div>
@@ -2872,7 +2900,7 @@ export default function AgendaView({
                 value={clientName}
                 onChange={(event) => setClientName(event.target.value)}
                 placeholder="Ex.: Maria Silva"
-                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-orange-300"
+                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
               />
             </div>
 
@@ -2885,7 +2913,7 @@ export default function AgendaView({
                 value={clientNotes}
                 onChange={(event) => setClientNotes(event.target.value)}
                 placeholder="Ex.: Cliente prefere atendimento rápido."
-                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-orange-300 min-h-[62px] resize-none"
+                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c] min-h-[62px] resize-none"
               />
             </div>
           </div>
@@ -2955,7 +2983,7 @@ export default function AgendaView({
             disabled={!canSubmit}
             className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-black transition ${
               canSubmit
-                ? "bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                ? "bg-[#0f4c5c] hover:bg-[#123945] text-white shadow-sm"
                 : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
             }`}
           >
@@ -2997,7 +3025,7 @@ export default function AgendaView({
           <button
             type="button"
             onClick={resetFlow}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition"
+            className="bg-[#0f4c5c] hover:bg-[#123945] text-white px-5 py-2.5 rounded-xl text-xs font-black transition"
           >
             Fazer novo agendamento
           </button>
@@ -3046,32 +3074,24 @@ export default function AgendaView({
     >
       {currentStep === "start" ? (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-extrabold tracking-tight text-neutral-950">
-                Agenda Geral do Salão
-              </h2>
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight text-neutral-950">
+              Agenda Geral do Salão
+            </h2>
 
-              <p className="text-xs text-neutral-500 mt-1 font-semibold">
-                Escolha uma opção para iniciar. Depois disso, a tela mostra
-                somente o próximo passo.
-              </p>
-            </div>
-
-            <div className="bg-white border rounded-xl px-3 py-2 text-[11px] text-neutral-500 font-semibold flex items-center gap-2 shadow-sm">
-              <Info className="w-4 h-4 text-neutral-400" />
-              Dias passados não aparecem.
-            </div>
+            <p className="text-xs text-neutral-500 mt-1 font-semibold">
+              Gerencie a agenda dos profissionais de forma rápida, visual e objetiva.
+            </p>
           </div>
 
-          {renderModeCards()}
+          {renderProfessionalManagerCards()}
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3 bg-white border rounded-2xl px-3 py-2 shadow-sm">
           <button
             type="button"
             onClick={goBack}
-            className="bg-orange-600 hover:bg-orange-700 border border-orange-600 text-white px-3 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm"
+            className="bg-[#0f4c5c] hover:bg-[#123945] border border-[#0f4c5c] text-white px-3 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm"
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
