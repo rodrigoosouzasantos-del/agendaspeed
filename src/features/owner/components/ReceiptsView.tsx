@@ -19,6 +19,7 @@ import React, {
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -276,6 +277,7 @@ export default function ReceiptsView({
   const [phoneSearch, setPhoneSearch] = useState('');
   const [cashSearch, setCashSearch] = useState('');
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [checkoutQueueIds, setCheckoutQueueIds] = useState<string[]>([]);
   const [locallyCompletedIds, setLocallyCompletedIds] = useState<string[]>([]);
   const [extraItems, setExtraItems] = useState<ReceiptDraftItem[]>([]);
   const [paymentType, setPaymentType] = useState<PaymentType>('pix');
@@ -359,22 +361,41 @@ export default function ReceiptsView({
   const dayAppointments = useMemo(() => {
     return filteredReceivableAppointments
       .filter((appointment) => {
-        return getAppointmentDate(appointment) === currentDayKey;
+        return (
+          getAppointmentDate(appointment) === currentDayKey &&
+          !checkoutQueueIds.includes(appointment.id)
+        );
       })
       .sort((firstAppointment, secondAppointment) => {
         return getAppointmentTime(firstAppointment).localeCompare(getAppointmentTime(secondAppointment));
       });
-  }, [filteredReceivableAppointments, currentDayKey]);
+  }, [filteredReceivableAppointments, currentDayKey, checkoutQueueIds]);
 
   const pendingReceivableAppointments = useMemo(() => {
-    return filteredReceivableAppointments
+    const overdueAppointments = filteredReceivableAppointments
       .filter((appointment) => {
         return getAppointmentDate(appointment) < currentDayKey;
       })
       .sort((firstAppointment, secondAppointment) => {
         return firstAppointment.dateTime.localeCompare(secondAppointment.dateTime);
       });
-  }, [filteredReceivableAppointments, currentDayKey]);
+
+    const queuedTodayAppointments = filteredReceivableAppointments
+      .filter((appointment) => {
+        return (
+          getAppointmentDate(appointment) === currentDayKey &&
+          checkoutQueueIds.includes(appointment.id)
+        );
+      })
+      .sort((firstAppointment, secondAppointment) => {
+        return getAppointmentTime(firstAppointment).localeCompare(getAppointmentTime(secondAppointment));
+      });
+
+    return [
+      ...overdueAppointments,
+      ...queuedTodayAppointments
+    ];
+  }, [filteredReceivableAppointments, currentDayKey, checkoutQueueIds]);
 
   const selectedAppointment = useMemo(() => {
     if (!selectedAppointmentId) {
@@ -456,6 +477,17 @@ export default function ReceiptsView({
     onMarkAppointmentCompleted(appointmentId);
     setLocallyCompletedIds((currentIds) => Array.from(new Set([...currentIds, appointmentId])));
   };
+
+  const handleMoveAppointmentToReceivable = (appointmentId: string) => {
+    setCheckoutQueueIds((currentIds) => {
+      if (currentIds.includes(appointmentId)) {
+        return currentIds;
+      }
+
+      return [...currentIds, appointmentId];
+    });
+  };
+
 
   const createDefaultManualItem = (): ReceiptDraftItem | null => {
     const firstActiveService = services.find((service) => service.active) || services[0];
@@ -926,66 +958,68 @@ export default function ReceiptsView({
     const professional = getProfessionalById(professionals, appointment.professionalId);
     const appointmentDate = getAppointmentDate(appointment);
     const isPending = variant === 'pending';
+    const isOverdue = appointmentDate < currentDayKey;
 
     return (
       <div
         key={appointment.id}
-        className={`rounded-2xl border px-4 py-3 transition ${
-          isPending
-            ? 'border-orange-200 bg-orange-50/70 hover:border-orange-300'
-            : 'border-neutral-200 bg-white hover:border-orange-200'
-        }`}
+        className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 shadow-sm transition hover:border-slate-300"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-slate-400">
               {getAppointmentTime(appointment)} • {getReceivableStatusLabel(appointment.status)}
             </p>
-            <h3 className="mt-0.5 text-sm font-black text-neutral-950 truncate">
+            <h3 className="mt-1 text-base font-black text-slate-950 truncate">
               {appointment.clientName || 'Cliente'}
             </h3>
-            <p className="mt-0.5 text-[11px] font-bold text-neutral-500">
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
               {formatPhoneForDisplay(appointment.clientPhone)}
             </p>
           </div>
 
-          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${
-            isPending
-              ? 'border-orange-200 bg-white text-orange-700'
-              : 'border-orange-200 bg-orange-50 text-orange-700'
-          }`}>
+          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-slate-700">
             {formatCurrency(appointment.price)}
           </span>
         </div>
 
-        <div className="mt-2 rounded-xl border border-neutral-200 bg-white/80 px-3 py-2">
-          <p className="text-xs font-black text-neutral-900 truncate">
+        <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <p className="text-sm font-black text-slate-900 truncate">
             {service?.name || 'Serviço'}
           </p>
-          <p className="mt-0.5 text-[11px] font-bold text-neutral-500 truncate">
+          <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
             {professional?.name || 'Profissional'} • {formatDateBr(appointmentDate)} às {getAppointmentTime(appointment)}
           </p>
         </div>
 
-        {isPending && (
-          <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5">
-            <p className="text-[11px] font-black text-red-700">
-              ⚠️ Valor antigo sem baixa. Priorize este recebimento.
+        {isPending && isOverdue && (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="text-[11px] font-bold text-amber-700">
+              Valor antigo sem baixa. Priorize este recebimento.
             </p>
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => handleOpenCheckout(appointment.id)}
-          className={`mt-2 w-full rounded-xl px-4 py-2 text-xs font-black text-white transition ${
-            isPending
-              ? 'bg-emerald-600 hover:bg-emerald-700'
-              : 'bg-orange-600 hover:bg-orange-700'
-          }`}
-        >
-          Baixar pagamento
-        </button>
+        <div className="mt-3">
+          {isPending ? (
+            <button
+              type="button"
+              onClick={() => handleOpenCheckout(appointment.id)}
+              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+            >
+              Baixar pagamento
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleMoveAppointmentToReceivable(appointment.id)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-[#0f4c5c] hover:text-[#0f4c5c] flex items-center justify-center gap-2"
+            >
+              <ArrowRight className="h-4 w-4" />
+              Enviar para receber
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -1451,20 +1485,17 @@ export default function ReceiptsView({
   }
 
   return (
-    <section className="space-y-3 font-mono">
+    <section className="space-y-3">
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="h-1.5 bg-gradient-to-r from-orange-500 via-orange-600 to-emerald-600" />
+        <div className="h-1.5 bg-[#0f4c5c]" />
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
               AGENDASPEED
             </p>
-            <h1 className="text-xl font-black tracking-tight text-neutral-950">
+            <h1 className="text-lg font-black tracking-tight text-neutral-950">
               Recebimentos
             </h1>
-            <p className="text-xs font-semibold text-neutral-500">
-              Baixa rápida de atendimentos e valores a receber.
-            </p>
           </div>
 
           <div className="flex w-full flex-col gap-2 lg:max-w-2xl lg:flex-row lg:items-center">
@@ -1475,7 +1506,7 @@ export default function ReceiptsView({
                 value={cashSearch}
                 onChange={(event) => setCashSearch(event.target.value)}
                 placeholder="Buscar por cliente, telefone, serviço ou profissional"
-                className="h-9 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-xs font-bold text-neutral-700 outline-none focus:border-orange-500 focus:bg-white"
+                className="h-9 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-sm font-semibold text-neutral-700 outline-none focus:border-[#0f4c5c] focus:bg-white"
               />
             </div>
 
@@ -1483,7 +1514,7 @@ export default function ReceiptsView({
               <button
                 type="button"
                 onClick={handleOpenManualReceipt}
-                className="rounded-xl bg-orange-600 px-3 py-2 text-[11px] font-black text-white transition hover:bg-orange-700 flex items-center justify-center gap-1.5"
+                className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Manual
@@ -1492,7 +1523,7 @@ export default function ReceiptsView({
               <button
                 type="button"
                 onClick={handleOpenExpense}
-                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-black text-red-700 transition hover:bg-red-100 flex items-center justify-center gap-1.5"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50 flex items-center justify-center gap-1.5"
               >
                 <MinusCircle className="w-3.5 h-3.5" />
                 Despesa
@@ -1503,67 +1534,67 @@ export default function ReceiptsView({
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
-          <div className="bg-emerald-600 px-4 py-3 text-white flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-tight">
-                Valores a Receber
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                Atendimentos antigos sem baixa de pagamento.
-              </p>
-            </div>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black">
-              {pendingReceivableAppointments.length}
-            </span>
-          </div>
-
-          <div className="p-3 space-y-2">
-            {pendingReceivableAppointments.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-6 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
-                <p className="text-sm font-black text-neutral-800">
-                  Nenhum valor antigo pendente.
-                </p>
-                <p className="text-xs font-semibold text-neutral-500 mt-1">
-                  Se esquecer uma baixa, ela aparece aqui no dia seguinte.
-                </p>
-              </div>
-            )}
-
-            {pendingReceivableAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'pending'))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
-          <div className="bg-orange-600 px-4 py-3 text-white flex items-center justify-between gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
+          <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-black uppercase tracking-tight">
                 Atendimentos do Dia
               </h2>
               <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                Clientes atendendo ou aguardando baixa hoje.
+                Organize os atendimentos e envie para baixa.
               </p>
             </div>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black">
+            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
               {dayAppointments.length}
             </span>
           </div>
 
           <div className="p-3 space-y-2">
             {dayAppointments.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50/50 p-6 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-orange-500 mb-2" />
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                 <p className="text-sm font-black text-neutral-800">
-                  Nenhum atendimento do dia aguardando baixa.
+                  Nenhum atendimento do dia aguardando organização.
                 </p>
                 <p className="text-xs font-semibold text-neutral-500 mt-1">
-                  Quando todos pagarem, esta coluna fica limpa.
+                  Quando precisar receber, mova o card para a coluna da direita.
                 </p>
               </div>
             )}
 
             {dayAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'day'))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
+          <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-tight">
+                Valores a Receber
+              </h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/80">
+                Baixas pendentes e cartões prontos para receber.
+              </p>
+            </div>
+            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
+              {pendingReceivableAppointments.length}
+            </span>
+          </div>
+
+          <div className="p-3 space-y-2">
+            {pendingReceivableAppointments.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                <p className="text-sm font-black text-neutral-800">
+                  Nenhum valor aguardando baixa.
+                </p>
+                <p className="text-xs font-semibold text-neutral-500 mt-1">
+                  Atendimentos antigos e cards movidos para recebimento aparecem aqui.
+                </p>
+              </div>
+            )}
+
+            {pendingReceivableAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'pending'))}
           </div>
         </div>
       </div>
