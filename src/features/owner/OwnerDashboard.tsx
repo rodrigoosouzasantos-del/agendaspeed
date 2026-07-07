@@ -406,13 +406,14 @@ function mapSupabaseAppointmentToAppAppointment(
 }
 
 const SUPABASE_CLIENTS_SELECT =
-  "id,name,phone,email,notes,total_spent,client_cancel_count,client_reschedule_count,created_at,updated_at";
+  "id,name,phone,email,birth_date,notes,total_spent,client_cancel_count,client_reschedule_count,created_at,updated_at";
 
 type SupabaseClientResponse = {
   id: string;
   name: string;
   phone: string;
   email: string | null;
+  birth_date: string | null;
   notes: string | null;
   total_spent: number;
   client_cancel_count: number;
@@ -432,6 +433,7 @@ function mapSupabaseClientToAppClient(client: SupabaseClientResponse): Client {
     phoneNormalized: normalizedPhone,
     phoneHistory: [],
     email: client.email || undefined,
+    birthDate: client.birth_date || undefined,
     preferredProfessionalId: null,
     notes: client.notes || "",
     absences: 0,
@@ -2735,12 +2737,7 @@ ${professionalAccessLink}`);
       return;
     }
 
-    const notes = [
-      "Cliente cadastrado manualmente pelo estabelecimento.",
-      clientData.birthDate ? `Nascimento informado na tela: ${clientData.birthDate}` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const notes = "Cliente cadastrado manualmente pelo estabelecimento.";
 
     void (async () => {
       const { data, error } = await supabase
@@ -2749,6 +2746,7 @@ ${professionalAccessLink}`);
           tenant_id: tenantId,
           name: clientData.name,
           phone: clientData.phone,
+          birth_date: clientData.birthDate || null,
           notes,
         })
         .select(SUPABASE_CLIENTS_SELECT)
@@ -2850,6 +2848,7 @@ ${professionalAccessLink}`);
         .update({
           name: updates.name,
           phone: updates.phone,
+          birth_date: updates.birthDate || null,
         })
         .eq("id", clientId)
         .select(SUPABASE_CLIENTS_SELECT)
@@ -2889,6 +2888,40 @@ ${professionalAccessLink}`);
     })();
 
     return true;
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    const targetClient = clients.find((client) => client.id === clientId);
+
+    if (!targetClient) {
+      alert("Cliente não encontrado.");
+      return;
+    }
+
+    const previousClients = clients;
+    const nextClients = clients.filter((client) => client.id !== clientId);
+
+    setLiveClients(nextClients);
+
+    onUpdateState({
+      ...state,
+      clients: nextClients,
+    });
+
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", clientId);
+
+    if (error) {
+      alert(error.message || "Não foi possível excluir o cliente.");
+      setLiveClients(previousClients);
+
+      onUpdateState({
+        ...state,
+        clients: previousClients,
+      });
+    }
   };
 
   const handleMarkAppointmentCompletedForReceipt = (appointmentId: string) => {
@@ -3241,6 +3274,7 @@ ${professionalAccessLink}`);
               onChangeClientSearch={setClientSearch}
               onAddClient={handleAddManualClient}
               onUpdateClient={handleUpdateClient}
+              onDeleteClient={handleDeleteClient}
             />
           )}
 

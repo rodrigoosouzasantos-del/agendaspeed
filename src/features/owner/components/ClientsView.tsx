@@ -11,6 +11,7 @@
  */
 
 import React, {
+  useEffect,
   useMemo,
   useState
 } from 'react';
@@ -25,6 +26,7 @@ import {
   Printer,
   Search,
   Send,
+  Trash2,
   User,
   X
 } from 'lucide-react';
@@ -58,6 +60,7 @@ interface ClientsViewProps {
       birthDate?: string;
     }
   ) => boolean;
+  onDeleteClient: (clientId: string) => void;
 }
 
 interface ManualClientFormState {
@@ -381,7 +384,8 @@ export default function ClientsView({
   clientSearch,
   onChangeClientSearch,
   onAddClient,
-  onUpdateClient
+  onUpdateClient,
+  onDeleteClient
 }: ClientsViewProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showManualClientModal, setShowManualClientModal] = useState(false);
@@ -400,6 +404,8 @@ export default function ClientsView({
       phone: '',
       birthDate: ''
     });
+  const [currentPage, setCurrentPage] = useState(1);
+  const clientsPerPage = 20;
   const currentYear = new Date().getFullYear();
   const todayDate = new Date();
 
@@ -440,9 +446,24 @@ export default function ClientsView({
       });
   }, [clients, clientSearch, todayDate]);
 
+  const totalClientPages = Math.max(
+    1,
+    Math.ceil(filteredClients.length / clientsPerPage),
+  );
+  const paginatedClients = useMemo(() => {
+    const safePage = Math.min(currentPage, totalClientPages);
+    const startIndex = (safePage - 1) * clientsPerPage;
+
+    return filteredClients.slice(startIndex, startIndex + clientsPerPage);
+  }, [filteredClients, currentPage, totalClientPages]);
+
   const birthdayClients = useMemo(() => {
     return clients.filter((client) => isClientBirthdayToday(client, todayDate));
   }, [clients, todayDate]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [clientSearch]);
 
   const selectedClientAppointments = useMemo(() => {
     if (!selectedClient) {
@@ -630,6 +651,18 @@ export default function ClientsView({
     });
   };
 
+  const handleDeleteClient = (client: Client) => {
+    const confirmed = confirm(
+      `Deseja excluir definitivamente o cliente ${client.name}?\n\nEssa ação remove o cadastro da carteira. O histórico de agendamentos pode continuar preservado na agenda/financeiro.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    onDeleteClient(client.id);
+  };
+
   const handlePrintAllClientsReport = () => {
     printHtml(
       buildReportHtml({
@@ -759,7 +792,7 @@ export default function ClientsView({
       )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[1.35fr_1fr_1.4fr_170px] border-b border-slate-200 bg-[#0f4c5c] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white">
+        <div className="grid grid-cols-[1.4fr_1fr_1fr_210px] border-b border-slate-200 bg-[#0f4c5c] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white">
           <div>Nome do Cliente</div>
           <div>WhatsApp</div>
           <div>Dados do Cliente</div>
@@ -767,15 +800,10 @@ export default function ClientsView({
         </div>
 
         <div className="divide-y divide-slate-100">
-          {filteredClients.map((client) => {
+          {paginatedClients.map((client) => {
             const clientAppointments = getClientAppointments({
               client,
               appointments
-            });
-            const stats = getClientStats({
-              client,
-              appointments,
-              period
             });
             const isBirthday = isClientBirthdayToday(client, todayDate);
             const birthdayStorageKey = getBirthdayStorageKey(client.id, currentYear);
@@ -785,7 +813,7 @@ export default function ClientsView({
               <div
                 id={`client-row-${client.id}`}
                 key={client.id}
-                className={`grid grid-cols-1 gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[1.35fr_1fr_1.4fr_170px] lg:items-center ${
+                className={`grid grid-cols-1 gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[1.4fr_1fr_1fr_210px] lg:items-center ${
                   isBirthday ? 'bg-amber-50/80' : 'bg-white'
                 }`}
               >
@@ -806,9 +834,6 @@ export default function ClientsView({
                     )}
                   </div>
 
-                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                    {getClientInternalCode(client)}
-                  </p>
                 </div>
 
                 <div>
@@ -821,38 +846,18 @@ export default function ClientsView({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-                    <p className="text-[9px] font-black uppercase text-slate-400">Presenças</p>
-                    <p className="text-sm font-black text-[#0f4c5c]">{stats.presences}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-                    <p className="text-[9px] font-black uppercase text-slate-400">Reagend.</p>
-                    <p className="text-sm font-black text-slate-700">{stats.reschedules}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-                    <p className="text-[9px] font-black uppercase text-slate-400">Faltas</p>
-                    <p className="text-sm font-black text-red-600">{stats.absences}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-                    <p className="text-[9px] font-black uppercase text-slate-400">Receita</p>
-                    <p className="text-xs font-black text-[#0f4c5c]">{formatCurrency(stats.totalSpent)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => handleOpenClientDetails(client)}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5 hover:text-[#0f4c5c] flex items-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    Dados
+                    Dados do Cliente
                   </button>
+                </div>
 
+                <div className="flex items-center justify-end gap-2">
                   <a
                     href={getWhatsAppUrl(
                       client.phone,
@@ -876,6 +881,16 @@ export default function ClientsView({
                     <MessageCircle className="w-3.5 h-3.5" />
                     {isBirthday ? 'Aniversário' : 'Mensagem'}
                   </a>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteClient(client)}
+                    className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 flex items-center gap-1.5"
+                    title="Excluir cadastro do cliente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
                 </div>
 
                 {clientAppointments.length === 0 && (
@@ -894,6 +909,34 @@ export default function ClientsView({
           )}
         </div>
       </div>
+
+      {filteredClients.length > clientsPerPage && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Mostrando {paginatedClients.length} de {filteredClients.length} clientes · Página {Math.min(currentPage, totalClientPages)} de {totalClientPages}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Anterior
+            </button>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalClientPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalClientPages, page + 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      )}
 
       {selectedClient && (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
