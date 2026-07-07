@@ -3315,6 +3315,7 @@ ${professionalAccessLink}`);
               professionals={professionals}
               services={services}
               completedAppointments={financialSummary.completedAppointments}
+              cashExpenses={cashExpenses}
               companyName={configName}
               companyAddress={configAddress}
               companyPhone={configPhone}

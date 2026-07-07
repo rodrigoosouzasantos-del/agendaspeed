@@ -1,15 +1,11 @@
 /**
- * Tela Financeira do Painel do Dono - AgendaZap.
+ * Tela Financeira do Painel do Dono - AgendaSpeed.
  *
  * Responsável por:
- * - dividir a análise entre Faturamento e Comissões;
- * - abrir primeiro uma escolha simples para mobile;
- * - filtrar os dados por período;
- * - exibir faturamento por tipo de serviço;
- * - exibir recebimentos por forma de pagamento;
- * - exibir produção por colaborador;
- * - exibir comissões devidas por colaborador;
- * - imprimir comissões em A4 ou filipeta térmica.
+ * - analisar faturamento do período;
+ * - analisar comissões da equipe;
+ * - emitir relatório de livro caixa apenas com dinheiro;
+ * - manter visual padronizado em azul petróleo.
  */
 
 import React, {
@@ -18,12 +14,17 @@ import React, {
 } from 'react';
 
 import {
+  ArrowLeft,
   BarChart3,
-  Coins
+  Coins,
+  Filter,
+  Printer,
+  WalletCards
 } from 'lucide-react';
 
 import {
   Appointment,
+  CashExpense,
   Professional,
   Service
 } from '../../../types';
@@ -37,12 +38,13 @@ import {
   getRemunerationLabel
 } from '../owner.utils';
 
-type FinanceInternalTab = 'faturamento' | 'comissoes';
+type FinanceInternalTab = 'faturamento' | 'comissoes' | 'livroCaixa';
 
 interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
   completedAppointments: Appointment[];
+  cashExpenses: CashExpense[];
   companyName: string;
   companyAddress: string;
   companyPhone: string;
@@ -51,6 +53,13 @@ interface FinanceViewProps {
 interface FinancePeriod {
   startDate: string;
   endDate: string;
+}
+
+interface CashBookRow {
+  date: string;
+  type: 'recebimento' | 'despesa';
+  description: string;
+  value: number;
 }
 
 function padDatePart(value: number): string {
@@ -84,12 +93,56 @@ function formatDateBr(dateStr: string): string {
   return dateStr.split('-').reverse().join('/');
 }
 
+function formatEmissionDate(): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date());
+}
+
 function getAppointmentDateStr(dateTime: string): string {
   if (!dateTime || !dateTime.includes('T')) {
     return '';
   }
 
   return dateTime.split('T')[0];
+}
+
+function getCashBookStorageKey(period: FinancePeriod): string {
+  const monthKey = period.startDate.slice(0, 7) || 'geral';
+
+  return `agendaspeed-cashbook-initial-balance-${monthKey}`;
+}
+
+function parseCurrencyInput(value: string): number {
+  const onlyNumbers = value.replace(/\D/g, '');
+
+  if (!onlyNumbers) {
+    return 0;
+  }
+
+  return Number(onlyNumbers) / 100;
+}
+
+function formatCurrencyInput(value: number): string {
+  return formatCurrency(Number(value) || 0);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function getServiceName(
+  services: Service[],
+  serviceId: string
+): string {
+  const service = services.find((item) => item.id === serviceId);
+
+  return service?.name || 'Serviço personalizado';
 }
 
 function buildEstablishmentPrintHeader(params: {
@@ -108,13 +161,13 @@ function buildEstablishmentPrintHeader(params: {
   } = params;
 
   return `
-    <div class="header center">
-      <h2>${companyName}</h2>
-      ${companyAddress ? `<p class="muted">END.: ${companyAddress}</p>` : ''}
-      ${companyPhone ? `<p class="muted">TELEFONE: ${companyPhone}</p>` : ''}
-      <br />
-      <h3>${reportTitle}</h3>
-      <p class="muted">Período: ${formatDateBr(period.startDate)} a ${formatDateBr(period.endDate)}</p>
+    <div class="header">
+      <h1>${escapeHtml(companyName || 'AgendaSpeed')}</h1>
+      ${companyAddress ? `<p>Endereço: ${escapeHtml(companyAddress)}</p>` : ''}
+      ${companyPhone ? `<p>Telefone: ${escapeHtml(companyPhone)}</p>` : ''}
+      <h2>${escapeHtml(reportTitle)}</h2>
+      <p>Período: ${formatDateBr(period.startDate)} a ${formatDateBr(period.endDate)}</p>
+      <p>Data da emissão: ${formatEmissionDate()}</p>
     </div>
   `;
 }
@@ -129,6 +182,7 @@ function buildPrintWindow(params: {
   const printWindow = window.open('', '_blank');
 
   if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.');
     return;
   }
 
@@ -141,7 +195,8 @@ function buildPrintWindow(params: {
     <!doctype html>
     <html>
       <head>
-        <title>${title}</title>
+        <title>${escapeHtml(title)}</title>
+        <meta charset="utf-8" />
         <style>
           @page {
             size: ${pageSize};
@@ -156,7 +211,7 @@ function buildPrintWindow(params: {
             width: ${width};
             margin: 0 auto;
             font-family: Arial, sans-serif;
-            color: #111;
+            color: #111827;
             font-size: ${fontSize};
             background: #fff;
           }
@@ -165,18 +220,30 @@ function buildPrintWindow(params: {
             margin: 0;
           }
 
-          .center {
+          h1 {
+            font-size: 18px;
             text-align: center;
+            text-transform: uppercase;
           }
 
-          .muted {
-            color: #666;
+          h2 {
+            margin-top: 12px;
+            font-size: 15px;
+            text-align: center;
+            text-transform: uppercase;
+          }
+
+          p {
+            font-size: 11px;
+            color: #475569;
+            text-align: center;
+            margin-top: 3px;
           }
 
           .header {
-            border-bottom: 1px solid #111;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
+            border-bottom: 2px solid #0f4c5c;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
           }
 
           table {
@@ -185,8 +252,8 @@ function buildPrintWindow(params: {
           }
 
           th, td {
-            border-bottom: 1px solid #ddd;
-            padding: 7px 4px;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 8px 5px;
             text-align: left;
             vertical-align: top;
           }
@@ -194,22 +261,45 @@ function buildPrintWindow(params: {
           th {
             font-size: 10px;
             text-transform: uppercase;
+            background: #0f4c5c;
+            color: #fff;
           }
 
           .right {
             text-align: right;
           }
 
-          .item {
-            border-bottom: 1px dashed #999;
-            padding: 8px 0;
+          .negative {
+            color: #b91c1c;
+            font-weight: 700;
           }
 
-          .total {
-            margin-top: 10px;
-            border-top: 1px solid #111;
-            padding-top: 8px;
+          .positive {
+            color: #0f4c5c;
             font-weight: 700;
+          }
+
+          .summary {
+            margin-top: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+          }
+
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 700;
+          }
+
+          .summary-row:last-child {
+            border-bottom: none;
+            background: #f8fafc;
+            color: #0f4c5c;
+            font-size: 14px;
           }
         </style>
       </head>
@@ -231,10 +321,31 @@ function buildPrintWindow(params: {
   }, 350);
 }
 
+function PanelCard({
+  title,
+  children
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="bg-[#0f4c5c] px-4 py-3 text-white">
+        <h3 className="text-sm font-black uppercase tracking-tight">
+          {title}
+        </h3>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
 export default function FinanceView({
   professionals,
   services,
   completedAppointments,
+  cashExpenses,
   companyName,
   companyAddress,
   companyPhone
@@ -251,6 +362,12 @@ export default function FinanceView({
 
   const [draftPeriod, setDraftPeriod] =
     useState<FinancePeriod>(initialPeriod);
+
+  const [initialCashBalance, setInitialCashBalance] = useState<number>(() => {
+    const storedValue = localStorage.getItem(getCashBookStorageKey(initialPeriod));
+
+    return storedValue ? Number(storedValue) || 0 : 0;
+  });
 
   const isInvalidDraftPeriod =
     Boolean(draftPeriod.startDate && draftPeriod.endDate) &&
@@ -279,6 +396,26 @@ export default function FinanceView({
     });
   }, [
     completedAppointments,
+    isInvalidPeriod,
+    period
+  ]);
+
+  const filteredCashExpenses = useMemo(() => {
+    if (isInvalidPeriod) {
+      return [];
+    }
+
+    return cashExpenses.filter((expense) => {
+      const expenseDate = getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10);
+
+      return (
+        expense.status === 'paid' &&
+        expenseDate >= period.startDate &&
+        expenseDate <= period.endDate
+      );
+    });
+  }, [
+    cashExpenses,
     isInvalidPeriod,
     period
   ]);
@@ -408,6 +545,52 @@ export default function FinanceView({
     services
   ]);
 
+  const cashBookRows = useMemo<CashBookRow[]>(() => {
+    const cashAppointmentRows = filteredAppointments
+      .filter((appointment) => appointment.paymentType === 'dinheiro')
+      .map((appointment) => ({
+        date: getAppointmentDateStr(appointment.dateTime),
+        type: 'recebimento' as const,
+        description: getServiceName(services, appointment.serviceId),
+        value: Number(appointment.price) || 0
+      }));
+
+    const cashExpenseRows = filteredCashExpenses
+      .filter((expense) => expense.paymentType === 'dinheiro')
+      .map((expense) => ({
+        date: getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10),
+        type: 'despesa' as const,
+        description: expense.description || 'Despesa manual',
+        value: -Math.abs(Number(expense.amount) || 0)
+      }));
+
+    return [
+      ...cashAppointmentRows,
+      ...cashExpenseRows
+    ].sort((firstRow, secondRow) => {
+      return firstRow.date.localeCompare(secondRow.date);
+    });
+  }, [
+    filteredAppointments,
+    filteredCashExpenses,
+    services
+  ]);
+
+  const cashBookIncomeTotal = useMemo(() => {
+    return cashBookRows
+      .filter((row) => row.type === 'recebimento')
+      .reduce((sum, row) => sum + row.value, 0);
+  }, [cashBookRows]);
+
+  const cashBookExpenseTotal = useMemo(() => {
+    return cashBookRows
+      .filter((row) => row.type === 'despesa')
+      .reduce((sum, row) => sum + Math.abs(row.value), 0);
+  }, [cashBookRows]);
+
+  const cashBookFinalBalance =
+    initialCashBalance + cashBookIncomeTotal - cashBookExpenseTotal;
+
   const handleChangeStartDate = (startDate: string) => {
     setDraftPeriod((currentPeriod) => ({
       ...currentPeriod,
@@ -428,14 +611,26 @@ export default function FinanceView({
     }
 
     setPeriod(draftPeriod);
+
+    const nextStoredValue =
+      localStorage.getItem(getCashBookStorageKey(draftPeriod));
+
+    setInitialCashBalance(nextStoredValue ? Number(nextStoredValue) || 0 : 0);
+  };
+
+  const handleChangeInitialCashBalance = (value: string) => {
+    const parsedValue = parseCurrencyInput(value);
+
+    setInitialCashBalance(parsedValue);
+    localStorage.setItem(getCashBookStorageKey(period), String(parsedValue));
   };
 
   const handlePrintCommissionsA4 = () => {
     const rowsHtml = commissionRows.map((row) => {
       return `
         <tr>
-          <td>${row.professional.name}</td>
-          <td>${getRemunerationLabel(row.professional)}</td>
+          <td>${escapeHtml(row.professional.name)}</td>
+          <td>${escapeHtml(getRemunerationLabel(row.professional))}</td>
           <td class="right">${row.completedCount}</td>
           <td class="right">${formatCurrency(row.totalProduced)}</td>
           <td class="right">${formatCurrency(row.commissionValue)}</td>
@@ -450,7 +645,7 @@ export default function FinanceView({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'COMISSÕES',
+          reportTitle: 'Comissões',
           period
         })}
 
@@ -467,11 +662,6 @@ export default function FinanceView({
 
           <tbody>
             ${rowsHtml}
-            <tr>
-              <td colspan="3" class="right"><strong>Total</strong></td>
-              <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
-              <td class="right"><strong>${formatCurrency(totalCommissions)}</strong></td>
-            </tr>
           </tbody>
         </table>
       `
@@ -481,33 +671,28 @@ export default function FinanceView({
   const handlePrintCommissionsThermal = () => {
     const rowsHtml = commissionRows.map((row) => {
       return `
-        <div class="item">
-          <strong>${row.professional.name}</strong><br />
-          <span>Atend.: ${row.completedCount}</span><br />
-          <span>Fat.: ${formatCurrency(row.totalProduced)}</span><br />
-          <span>Comissão: ${formatCurrency(row.commissionValue)}</span>
+        <div style="border-bottom:1px dashed #999;padding:7px 0;">
+          <strong>${escapeHtml(row.professional.name)}</strong><br />
+          Atend.: ${row.completedCount}<br />
+          Prod.: ${formatCurrency(row.totalProduced)}<br />
+          Comissão: ${formatCurrency(row.commissionValue)}
         </div>
       `;
     }).join('');
 
     buildPrintWindow({
-      title: 'Comissões - Filipeta',
+      title: 'Filipeta de Comissões',
       thermal: true,
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'COMISSÕES',
+          reportTitle: 'Comissões',
           period
         })}
 
         ${rowsHtml}
-
-        <div class="total">
-          <p>Total comissão: ${formatCurrency(totalCommissions)}</p>
-          <p>Faturamento: ${formatCurrency(totalRevenue)}</p>
-        </div>
       `
     });
   };
@@ -527,7 +712,7 @@ export default function FinanceView({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'FECHAMENTO DE COMISSÃO',
+          reportTitle: 'Fechamento de Comissão',
           period
         })}
 
@@ -535,11 +720,11 @@ export default function FinanceView({
           <tbody>
             <tr>
               <th>Profissional</th>
-              <td>${row.professional.name}</td>
+              <td>${escapeHtml(row.professional.name)}</td>
             </tr>
             <tr>
               <th>Remuneração</th>
-              <td>${getRemunerationLabel(row.professional)}</td>
+              <td>${escapeHtml(getRemunerationLabel(row.professional))}</td>
             </tr>
             <tr>
               <th>Atendimento</th>
@@ -556,83 +741,193 @@ export default function FinanceView({
           </tbody>
         </table>
 
-        <div class="total">
-          <p>Recebi o valor de comissão acima informado.</p>
-          <br /><br />
-          <p>Assinatura: ______________________________</p>
-          <br />
-          <p>Data: ____/____/________</p>
+        <div class="summary">
+          <div class="summary-row">
+            <span>Recebi o valor de comissão acima informado.</span>
+          </div>
+          <div class="summary-row">
+            <span>Assinatura: ______________________________</span>
+          </div>
+          <div class="summary-row">
+            <span>Data: ____/____/________</span>
+          </div>
         </div>
       `
     });
   };
 
-  return (
-    <div id="view-financeiro" className="space-y-6 text-left animate-none">
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-neutral-950">
-            Financeiro
-          </h2>
+  const handlePrintCashBook = () => {
+    const rowsHtml = cashBookRows.map((row) => {
+      const formattedValue =
+        row.type === 'despesa'
+          ? `-${formatCurrency(Math.abs(row.value)).replace('R$', '').trim()}`
+          : formatCurrency(row.value);
 
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Escolha o relatório que deseja consultar.
-          </p>
+      return `
+        <tr>
+          <td>${formatDateBr(row.date)}</td>
+          <td>${row.type === 'despesa' ? 'Despesa' : 'Recebimento'}</td>
+          <td>${escapeHtml(row.description)}</td>
+          <td class="right ${row.type === 'despesa' ? 'negative' : 'positive'}">${formattedValue}</td>
+        </tr>
+      `;
+    }).join('');
+
+    buildPrintWindow({
+      title: 'Livro Caixa',
+      body: `
+        ${buildEstablishmentPrintHeader({
+          companyName,
+          companyAddress,
+          companyPhone,
+          reportTitle: 'Livro Caixa - Dinheiro',
+          period
+        })}
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Saldo inicial</span>
+            <span>${formatCurrency(initialCashBalance)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Entradas em dinheiro</span>
+            <span>${formatCurrency(cashBookIncomeTotal)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Saídas em dinheiro</span>
+            <span class="negative">-${formatCurrency(cashBookExpenseTotal).replace('R$', '').trim()}</span>
+          </div>
+          <div class="summary-row">
+            <span>Saldo final</span>
+            <span>${formatCurrency(cashBookFinalBalance)}</span>
+          </div>
         </div>
 
-        {activeFinanceTab && (
-          <button
-            type="button"
-            onClick={() => setActiveFinanceTab(null)}
-            className="w-full sm:w-max rounded-xl border border-neutral-200 bg-white px-4 py-3 text-xs font-black text-neutral-700 hover:bg-neutral-50 transition"
-          >
-            Voltar para opções
-          </button>
-        )}
+        <br />
+
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Descrição do Serviço</th>
+              <th class="right">Valor</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b;">Nenhuma movimentação em dinheiro no período.</td></tr>'}
+          </tbody>
+        </table>
+      `
+    });
+  };
+
+  const renderFinanceOption = (params: {
+    tab: FinanceInternalTab;
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+  }) => {
+    const { tab, title, description, icon } = params;
+
+    return (
+      <button
+        type="button"
+        onClick={() => setActiveFinanceTab(tab)}
+        className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0f4c5c]/40 hover:shadow-md"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0f4c5c]/10 text-[#0f4c5c]">
+            {icon}
+          </span>
+
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0f4c5c]">
+              Relatório
+            </p>
+
+            <h3 className="mt-1 text-base font-black text-neutral-950">
+              {title}
+            </h3>
+
+            <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
+              {description}
+            </p>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const renderTableHeader = (title: string) => (
+    <div className="bg-[#0f4c5c] px-4 py-3 text-white">
+      <h3 className="text-sm font-black uppercase tracking-tight">
+        {title}
+      </h3>
+    </div>
+  );
+
+  return (
+    <div id="view-financeiro" className="space-y-3 text-left animate-none">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-[#0f4c5c]" />
+
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+              AGENDASPEED
+            </p>
+
+            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+              Financeiro
+            </h2>
+          </div>
+
+          {activeFinanceTab && (
+            <button
+              type="button"
+              onClick={() => setActiveFinanceTab(null)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-slate-50 sm:w-max flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4 text-[#0f4c5c]" />
+              Voltar para opções
+            </button>
+          )}
+        </div>
       </div>
 
       {!activeFinanceTab && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <button
-            type="button"
-            onClick={() => setActiveFinanceTab('faturamento')}
-            className="min-h-[132px] rounded-2xl border border-blue-800 bg-blue-700 px-6 py-7 text-center transition-colors duration-200 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
-          >
-            <span className="flex h-full flex-col items-center justify-center gap-4">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-white">
-                <BarChart3 className="h-6 w-6" />
-              </span>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {renderFinanceOption({
+            tab: 'faturamento',
+            title: 'Faturamento',
+            description: 'Analise serviços, formas de pagamento, produção por colaborador e resumo do período.',
+            icon: <BarChart3 className="h-5 w-5" />
+          })}
 
-              <span className="text-center text-[15px] font-black uppercase tracking-[0.14em] text-white">
-                Faturamento
-              </span>
-            </span>
-          </button>
+          {renderFinanceOption({
+            tab: 'comissoes',
+            title: 'Comissões',
+            description: 'Consulte comissões por profissional e imprima fechamento individual ou geral.',
+            icon: <Coins className="h-5 w-5" />
+          })}
 
-          <button
-            type="button"
-            onClick={() => setActiveFinanceTab('comissoes')}
-            className="min-h-[132px] rounded-2xl border border-orange-700 bg-orange-600 px-6 py-7 text-center transition-colors duration-200 hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-500/20"
-          >
-            <span className="flex h-full flex-col items-center justify-center gap-4">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-white">
-                <Coins className="h-6 w-6" />
-              </span>
-
-              <span className="text-center text-[15px] font-black uppercase tracking-[0.14em] text-white">
-                Comissões
-              </span>
-            </span>
-          </button>
+          {renderFinanceOption({
+            tab: 'livroCaixa',
+            title: 'Livro Caixa',
+            description: 'Relatório simples apenas com entradas e saídas em dinheiro, com saldo inicial.',
+            icon: <WalletCards className="h-5 w-5" />
+          })}
         </div>
       )}
 
       {activeFinanceTab && (
-        <div className="bg-white border rounded-3xl p-4 shadow-xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <label className="space-y-1">
-                <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                   Data inicial
                 </span>
 
@@ -640,12 +935,12 @@ export default function FinanceView({
                   type="date"
                   value={draftPeriod.startDate}
                   onChange={(event) => handleChangeStartDate(event.target.value)}
-                  className="w-full sm:w-44 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs font-bold outline-none focus:border-orange-500"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none focus:border-[#0f4c5c] sm:w-44"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                   Data final
                 </span>
 
@@ -653,7 +948,7 @@ export default function FinanceView({
                   type="date"
                   value={draftPeriod.endDate}
                   onChange={(event) => handleChangeEndDate(event.target.value)}
-                  className="w-full sm:w-44 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs font-bold outline-none focus:border-orange-500"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none focus:border-[#0f4c5c] sm:w-44"
                 />
               </label>
 
@@ -661,22 +956,23 @@ export default function FinanceView({
                 type="button"
                 onClick={handleApplyPeriodFilter}
                 disabled={isInvalidDraftPeriod}
-                className={`rounded-xl px-4 py-3 text-xs font-black transition ${
+                className={`h-10 rounded-xl px-4 text-xs font-black transition flex items-center justify-center gap-2 ${
                   isInvalidDraftPeriod
-                    ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                    : 'bg-orange-600 text-white hover:bg-orange-700'
+                    ? 'cursor-not-allowed bg-slate-200 text-slate-400'
+                    : 'bg-[#0f4c5c] text-white hover:bg-[#123945]'
                 }`}
               >
+                <Filter className="h-4 w-4" />
                 Filtrar
               </button>
             </div>
 
             {activeFinanceTab === 'comissoes' && (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={handlePrintCommissionsThermal}
-                  className="rounded-xl bg-neutral-950 px-4 py-3 text-xs font-black text-white hover:bg-neutral-800 transition"
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945]"
                 >
                   Imprimir Filipeta
                 </button>
@@ -684,16 +980,43 @@ export default function FinanceView({
                 <button
                   type="button"
                   onClick={handlePrintCommissionsA4}
-                  className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-xs font-black text-neutral-700 hover:bg-neutral-50 transition"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
                 >
                   Imprimir A4
+                </button>
+              </div>
+            )}
+
+            {activeFinanceTab === 'livroCaixa' && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Saldo inicial
+                  </span>
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(initialCashBalance)}
+                    onChange={(event) => handleChangeInitialCashBalance(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black outline-none focus:border-[#0f4c5c] sm:w-40"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handlePrintCashBook}
+                  className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Imprimir Livro Caixa
                 </button>
               </div>
             )}
           </div>
 
           {isInvalidDraftPeriod && (
-            <p className="text-xs font-bold text-red-600">
+            <p className="px-4 pb-3 text-xs font-bold text-red-600">
               A data inicial não pode ser maior que a data final.
             </p>
           )}
@@ -701,52 +1024,32 @@ export default function FinanceView({
       )}
 
       {activeFinanceTab === 'faturamento' && (
-        <div className="space-y-6">
-          <div className="bg-white border rounded-3xl shadow-xs overflow-hidden">
-            <div className="p-5 border-b">
-              <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-widest font-mono">
-                Faturamento por Tipo de Serviço
-              </h3>
-            </div>
-
+        <div className="space-y-3">
+          <PanelCard title="Faturamento por Tipo de Serviço">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="py-3 px-4">
-                      Serviço
-                    </th>
-
-                    <th className="py-3 px-4 text-center">
-                      Atendimento
-                    </th>
-
-                    <th className="py-3 px-4 text-right">
-                      Valor individual
-                    </th>
-
-                    <th className="py-3 px-4 text-right">
-                      Total
-                    </th>
+                    <th className="px-4 py-3">Serviço</th>
+                    <th className="px-4 py-3 text-center">Atendimento</th>
+                    <th className="px-4 py-3 text-right">Valor individual</th>
+                    <th className="px-4 py-3 text-right">Total</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-slate-100">
                   {serviceRevenueRows.map((row) => (
-                    <tr key={row.serviceId}>
-                      <td className="py-3.5 px-4 font-bold text-neutral-900">
+                    <tr key={row.serviceId} className="hover:bg-slate-50">
+                      <td className="px-4 py-3.5 font-bold text-slate-900">
                         {row.serviceName}
                       </td>
-
-                      <td className="py-3.5 px-4 text-center font-bold">
+                      <td className="px-4 py-3.5 text-center font-bold">
                         {row.quantity}
                       </td>
-
-                      <td className="py-3.5 px-4 text-right font-mono font-bold">
+                      <td className="px-4 py-3.5 text-right font-bold text-slate-700">
                         {formatCurrency(row.unitValue)}
                       </td>
-
-                      <td className="py-3.5 px-4 text-right font-mono font-black">
+                      <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(row.total)}
                       </td>
                     </tr>
@@ -754,162 +1057,122 @@ export default function FinanceView({
 
                   {serviceRevenueRows.length === 0 && (
                     <tr>
-                      <td
-                        colSpan={4}
-                        className="py-8 text-center text-neutral-400"
-                      >
+                      <td colSpan={4} className="py-8 text-center text-slate-400">
                         Nenhum atendimento finalizado neste período.
                       </td>
                     </tr>
                   )}
 
-                  <tr className="bg-neutral-50">
-                    <td
-                      colSpan={3}
-                      className="py-3.5 px-4 text-right font-black uppercase"
-                    >
+                  <tr className="bg-slate-50">
+                    <td colSpan={3} className="px-4 py-3.5 text-right font-black uppercase">
                       Total
                     </td>
-
-                    <td className="py-3.5 px-4 text-right font-mono font-black">
+                    <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                       {formatCurrency(totalRevenue)}
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          </div>
+          </PanelCard>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border rounded-3xl shadow-xs overflow-hidden">
-              <div className="p-5 border-b">
-                <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-widest font-mono">
-                  Recebimento por Forma de Pagamento
-                </h3>
-              </div>
-
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <PanelCard title="Recebimento por Forma de Pagamento">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="py-3 px-4">
-                        Forma
-                      </th>
-
-                      <th className="py-3 px-4 text-right">
-                        Valor
-                      </th>
+                      <th className="px-4 py-3">Forma</th>
+                      <th className="px-4 py-3 text-right">Valor</th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-slate-100">
                     {paymentRevenueRows.map((row) => (
                       <tr key={row.paymentType}>
-                        <td className="py-3.5 px-4 font-bold text-neutral-900">
+                        <td className="px-4 py-3.5 font-bold text-slate-900">
                           {getPaymentLabel(row.paymentType)}
                         </td>
-
-                        <td className="py-3.5 px-4 text-right font-mono font-black">
+                        <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                           {formatCurrency(row.total)}
                         </td>
                       </tr>
                     ))}
 
-                    <tr className="bg-neutral-50">
-                      <td className="py-3.5 px-4 text-right font-black uppercase">
-                        Total
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-mono font-black">
+                    <tr className="bg-slate-50">
+                      <td className="px-4 py-3.5 text-right font-black uppercase">Total</td>
+                      <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-            </div>
+            </PanelCard>
 
-            <div className="bg-white border rounded-3xl shadow-xs overflow-hidden">
-              <div className="p-5 border-b">
-                <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-widest font-mono">
-                  Produzido por Colaborador
-                </h3>
-              </div>
-
+            <PanelCard title="Produzido por Colaborador">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="py-3 px-4">
-                        Colaborador
-                      </th>
-
-                      <th className="py-3 px-4 text-right">
-                        Valor
-                      </th>
+                      <th className="px-4 py-3">Colaborador</th>
+                      <th className="px-4 py-3 text-right">Valor</th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-slate-100">
                     {professionalRevenueRows.map((row) => (
                       <tr key={row.professional.id}>
-                        <td className="py-3.5 px-4 font-bold text-neutral-900">
+                        <td className="px-4 py-3.5 font-bold text-slate-900">
                           {row.professional.name}
                         </td>
-
-                        <td className="py-3.5 px-4 text-right font-mono font-black">
+                        <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                           {formatCurrency(row.total)}
                         </td>
                       </tr>
                     ))}
 
-                    <tr className="bg-neutral-50">
-                      <td className="py-3.5 px-4 text-right font-black uppercase">
-                        Total
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-mono font-black">
+                    <tr className="bg-slate-50">
+                      <td className="px-4 py-3.5 text-right font-black uppercase">Total</td>
+                      <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-            </div>
+            </PanelCard>
           </div>
 
-          <div className="bg-neutral-950 text-white rounded-3xl p-4 shadow-lg">
-            <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 font-mono">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
               Resumo do período
-            </h3>
+            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-              <div>
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400">
                   Faturamento
                 </span>
-
-                <p className="text-lg font-black">
+                <p className="text-lg font-black text-[#0f4c5c]">
                   {formatCurrency(totalRevenue)}
                 </p>
               </div>
 
-              <div>
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400">
                   Comissões
                 </span>
-
-                <p className="text-lg font-black text-red-300">
+                <p className="text-lg font-black text-slate-700">
                   {formatCurrency(totalCommissions)}
                 </p>
               </div>
 
-              <div>
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400">
                   Líquido
                 </span>
-
-                <p className="text-lg font-black">
+                <p className="text-lg font-black text-[#0f4c5c]">
                   {formatCurrency(totalRevenue - totalCommissions)}
                 </p>
               </div>
@@ -918,87 +1181,158 @@ export default function FinanceView({
         </div>
       )}
 
-      {activeFinanceTab === 'comissoes' && (
-        <div className="bg-white border rounded-3xl shadow-xs overflow-hidden">
-          <div className="p-5 border-b">
-            <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-widest font-mono">
-              Comissões da Equipe
-            </h3>
+      {activeFinanceTab === 'livroCaixa' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Saldo inicial
+              </p>
+              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                {formatCurrency(initialCashBalance)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Entradas dinheiro
+              </p>
+              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                {formatCurrency(cashBookIncomeTotal)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Saídas dinheiro
+              </p>
+              <p className="mt-1 text-xl font-black text-red-600">
+                -{formatCurrency(cashBookExpenseTotal).replace('R$', '').trim()}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Saldo final
+              </p>
+              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                {formatCurrency(cashBookFinalBalance)}
+              </p>
+            </div>
           </div>
 
+          <PanelCard title="Livro Caixa - Dinheiro">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Descrição do Serviço</th>
+                    <th className="px-4 py-3 text-right">Valor</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {cashBookRows.map((row, index) => (
+                    <tr key={`${row.date}-${row.type}-${index}`}>
+                      <td className="px-4 py-3 font-bold text-slate-900">
+                        {formatDateBr(row.date)}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">
+                        {row.type === 'despesa' ? 'Despesa' : 'Recebimento'}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">
+                        {row.description}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-black ${
+                        row.type === 'despesa' ? 'text-red-600' : 'text-[#0f4c5c]'
+                      }`}>
+                        {row.type === 'despesa'
+                          ? `-${formatCurrency(Math.abs(row.value)).replace('R$', '').trim()}`
+                          : formatCurrency(row.value)}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {cashBookRows.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-400">
+                        Nenhuma movimentação em dinheiro neste período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </PanelCard>
+        </div>
+      )}
+
+      {activeFinanceTab === 'comissoes' && (
+        <PanelCard title="Comissões da Equipe">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-neutral-100 border-b text-neutral-600 font-bold uppercase tracking-wider text-[10px]">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="py-3.5 px-4 font-mono">
-                    Colaborador
-                  </th>
-
-                  <th className="py-3.5 px-4 font-mono">
-                    Remuneração
-                  </th>
-
-                  <th className="py-3.5 px-4 font-mono text-center">
-                    Atendimento
-                  </th>
-
-                  <th className="py-3.5 px-4 font-mono text-right">
-                    Faturamento
-                  </th>
-
-                  <th className="py-3.5 px-4 font-mono text-right">
-                    Comissão Devida
-                  </th>
-
-                  <th className="py-3.5 px-4 font-mono text-right">
-                    Fechamento
-                  </th>
+                  <th className="px-4 py-3.5">Colaborador</th>
+                  <th className="px-4 py-3.5">Remuneração</th>
+                  <th className="px-4 py-3.5 text-center">Atendimento</th>
+                  <th className="px-4 py-3.5 text-right">Faturamento</th>
+                  <th className="px-4 py-3.5 text-right">Comissão Devida</th>
+                  <th className="px-4 py-3.5 text-right">Fechamento</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y font-medium text-neutral-800">
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                 {commissionRows.map((row) => (
                   <tr
                     id={`row-fin-comm-${row.professional.id}`}
                     key={row.professional.id}
-                    className="hover:bg-neutral-50/50 transition"
+                    className="transition hover:bg-slate-50"
                   >
-                    <td className="py-4 px-4 flex items-center gap-2.5">
-                      <img
-                        src={row.professional.avatar}
-                        alt="foto avatar"
-                        className="w-8 h-8 rounded-full border object-cover shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
+                    <td className="flex items-center gap-2.5 px-4 py-4">
+                      {row.professional.avatar ? (
+                        <img
+                          src={row.professional.avatar}
+                          alt="foto avatar"
+                          className="h-8 w-8 shrink-0 rounded-full border object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-slate-100 text-xs font-black text-slate-500">
+                          {row.professional.name.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
 
-                      <span className="font-extrabold text-neutral-900">
+                      <span className="font-extrabold text-slate-900">
                         {row.professional.name}
                       </span>
                     </td>
 
-                    <td className="py-4 px-4">
-                      <span className="uppercase text-[9px] font-bold font-mono tracking-wide px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-600 block w-max">
+                    <td className="px-4 py-4">
+                      <span className="block w-max rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-600">
                         {getRemunerationLabel(row.professional)}
                       </span>
                     </td>
 
-                    <td className="py-4 px-4 text-center font-bold">
+                    <td className="px-4 py-4 text-center font-bold">
                       {row.completedCount}
                     </td>
 
-                    <td className="py-4 px-4 font-mono font-bold text-right text-neutral-950">
+                    <td className="px-4 py-4 text-right font-bold text-slate-950">
                       {formatCurrency(row.totalProduced)}
                     </td>
 
-                    <td className="py-4 px-4 font-mono font-bold text-right text-red-650">
+                    <td className="px-4 py-4 text-right font-bold text-[#0f4c5c]">
                       {formatCurrency(row.commissionValue)}
                     </td>
 
-                    <td className="py-4 px-4 text-right">
+                    <td className="px-4 py-4 text-right">
                       <button
                         type="button"
                         onClick={() => handlePrintProfessionalCommission(row)}
-                        className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[10px] font-black text-neutral-700 hover:bg-neutral-50 transition"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
                       >
                         Imprimir
                       </button>
@@ -1008,37 +1342,28 @@ export default function FinanceView({
 
                 {professionals.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-neutral-400"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
                       Nenhum profissional cadastrado para cálculo de comissões.
                     </td>
                   </tr>
                 )}
 
-                <tr className="bg-neutral-50">
-                  <td
-                    colSpan={3}
-                    className="py-3.5 px-4 text-right font-black uppercase"
-                  >
+                <tr className="bg-slate-50">
+                  <td colSpan={3} className="px-4 py-3.5 text-right font-black uppercase">
                     Total
                   </td>
-
-                  <td className="py-3.5 px-4 text-right font-mono font-black">
+                  <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                     {formatCurrency(totalRevenue)}
                   </td>
-
-                  <td className="py-3.5 px-4 text-right font-mono font-black text-red-650">
+                  <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                     {formatCurrency(totalCommissions)}
                   </td>
-
-                  <td className="py-3.5 px-4" />
+                  <td className="px-4 py-3.5" />
                 </tr>
               </tbody>
             </table>
           </div>
-        </div>
+        </PanelCard>
       )}
     </div>
   );
