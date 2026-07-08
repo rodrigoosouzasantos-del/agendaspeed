@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Clock,
   MessageCircle,
+  Printer,
   UserRoundX,
   Users,
   X
@@ -227,27 +228,11 @@ function getAppointmentCardAccentClassName(status: AppointmentStatus): string {
 }
 
 function getAppointmentCardSurfaceClassName(status: AppointmentStatus): string {
-  if (isConfirmedStatus(status)) {
-    return 'border-slate-200 bg-slate-50';
-  }
-
-  if (isPendingStatus(status)) {
-    return 'border-slate-200 bg-slate-50';
-  }
-
-  if (status === 'absent') {
-    return 'border-slate-200 bg-slate-50';
-  }
-
   if (status === 'cancelled' || status === 'rescheduled') {
-    return 'border-neutral-200 bg-neutral-100/90';
+    return 'border-slate-200 bg-white';
   }
 
-  if (status === 'completed') {
-    return 'border-slate-200 bg-slate-50';
-  }
-
-  return 'border-neutral-200 bg-white';
+  return 'border-slate-200 bg-white';
 }
 
 function getAppointmentFooterStatusLabel(status: AppointmentStatus): string {
@@ -640,6 +625,84 @@ function filterAppointmentsByDashboardFilter(params: {
   }
 
   return appointments;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function printServicesAnalysisReport(params: {
+  rows: { service: Service; count: number }[];
+  startDate: string;
+  endDate: string;
+}) {
+  const { rows, startDate, endDate } = params;
+  const printWindow = window.open('', '_blank', 'width=1000,height=800');
+
+  if (!printWindow) {
+    alert('Não foi possível abrir a impressão. Verifique o bloqueador de pop-ups.');
+    return;
+  }
+
+  const rowsHtml = rows.map((row, index) => {
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(row.service.name)}</td>
+        <td>${escapeHtml(row.service.category || 'Sem categoria')}</td>
+        <td class="right">${row.count}</td>
+      </tr>
+    `;
+  }).join('');
+
+  printWindow.document.open();
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Serviços mais procurados</title>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: A4; margin: 16mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding-top: 8mm; }
+          h1 { margin: 0; text-align: center; font-size: 20px; text-transform: uppercase; }
+          p { margin: 6px 0 18px; text-align: center; color: #64748b; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #0f4c5c; color: white; padding: 9px 8px; text-align: left; text-transform: uppercase; font-size: 10px; }
+          td { border-bottom: 1px solid #e2e8f0; padding: 9px 8px; }
+          .right { text-align: right; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <h1>Serviços mais procurados</h1>
+        <p>Período: ${formatDateBr(startDate)} até ${formatDateBr(endDate)} · Emitido em ${new Date().toLocaleString('pt-BR')}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Serviço</th>
+              <th>Categoria</th>
+              <th class="right">Finalizados</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b;padding:24px;">Nenhum serviço finalizado no período selecionado.</td></tr>'}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+
+  window.setTimeout(() => {
+    printWindow.print();
+  }, 350);
 }
 
 export default function DashboardHomeView({
@@ -1125,42 +1188,6 @@ export default function DashboardHomeView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-        {filterCards.map((card) => {
-          const Icon = card.icon;
-          const isActive = activeFilter === card.value;
-
-          return (
-            <button
-              key={card.value}
-              type="button"
-              onClick={() => setActiveFilter(card.value)}
-              className={`bg-white border rounded-2xl p-3 shadow-sm text-left transition hover:shadow-md ${
-                isActive
-                  ? 'border-[#0f4c5c] ring-2 ring-[#0f4c5c]/10'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className={`w-11 h-11 rounded-2xl flex items-center justify-center ${card.iconClassName}`}>
-                  <Icon className="w-5 h-5" />
-                </span>
-
-                <span>
-                  <span className="text-[13px] font-black text-slate-700 block leading-tight">
-                    {card.label}
-                  </span>
-
-                  <span className={`text-xl font-black block mt-1 ${card.numberClassName}`}>
-                    {card.count}
-                  </span>
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="bg-[#0f4c5c] text-white px-4 py-3 flex items-center justify-between gap-3">
@@ -1177,7 +1204,7 @@ export default function DashboardHomeView({
             </span>
           </div>
 
-          <div className="p-3 bg-slate-50/70">
+          <div className="p-3 bg-[#f8fafc]">
             {renderAppointmentList(
               filteredTodayAppointments,
               'Não há agendamentos para hoje neste filtro.',
@@ -1187,7 +1214,7 @@ export default function DashboardHomeView({
         </section>
 
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="bg-[#0f4c5c] text-white px-4 py-3 flex items-center justify-between gap-3">
+          <div className="bg-[#1d6b78] text-white px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
 
@@ -1207,7 +1234,7 @@ export default function DashboardHomeView({
             </span>
           </div>
 
-          <div className="p-3 bg-slate-50/70">
+          <div className="p-3 bg-[#f8fafc]">
             {renderAppointmentList(
               filteredNextBusinessAppointments,
               'Não há agendamentos para o próximo dia útil neste filtro.',
@@ -1231,13 +1258,28 @@ export default function DashboardHomeView({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowServicesAnalysis(false)}
-                className="text-zinc-400 hover:text-zinc-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => printServicesAnalysisReport({
+                    rows: serviceAnalysisRows,
+                    startDate: periodDates.startDate,
+                    endDate: periodDates.endDate
+                  })}
+                  className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945] flex items-center gap-1.5"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Imprimir
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowServicesAnalysis(false)}
+                  className="text-zinc-400 hover:text-zinc-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -1333,7 +1375,7 @@ export default function DashboardHomeView({
 
                       <div className="w-full bg-neutral-150 h-2 rounded-full overflow-hidden">
                         <div
-                          className="bg-neutral-900 h-full rounded-full"
+                          className="bg-[#0f4c5c] h-full rounded-full"
                           style={{ width: `${width}%` }}
                         />
                       </div>
