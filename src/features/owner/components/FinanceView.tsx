@@ -210,6 +210,7 @@ function buildPrintWindow(params: {
           body {
             width: ${width};
             margin: 0 auto;
+            padding-top: 12mm;
             font-family: Arial, sans-serif;
             color: #111827;
             font-size: ${fontSize};
@@ -756,6 +757,110 @@ export default function FinanceView({
     });
   };
 
+  const handlePrintRevenueReport = () => {
+    const serviceRowsHtml = serviceRevenueRows.map((row) => {
+      return `
+        <tr>
+          <td>${escapeHtml(row.serviceName)}</td>
+          <td class="right">${row.quantity}</td>
+          <td class="right">${formatCurrency(row.unitValue)}</td>
+          <td class="right">${formatCurrency(row.total)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const paymentRowsHtml = paymentRevenueRows.map((row) => {
+      return `
+        <tr>
+          <td>${escapeHtml(getPaymentLabel(row.paymentType))}</td>
+          <td class="right">${formatCurrency(row.total)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const professionalRowsHtml = professionalRevenueRows.map((row) => {
+      return `
+        <tr>
+          <td>${escapeHtml(row.professional.name)}</td>
+          <td class="right">${formatCurrency(row.total)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    buildPrintWindow({
+      title: 'Relatório de Faturamento',
+      body: `
+        ${buildEstablishmentPrintHeader({
+          companyName,
+          companyAddress,
+          companyPhone,
+          reportTitle: 'Relatório de Faturamento',
+          period
+        })}
+
+        <h2>Faturamento por tipo de serviço</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Serviço</th>
+              <th class="right">Atendimento</th>
+              <th class="right">Valor individual</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${serviceRowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b;">Nenhum atendimento finalizado no período.</td></tr>'}
+          </tbody>
+        </table>
+
+        <br />
+
+        <h2>Recebimento por forma de pagamento</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Forma</th>
+              <th class="right">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${paymentRowsHtml}
+          </tbody>
+        </table>
+
+        <br />
+
+        <h2>Produzido por colaborador</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Colaborador</th>
+              <th class="right">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${professionalRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Faturamento bruto</span>
+            <span>${formatCurrency(totalRevenue)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Comissões</span>
+            <span>${formatCurrency(totalCommissions)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Líquido estimado</span>
+            <span>${formatCurrency(totalRevenue - totalCommissions)}</span>
+          </div>
+        </div>
+      `
+    });
+  };
+
   const handlePrintCashBook = () => {
     const rowsHtml = cashBookRows.map((row) => {
       const formattedValue =
@@ -966,6 +1071,17 @@ export default function FinanceView({
                 Filtrar
               </button>
             </div>
+
+            {activeFinanceTab === 'faturamento' && (
+              <button
+                type="button"
+                onClick={handlePrintRevenueReport}
+                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Faturamento
+              </button>
+            )}
 
             {activeFinanceTab === 'comissoes' && (
               <div className="flex flex-col gap-2 sm:flex-row">
