@@ -365,7 +365,7 @@ export default function SettingsView({
                 />
               </Field>
 
-              <Field label="WhatsApp do dono / envio de mensagens">
+              <Field label="WhatsApp contato">
                 <input
                   id="input-config-phone"
                   type="text"
@@ -396,8 +396,8 @@ export default function SettingsView({
                 </h4>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-                <Field label="Endereço" className="md:col-span-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-8">
+                <Field label="Endereço" className="md:col-span-4">
                   <input
                     type="text"
                     value={addressParts.street}
@@ -407,7 +407,7 @@ export default function SettingsView({
                   />
                 </Field>
 
-                <Field label="Número">
+                <Field label="Número" className="md:col-span-1">
                   <input
                     type="text"
                     value={addressParts.number}
@@ -416,7 +416,7 @@ export default function SettingsView({
                   />
                 </Field>
 
-                <Field label="Bairro" className="md:col-span-2">
+                <Field label="Bairro" className="md:col-span-3">
                   <input
                     type="text"
                     value={addressParts.neighborhood}
@@ -425,7 +425,7 @@ export default function SettingsView({
                   />
                 </Field>
 
-                <Field label="CEP">
+                <Field label="CEP" className="md:col-span-2">
                   <input
                     type="text"
                     value={addressParts.zipCode}
@@ -435,7 +435,7 @@ export default function SettingsView({
                   />
                 </Field>
 
-                <Field label="Cidade / UF" className="md:col-span-2">
+                <Field label="Cidade / UF" className="md:col-span-3">
                   <input
                     type="text"
                     value={addressParts.city}
@@ -771,60 +771,14 @@ export default function SettingsView({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3">
-                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <input
-                        type="checkbox"
-                        checked={bookingAllowClientConfirmation}
-                        onChange={(event) => onChangeBookingAllowClientConfirmation(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 accent-[#0f4c5c]"
-                      />
+                  <div className="rounded-2xl border border-[#0f4c5c]/15 bg-[#0f4c5c]/5 p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f4c5c]">
+                      Confirmação, cancelamento e remarcação
+                    </p>
 
-                      <span>
-                        <span className="block text-xs font-black uppercase tracking-wider text-slate-800">
-                          Cliente pode confirmar presença
-                        </span>
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          Ativa o botão de confirmação no link do cliente.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <input
-                        type="checkbox"
-                        checked={bookingAllowClientCancellation}
-                        onChange={(event) => onChangeBookingAllowClientCancellation(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 accent-[#0f4c5c]"
-                      />
-
-                      <span>
-                        <span className="block text-xs font-black uppercase tracking-wider text-slate-800">
-                          Cliente pode cancelar
-                        </span>
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          Respeita a antecedência mínima definida.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <input
-                        type="checkbox"
-                        checked={bookingAllowClientReschedule}
-                        onChange={(event) => onChangeBookingAllowClientReschedule(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 accent-[#0f4c5c]"
-                      />
-
-                      <span>
-                        <span className="block text-xs font-black uppercase tracking-wider text-slate-800">
-                          Cliente pode remarcar
-                        </span>
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          Respeita a antecedência mínima definida.
-                        </span>
-                      </span>
-                    </label>
+                    <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-500">
+                      Recursos automáticos do AgendaSpeed. O cliente recebe o link seguro para confirmar, cancelar ou remarcar conforme as regras do sistema.
+                    </p>
                   </div>
                 </div>
               )}
