@@ -22,6 +22,21 @@ import React, {
 } from 'react';
 
 import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Instagram,
+  MapPin,
+  MessageCircle,
+  Phone,
+  User,
+  Users,
+  Zap
+} from 'lucide-react';
+
+import {
   Appointment,
   EstablishmentConfig,
   Professional,
@@ -29,8 +44,10 @@ import {
 } from '../../types';
 
 import {
+  BookingDateOption,
   BookingScheduleDay,
   BookingStep,
+  BookingTimeSlot,
   ClientBookingProps
 } from './booking.types';
 
@@ -43,12 +60,6 @@ import {
   getAvailableProfessionalsForService
 } from './booking.utils';
 
-import BookingHeader from './components/BookingHeader';
-import ServiceSelectionStep from './components/ServiceSelectionStep';
-import ProfessionalSelectionStep from './components/ProfessionalSelectionStep';
-import DateTimeSelectionStep from './components/DateTimeSelectionStep';
-import ClientInfoStep from './components/ClientInfoStep';
-import BookingSuccessView from './components/BookingSuccessView';
 import { supabase } from '../../lib/supabase';
 
 
@@ -474,6 +485,699 @@ function buildClientFollowUpWhatsappUrl(params: {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
+
+function formatPublicCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(Number(value) || 0);
+}
+
+function formatPublicDuration(minutes: number): string {
+  const safeMinutes = Number(minutes) || 0;
+
+  if (safeMinutes >= 60) {
+    const hours = Math.floor(safeMinutes / 60);
+    const remainingMinutes = safeMinutes % 60;
+
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
+  }
+
+  return `${safeMinutes} min`;
+}
+
+function formatPublicPhone(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  const localDigits = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
+
+  if (localDigits.length <= 2) {
+    return localDigits;
+  }
+
+  if (localDigits.length <= 6) {
+    return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2)}`;
+  }
+
+  if (localDigits.length <= 10) {
+    return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2, 6)}-${localDigits.slice(6)}`;
+  }
+
+  return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2, 7)}-${localDigits.slice(7, 11)}`;
+}
+
+function normalizePublicAddress(address: string): string {
+  return String(address || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' - ');
+}
+
+function getFirstName(value: string): string {
+  return String(value || '').trim().split(/\s+/)[0] || value;
+}
+
+function BookingStepShell({
+  title,
+  description,
+  onBack,
+  children
+}: {
+  title: string;
+  description: string;
+  onBack: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
+      <div className="mb-4 flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-[#0f4c5c] shadow-sm transition hover:border-[#0f4c5c]/35 hover:bg-[#0f4c5c]/5"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f4c5c] sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      {children}
+    </main>
+  );
+}
+
+function BookingHeader({
+  logoUrl,
+  coverUrl,
+  companyName,
+  companyAddress,
+  companyPhone,
+  instagram,
+  onNavigateBack
+}: {
+  logoUrl: string;
+  coverUrl?: string;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  instagram: string;
+  onNavigateBack: () => void;
+}) {
+  const formattedAddress = normalizePublicAddress(companyAddress);
+
+  return (
+    <header className="bg-slate-50 pb-4">
+      <div className="mx-auto w-full max-w-6xl px-3 pt-3 sm:px-4 sm:pt-5">
+        {coverUrl ? (
+          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-1.5 shadow-sm sm:p-2">
+            <img
+              src={coverUrl}
+              alt={`Fachada ${companyName}`}
+              className="h-44 w-full rounded-[1.35rem] object-cover sm:h-60 lg:h-72"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        ) : (
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0f4c5c]">
+              AgendaSpeed
+            </p>
+          </div>
+        )}
+
+        <div className="relative z-10 mx-auto -mt-8 w-[calc(100%-1.5rem)] max-w-3xl rounded-[1.75rem] border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur sm:-mt-10 sm:p-5">
+          <div className="flex items-center gap-4">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={`Logo ${companyName}`}
+                className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 bg-white object-contain p-1.5 shadow-sm"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-[#0f4c5c]/5 text-[#0f4c5c] shadow-sm">
+                <Zap className="h-7 w-7" />
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h1 className="truncate text-xl font-black tracking-tight text-[#0f4c5c] sm:text-2xl">
+                  {companyName || 'AgendaSpeed'}
+                </h1>
+
+                <button
+                  type="button"
+                  onClick={onNavigateBack}
+                  className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-[#0f4c5c]/35 hover:text-[#0f4c5c] sm:inline-flex"
+                >
+                  Voltar
+                </button>
+              </div>
+
+              <div className="mt-2 space-y-1.5 text-xs font-semibold leading-relaxed text-slate-500">
+                {formattedAddress && (
+                  <p className="flex items-start gap-1.5">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0f4c5c]" />
+                    <span>{formattedAddress}</span>
+                  </p>
+                )}
+
+                {companyPhone && (
+                  <p className="flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#0f4c5c]" />
+                    <span>{formatPublicPhone(companyPhone)}</span>
+                  </p>
+                )}
+
+                {instagram && (
+                  <p className="flex items-center gap-1.5">
+                    <Instagram className="h-3.5 w-3.5 shrink-0 text-[#0f4c5c]" />
+                    <span>{instagram}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ServiceSelectionStep({
+  services,
+  categories,
+  activeCategory,
+  onChangeCategory,
+  onSelectService
+}: {
+  services: Service[];
+  categories: string[];
+  activeCategory: string;
+  onChangeCategory: (category: string) => void;
+  onSelectService: (service: Service) => void;
+}) {
+  return (
+    <main className="mx-auto w-full max-w-6xl px-3 pb-8 sm:px-4">
+      <div className="sticky top-0 z-20 -mx-3 border-y border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto whitespace-nowrap pb-0.5">
+          {categories.map((category) => {
+            const isActive = activeCategory === category;
+
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => onChangeCategory(category)}
+                className={`shrink-0 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.08em] shadow-sm transition ${
+                  isActive
+                    ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/35 hover:text-[#0f4c5c]'
+                }`}
+              >
+                {category}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {services.map((service) => (
+          <article
+            key={service.id}
+            className="group relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#0f4c5c]/35 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex rounded-full border border-[#0f4c5c]/15 bg-[#0f4c5c]/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#0f4c5c]">
+                  {service.category || 'Serviço'}
+                </span>
+
+                <h2 className="mt-3 line-clamp-2 text-base font-black leading-tight text-[#0f4c5c] sm:text-lg">
+                  {service.name}
+                </h2>
+              </div>
+
+              <div className="shrink-0 rounded-2xl bg-[#0f4c5c] px-3 py-2 text-right text-white shadow-sm">
+                <span className="block text-[9px] font-black uppercase leading-none text-white/70">
+                  A partir de
+                </span>
+                <strong className="block text-sm font-black leading-tight">
+                  {formatPublicCurrency(service.price)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                <Clock className="h-3.5 w-3.5 text-[#0f4c5c]" />
+                {formatPublicDuration(service.duration)}
+              </span>
+
+              {service.requireDeposit && service.depositValue !== null && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                  Sinal de {formatPublicCurrency(service.depositValue)}
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 line-clamp-2 min-h-[38px] text-sm font-medium leading-relaxed text-slate-500">
+              {service.description || 'Serviço disponível para agendamento.'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => onSelectService(service)}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0f4c5c] px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#123945]"
+            >
+              Escolher serviço
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </article>
+        ))}
+
+        {services.length === 0 && (
+          <div className="col-span-full rounded-[1.6rem] border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">
+            Nenhum serviço disponível nesta categoria.
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function ProfessionalSelectionStep({
+  selectedService,
+  selectedProfessional,
+  availableProfessionals,
+  onSelectProfessional,
+  onBack
+}: {
+  selectedService: Service;
+  selectedProfessional: Professional | null;
+  availableProfessionals: Professional[];
+  onSelectProfessional: (professional: Professional) => void;
+  onBack: () => void;
+}) {
+  return (
+    <BookingStepShell
+      title="Escolha o profissional"
+      description="Toque em quem você prefere para realizar o atendimento."
+      onBack={onBack}
+    >
+      <div className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-[#0f4c5c] px-4 py-3 text-white">
+          <Users className="h-4 w-4" />
+          <h2 className="text-sm font-black">Profissionais disponíveis</h2>
+        </div>
+
+        <div className="divide-y divide-slate-100 p-2">
+          {availableProfessionals.map((professional) => {
+            const isSelected = selectedProfessional?.id === professional.id;
+
+            return (
+              <button
+                key={professional.id}
+                type="button"
+                onClick={() => onSelectProfessional(professional)}
+                className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                  isSelected ? 'bg-[#0f4c5c]/5' : 'hover:bg-slate-50'
+                }`}
+              >
+                {professional.avatar ? (
+                  <img
+                    src={professional.avatar}
+                    alt={professional.name}
+                    className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[#0f4c5c]">
+                    <User className="h-7 w-7" />
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-black text-[#0f4c5c]">
+                    {professional.name}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {professional.role || 'Profissional'}
+                  </p>
+                  <span className="mt-2 inline-flex rounded-full bg-[#0f4c5c]/5 px-2.5 py-1 text-[11px] font-black text-[#0f4c5c]">
+                    {formatPublicCurrency(selectedService.price)}
+                  </span>
+                </div>
+
+                <ChevronRight className="h-5 w-5 shrink-0 text-[#0f4c5c]" />
+              </button>
+            );
+          })}
+
+          {availableProfessionals.length === 0 && (
+            <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+              Nenhum profissional disponível para este serviço.
+            </div>
+          )}
+        </div>
+      </div>
+    </BookingStepShell>
+  );
+}
+
+function DateTimeSelectionStep({
+  selectedService,
+  selectedProfessional,
+  selectedDate,
+  selectedTime,
+  dateOptions,
+  timeSlots,
+  onChangeDate,
+  onChangeTime,
+  onBack,
+  onNextStep
+}: {
+  selectedService: Service;
+  selectedProfessional: Professional;
+  selectedDate: string;
+  selectedTime: string;
+  dateOptions: BookingDateOption[];
+  timeSlots: BookingTimeSlot[];
+  onChangeDate: (date: string) => void;
+  onChangeTime: (time: string) => void;
+  onBack: () => void;
+  onNextStep: () => void;
+}) {
+  return (
+    <BookingStepShell
+      title="Escolha a data e o horário"
+      description={`Agendamento com ${selectedProfessional.name} para ${selectedService.name}.`}
+      onBack={onBack}
+    >
+      <div className="space-y-3">
+        <section className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-[#0f4c5c] px-4 py-3 text-white">
+            <CalendarDays className="h-4 w-4" />
+            <h2 className="text-sm font-black">Escolha uma data</h2>
+          </div>
+
+          <div className="no-scrollbar flex gap-2 overflow-x-auto p-3">
+            {dateOptions.map((dateOption) => {
+              const isSelected = selectedDate === dateOption.dateStr;
+
+              return (
+                <button
+                  key={dateOption.dateStr}
+                  type="button"
+                  onClick={() => onChangeDate(dateOption.dateStr)}
+                  className={`min-w-[104px] rounded-2xl border px-4 py-3 text-center shadow-sm transition ${
+                    isSelected
+                      ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
+                      : 'border-slate-200 bg-slate-50 text-[#0f4c5c] hover:border-[#0f4c5c]/35 hover:bg-white'
+                  }`}
+                >
+                  <span className="block text-[10px] font-black uppercase tracking-[0.12em]">
+                    {dateOption.dayOfWeekStr}
+                  </span>
+                  <strong className="mt-1 block text-sm font-black">
+                    {dateOption.label}
+                  </strong>
+                  {isSelected && <CheckCircle2 className="mx-auto mt-2 h-4 w-4" />}
+                </button>
+              );
+            })}
+
+            {dateOptions.length === 0 && (
+              <div className="w-full rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+                Nenhuma data disponível no momento.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-[#0f4c5c]/90 px-4 py-3 text-white">
+            <Clock className="h-4 w-4" />
+            <h2 className="text-sm font-black">Escolha um horário</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
+            {timeSlots.map((slot) => {
+              const isSelected = selectedTime === slot.time;
+
+              return (
+                <button
+                  key={slot.time}
+                  type="button"
+                  onClick={() => onChangeTime(slot.time)}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-black shadow-sm transition ${
+                    isSelected
+                      ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
+                      : 'border-slate-200 bg-slate-50 text-[#0f4c5c] hover:border-[#0f4c5c]/35 hover:bg-white'
+                  }`}
+                >
+                  {slot.time}
+                </button>
+              );
+            })}
+
+            {timeSlots.length === 0 && (
+              <div className="col-span-full rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+                Escolha uma data disponível para visualizar os horários.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-[#0f4c5c]/35 hover:text-[#0f4c5c]"
+          >
+            Voltar
+          </button>
+
+          <button
+            type="button"
+            onClick={onNextStep}
+            disabled={!selectedDate || !selectedTime}
+            className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+              selectedDate && selectedTime
+                ? 'bg-[#0f4c5c] text-white hover:bg-[#123945]'
+                : 'cursor-not-allowed bg-slate-200 text-slate-400'
+            }`}
+          >
+            Continuar
+          </button>
+        </div>
+      </div>
+    </BookingStepShell>
+  );
+}
+
+function ClientInfoStep({
+  selectedService,
+  selectedProfessional,
+  selectedDate,
+  selectedTime,
+  clientName,
+  clientPhone,
+  clientEmail,
+  notes,
+  onChangeClientName,
+  onChangeClientPhone,
+  onChangeClientEmail,
+  onChangeNotes,
+  onBack,
+  onNextStep
+}: {
+  selectedService: Service;
+  selectedProfessional: Professional;
+  selectedDate: string;
+  selectedTime: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string;
+  notes: string;
+  onChangeClientName: (value: string) => void;
+  onChangeClientPhone: (value: string) => void;
+  onChangeClientEmail: (value: string) => void;
+  onChangeNotes: (value: string) => void;
+  onBack: () => void;
+  onNextStep: () => void;
+}) {
+  return (
+    <BookingStepShell
+      title="Dados do cliente"
+      description="Informe seu nome e WhatsApp para continuar."
+      onBack={onBack}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onNextStep();
+        }}
+        className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+      >
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
+          <strong className="block text-[#0f4c5c]">Resumo</strong>
+          {selectedService.name} com {selectedProfessional.name} em {formatDateBr(selectedDate)} às {selectedTime}.
+        </div>
+
+        <div className="space-y-3">
+          <label className="block space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Nome completo</span>
+            <div className="relative">
+              <User className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={clientName}
+                onChange={(event) => onChangeClientName(event.target.value)}
+                placeholder="Digite seu nome completo"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">WhatsApp</span>
+            <div className="relative">
+              <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+              <input
+                type="tel"
+                value={clientPhone}
+                onChange={(event) => onChangeClientPhone(event.target.value)}
+                placeholder="(99) 99999-9999"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
+                required
+              />
+            </div>
+          </label>
+
+          <input
+            type="hidden"
+            value={clientEmail}
+            onChange={(event) => onChangeClientEmail(event.target.value)}
+          />
+
+          <input
+            type="hidden"
+            value={notes}
+            onChange={(event) => onChangeNotes(event.target.value)}
+          />
+
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold leading-relaxed text-slate-500">
+            Usaremos estes dados apenas para identificar seu agendamento e permitir contato pelo WhatsApp.
+          </p>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-[#0f4c5c]/35 hover:text-[#0f4c5c]"
+          >
+            Voltar
+          </button>
+
+          <button
+            type="submit"
+            disabled={!clientName.trim() || !clientPhone.trim()}
+            className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+              clientName.trim() && clientPhone.trim()
+                ? 'bg-[#0f4c5c] text-white hover:bg-[#123945]'
+                : 'cursor-not-allowed bg-slate-200 text-slate-400'
+            }`}
+          >
+            Continuar
+          </button>
+        </div>
+      </form>
+    </BookingStepShell>
+  );
+}
+
+function BookingSuccessView({
+  selectedService,
+  selectedProfessional,
+  selectedDate,
+  selectedTime,
+  clientName,
+  companyName,
+  companyAddress,
+  whatsappUrl,
+  onNavigateBack
+}: {
+  selectedService: Service | null;
+  selectedProfessional: Professional | null;
+  selectedDate: string;
+  selectedTime: string;
+  clientName: string;
+  clientPhone: string;
+  companyName: string;
+  companyAddress: string;
+  whatsappUrl: string;
+  onNavigateBack: () => void;
+}) {
+  return (
+    <main className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center px-4 py-8">
+      <div className="w-full rounded-[1.8rem] border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0f4c5c]/10 text-[#0f4c5c]">
+          <CheckCircle2 className="h-8 w-8" />
+        </div>
+
+        <h1 className="mt-4 text-2xl font-black text-[#0f4c5c]">
+          Horário marcado com sucesso!
+        </h1>
+        <p className="mt-2 text-sm font-medium text-slate-500">
+          {getFirstName(clientName)}, seu agendamento foi registrado. Envie a confirmação pelo WhatsApp para o estabelecimento receber os dados.
+        </p>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left text-sm font-semibold text-slate-600">
+          <p><strong className="text-[#0f4c5c]">Serviço:</strong> {selectedService?.name || '-'}</p>
+          <p><strong className="text-[#0f4c5c]">Profissional:</strong> {selectedProfessional?.name || '-'}</p>
+          <p><strong className="text-[#0f4c5c]">Data:</strong> {formatDateBr(selectedDate)} às {selectedTime}</p>
+          <p><strong className="text-[#0f4c5c]">Local:</strong> {normalizePublicAddress(companyAddress) || companyName}</p>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          {whatsappUrl && (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123945]"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Enviar no WhatsApp
+            </a>
+          )}
+
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-[#0f4c5c]/35 hover:text-[#0f4c5c]"
+          >
+            Fazer novo agendamento
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function ClientBookingFeedbackModal({
   title,
   description,
@@ -485,7 +1189,7 @@ function ClientBookingFeedbackModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-neutral-200">
         <div className="flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0f4c5c]/10 text-[#0f4c5c]">
             <span className="text-xl font-black">
               !
             </span>
@@ -506,7 +1210,7 @@ function ClientBookingFeedbackModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl bg-orange-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-orange-700"
+            className="rounded-2xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-[#123945]"
           >
             Entendi
           </button>
@@ -801,11 +1505,12 @@ export default function ClientBooking({
   ]);
 
   const coverUrl =
-    'cover' in config
+    String(config.coverImage || '') ||
+    ('cover' in config
       ? String(config.cover || '')
       : 'coverUrl' in config
         ? String(config.coverUrl || '')
-        : '';
+        : '');
 
   const whatsappUrl = createdWhatsappUrl;
 
@@ -1105,10 +1810,10 @@ export default function ClientBooking({
 
   if (loadingRemoteContext) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
         <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-orange-100 border-t-orange-600" />
-          <h1 className="text-xl font-black text-neutral-950">Carregando vitrine...</h1>
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#0f4c5c]/10 border-t-[#0f4c5c]" />
+          <h1 className="text-xl font-black text-[#0f4c5c]">Carregando vitrine...</h1>
           <p className="mt-2 text-sm text-neutral-500">Buscando dados reais do estabelecimento.</p>
         </div>
       </div>
@@ -1117,15 +1822,15 @@ export default function ClientBooking({
 
   if (remoteContextError) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
         <div className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-black text-red-600">!</div>
-          <h1 className="text-xl font-black text-neutral-950">Vitrine indisponível</h1>
+          <h1 className="text-xl font-black text-[#0f4c5c]">Vitrine indisponível</h1>
           <p className="mt-2 text-sm leading-relaxed text-neutral-600">{remoteContextError}</p>
           <button
             type="button"
             onClick={onNavigateBack}
-            className="mt-6 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-black text-white hover:bg-orange-700"
+            className="mt-6 rounded-2xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white hover:bg-[#123945]"
           >
             Voltar
           </button>
@@ -1135,7 +1840,7 @@ export default function ClientBooking({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-[#0f4c5c] font-sans">
       {currentStep === 1 && (
         <BookingHeader
           logoUrl={config.logo}
@@ -1226,15 +1931,15 @@ export default function ClientBooking({
       )}
 
       <footer className="py-8 flex justify-center">
-        <div className="inline-flex items-center gap-2 text-neutral-900">
-          <span className="w-9 h-9 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-sm">
+        <div className="inline-flex items-center gap-2 text-[#0f4c5c]">
+          <span className="w-9 h-9 rounded-xl bg-[#0f4c5c] text-white flex items-center justify-center shadow-sm">
             <span className="text-lg font-black leading-none">
               ⚡
             </span>
           </span>
 
           <span className="text-lg font-black tracking-tight">
-            Agenda<span className="text-orange-600">Speed</span>
+            Agenda<span className="text-[#0f4c5c]">Speed</span>
           </span>
         </div>
       </footer>
