@@ -2710,7 +2710,7 @@ ${professionalAccessLink}`);
       return;
     }
 
-    alert("Configurações da empresa salvas com sucesso!");
+    // Configurações salvas sem alerta nativo para manter a experiência limpa.
   };
 
   const handleAddManualClient = (clientData: {

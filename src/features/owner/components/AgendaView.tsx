@@ -118,7 +118,7 @@ interface AvailableSlot {
   time: string;
 }
 
-const LOOKAHEAD_DAYS = 7;
+const DEFAULT_LOOKAHEAD_DAYS = 7;
 
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
@@ -840,11 +840,21 @@ export default function AgendaView({
     setShowPastProfessionalAgendaSlots(false);
   }, [selectedProfessionalId, selectedDate]);
 
+  const agendaLookaheadDays = useMemo(() => {
+    const configuredDays = Number(config.maxFutureDays);
+
+    if (!Number.isFinite(configuredDays) || configuredDays <= 0) {
+      return DEFAULT_LOOKAHEAD_DAYS;
+    }
+
+    return Math.min(Math.max(Math.floor(configuredDays), 1), 90);
+  }, [config.maxFutureDays]);
+
   const dateOptions = useMemo(() => {
-    return Array.from({ length: LOOKAHEAD_DAYS }, (_, index) => {
+    return Array.from({ length: agendaLookaheadDays }, (_, index) => {
       return addDays(todayStr, index);
     });
-  }, [todayStr]);
+  }, [agendaLookaheadDays, todayStr]);
 
   const activeServices = useMemo(() => {
     const normalizedSearch = normalizeText(serviceSearch);
@@ -1761,7 +1771,7 @@ export default function AgendaView({
                   ? `Mostrando disponibilidade para ${formatDateBr(selectedDate)}.`
                   : selectedService
                     ? `Apenas profissionais que realizam ${selectedService.name}.`
-                    : `Consulte disponibilidade nos próximos ${LOOKAHEAD_DAYS} dias.`}
+                    : `Consulte disponibilidade nos próximos ${agendaLookaheadDays} dias.`}
             </p>
           </div>
 
