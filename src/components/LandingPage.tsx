@@ -8,7 +8,6 @@ import {
   Check,
   ChevronRight,
   Gift,
-  Link as LinkIcon,
   MessageCircle,
   PanelRight,
   RefreshCw,
@@ -22,7 +21,10 @@ interface LandingPageProps {
   onSetInitialRole: (role: 'owner' | 'professional') => void;
 }
 
-const features = [
+const WHATSAPP_SPECIALIST_URL =
+  'https://wa.me/551491096161?text=Ol%C3%A1%2C%20quero%20conhecer%20melhor%20o%20AgendaSpeed.';
+
+const benefits = [
   {
     icon: <CalendarCheck2 className="h-5 w-5" />,
     title: 'Agenda automática',
@@ -45,7 +47,7 @@ const features = [
   },
 ];
 
-const planItems = [
+const includedItems = [
   'Agenda online',
   'Link público para clientes',
   'Painel do dono',
@@ -59,7 +61,7 @@ const planItems = [
 function Logo() {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-[0_14px_28px_rgba(249,115,22,0.28)]">
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)]">
         <Zap className="h-5 w-5 fill-current" />
       </span>
 
@@ -67,6 +69,26 @@ function Logo() {
         Agenda<span className="text-orange-500">Speed</span>
       </span>
     </div>
+  );
+}
+
+function WhatsAppButton({
+  className = '',
+  children = 'Falar com especialista',
+}: {
+  className?: string;
+  children?: string;
+}) {
+  return (
+    <a
+      href={WHATSAPP_SPECIALIST_URL}
+      target="_blank"
+      rel="noreferrer"
+      className={className}
+    >
+      <MessageCircle className="h-4 w-4" />
+      {children}
+    </a>
   );
 }
 
@@ -84,7 +106,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             <Logo />
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 sm:flex">
             <button
               type="button"
               onClick={() => onNavigate('login')}
@@ -93,40 +115,51 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               Entrar
             </button>
 
+            <WhatsAppButton className="inline-flex items-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 px-4 py-2 text-xs font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15" />
+
             <button
               type="button"
               onClick={() => onNavigate('register')}
-              className="hidden rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600 sm:inline-flex"
+              className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600"
             >
-              Testar grátis
+              Criar minha agenda
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('register')}
+            className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600 sm:hidden"
+          >
+            Criar
+          </button>
         </div>
       </header>
 
       <main>
-        <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
+        <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-6xl items-center gap-9 px-4 py-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-300">
               <Gift className="h-4 w-4" />
               21 dias grátis • sem fidelidade
             </div>
 
-            <h1 className="mt-6 max-w-3xl text-4xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl">
-              Agenda online premium
+            <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.02] tracking-[-0.045em] sm:text-6xl">
+              Sua agenda online, simples e profissional.
             </h1>
 
             <p className="mt-5 max-w-xl text-base font-medium leading-8 text-slate-300 sm:text-lg">
-              Proporcione comodidade ao seu cliente e agilize o seu atendimento.
+              Proporcione comodidade ao seu cliente e ganhe agilidade no atendimento,
+              sem depender de troca de mensagens o dia todo.
             </p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={() => onNavigate('register')}
                 className="group inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.30)] transition hover:bg-orange-600"
               >
-                Testar grátis por 21 dias
+                Criar minha agenda
                 <ChevronRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </button>
 
@@ -137,6 +170,8 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               >
                 Ver exemplo
               </button>
+
+              <WhatsAppButton className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-500/35 bg-orange-500/10 px-6 py-4 text-sm font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15" />
             </div>
 
             <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -151,13 +186,13 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative mx-auto w-full max-w-[520px] lg:mr-0">
             <div className="absolute -inset-5 rounded-[2.5rem] bg-orange-500/12 blur-3xl" />
             <div className="relative overflow-hidden rounded-[2rem] border border-white/12 bg-white p-2 shadow-[0_28px_90px_rgba(0,0,0,0.35)]">
               <img
                 src="/agenda-vitrine-preview.jpeg"
                 alt="Exemplo da vitrine pública AgendaSpeed"
-                className="h-auto w-full rounded-[1.55rem] object-cover"
+                className="max-h-[560px] w-full rounded-[1.55rem] object-cover object-top"
               />
             </div>
           </div>
@@ -170,27 +205,27 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
                 O que muda na rotina
               </span>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+              <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
                 Menos dependência do WhatsApp. Mais controle no painel.
               </h2>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {features.map((feature) => (
+              {benefits.map((benefit) => (
                 <article
-                  key={feature.title}
-                  className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm"
+                  key={benefit.title}
+                  className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-orange-500/35"
                 >
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1A3038] text-white">
-                    {feature.icon}
+                    {benefit.icon}
                   </div>
 
                   <h3 className="mt-5 text-lg font-black text-[#1A3038]">
-                    {feature.title}
+                    {benefit.title}
                   </h3>
 
                   <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                    {feature.text}
+                    {benefit.text}
                   </p>
                 </article>
               ))}
@@ -205,22 +240,26 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
                 Plano simples
               </span>
 
-              <h2 className="mt-5 text-3xl font-black tracking-[-0.04em] text-white sm:text-5xl">
+              <h2 className="mt-5 text-3xl font-extrabold tracking-[-0.04em] text-white sm:text-5xl">
                 R$ 49,90/mês
               </h2>
 
               <p className="mt-4 max-w-lg text-base font-medium leading-8 text-slate-300">
-                Teste por 21 dias sem custo. Sem fidelidade. Sem instalação para o cliente.
+                Teste por 21 dias sem custo. Sem fidelidade. Sem aplicativo para o cliente baixar.
               </p>
 
-              <button
-                type="button"
-                onClick={() => onNavigate('register')}
-                className="mt-7 inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.30)] transition hover:bg-orange-600"
-              >
-                Começar teste grátis
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </button>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('register')}
+                  className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.30)] transition hover:bg-orange-600"
+                >
+                  Começar teste grátis
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </button>
+
+                <WhatsAppButton className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-6 py-4 text-sm font-black text-white transition hover:border-orange-500/60 hover:text-orange-200" />
+              </div>
             </div>
 
             <div className="rounded-[1.6rem] border border-white/10 bg-[#0D1B20] p-5">
@@ -230,7 +269,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {planItems.map((item) => (
+                {includedItems.map((item) => (
                   <div key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-200">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-400">
                       <Check className="h-4 w-4" />
@@ -241,12 +280,9 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               </div>
 
               <div className="mt-6 rounded-2xl border border-orange-500/25 bg-orange-500/10 p-4">
-                <div className="flex items-start gap-3">
-                  <LinkIcon className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
-                  <p className="text-sm font-medium leading-6 text-slate-200">
-                    O cliente agenda pelo link, sem precisar baixar aplicativo e sem ocupar espaço no celular.
-                  </p>
-                </div>
+                <p className="text-sm font-medium leading-6 text-slate-200">
+                  O cliente agenda pelo link, sem baixar aplicativo e sem ocupar espaço no celular.
+                </p>
               </div>
             </div>
           </div>
