@@ -94,7 +94,7 @@ function WhatsAppButton({
 
 export default function LandingPage({ onNavigate }: LandingPageProps) {
   return (
-    <div className="min-h-screen bg-[#10232A] text-white font-sans">
+    <div className="min-h-screen overflow-x-hidden bg-[#10232A] text-white font-sans">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#10232A]/92 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
@@ -129,7 +129,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
         </div>
       </header>
 
-      <main>
+      <main className="overflow-x-hidden">
         <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-6xl items-center gap-9 px-4 py-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-300">
@@ -137,8 +137,8 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               21 dias grátis • sem fidelidade
             </div>
 
-            <h1 className="mx-auto mt-6 max-w-[22rem] text-center text-[2.55rem] font-extrabold leading-[1.04] tracking-[-0.045em] sm:mx-0 sm:max-w-3xl sm:text-left sm:text-6xl">
-              <span className="block sm:inline">Sua agenda online</span>
+            <h1 className="mx-auto mt-6 max-w-[21rem] text-center text-[2.38rem] font-extrabold leading-[1.04] tracking-[-0.045em] sm:mx-0 sm:max-w-3xl sm:text-left sm:text-6xl">
+              <span className="block sm:inline">Agenda online</span>
               <span className="block sm:inline"> simples e profissional.</span>
             </h1>
 
@@ -200,7 +200,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               </span>
 
               <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-                Maior autonomia operacional no painel, minimizando a necessidade do WhatsApp.
+                Seus agendamentos no piloto automático.
               </h2>
             </div>
 

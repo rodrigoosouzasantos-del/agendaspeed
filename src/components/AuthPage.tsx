@@ -4,7 +4,16 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Building, HelpCircle, Info, Loader2, Lock, Mail, Phone, ShieldCheck, User, Zap } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building,
+  Loader2,
+  Lock,
+  Mail,
+  Phone,
+  User,
+  Zap,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface AuthPageProps {
@@ -22,18 +31,11 @@ interface AuthPageProps {
 }
 
 type OwnerContext = {
-  id?: string;
-  profile_id?: string;
   full_name: string | null;
   email: string | null;
-  phone: string | null;
-  is_developer: boolean | null;
   tenant_id: string;
   tenant_name: string;
   tenant_slug: string;
-  tenant_status: string;
-  tenant_plan: string;
-  max_professionals: number;
   user_role: 'owner' | 'manager' | 'admin' | string;
   user_active?: boolean;
   is_active?: boolean;
@@ -47,9 +49,7 @@ const formatPhone = (value: string) => {
 
   if (numbers.length <= 2) return numbers;
   if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-  if (numbers.length <= 10) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
-  }
+  if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
 
   return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
 };
@@ -73,7 +73,7 @@ export default function AuthPage({
 
   useEffect(() => {
     if (initialRolePreseed === 'owner') {
-      setEmail('agendazap10@gmail.com');
+      setEmail('');
       setPassword('');
     }
   }, [initialRolePreseed]);
@@ -100,9 +100,7 @@ export default function AuthPage({
     }
 
     const ownerContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
-
-    const ownerIsActive =
-      ownerContext?.user_active === true || ownerContext?.is_active === true;
+    const ownerIsActive = ownerContext?.user_active === true || ownerContext?.is_active === true;
 
     if (!ownerContext?.tenant_id || !ownerIsActive) {
       await supabase.auth.signOut();
@@ -132,7 +130,7 @@ export default function AuthPage({
 
     if (mode === 'login') {
       if (!email.trim() || !password) {
-        setError('Por favor, preencha e-mail e senha.');
+        setError('Preencha e-mail e senha para entrar.');
         return;
       }
 
@@ -143,11 +141,11 @@ export default function AuthPage({
     }
 
     if (!salonName.trim() || !ownerName.trim() || !phone.trim() || !email.trim()) {
-      setError('Preencha os dados principais para solicitar a criação da empresa.');
+      setError('Preencha os dados para solicitar a criação da empresa.');
       return;
     }
 
-    setMessage('Cadastro recebido. Nesta fase, a liberação da empresa é feita pelo painel do desenvolvedor.');
+    setMessage('Solicitação recebida. Nossa equipe entrará em contato para liberar sua empresa.');
   };
 
   const handleForgotPassword = async () => {
@@ -157,7 +155,7 @@ export default function AuthPage({
     const loginEmail = normalizeEmail(email);
 
     if (!loginEmail) {
-      setError('Informe o e-mail para receber as instruções de redefinição de senha.');
+      setError('Informe o e-mail para receber as instruções de redefinição.');
       return;
     }
 
@@ -174,269 +172,208 @@ export default function AuthPage({
       return;
     }
 
-    setMessage('Se este e-mail estiver cadastrado, enviaremos as instruções de redefinição de senha.');
+    setMessage('Se este e-mail estiver cadastrado, enviaremos as instruções de redefinição.');
   };
 
   return (
-    <div id="auth-page" className="min-h-screen bg-neutral-50 flex flex-col justify-between font-sans">
-      {/* Header element */}
-      <header className="bg-white border-b border-neutral-200 py-4 px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <div id="auth-page" className="min-h-screen overflow-x-hidden bg-[#10232A] text-white font-sans">
+      <header className="border-b border-white/10 bg-[#10232A]/92 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
-            id="btn-back-home"
+            type="button"
             onClick={onNavigateBack}
-            className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 text-sm font-medium transition cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl text-sm font-bold text-white/80 transition hover:text-white"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar para início
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
           </button>
 
-          <div className="flex items-center space-x-1.5">
-            <div className="bg-orange-600 text-white p-1 rounded-lg">
-              <Zap className="w-5 h-5 fill-current" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">Agenda<span className="text-orange-600">Speed</span></span>
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)]">
+              <Zap className="h-5 w-5 fill-current" />
+            </span>
+
+            <span className="text-lg font-black tracking-tight text-white">
+              Agenda<span className="text-orange-500">Speed</span>
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Main card stage */}
-      <main id="auth-main" className="flex-1 flex items-center justify-center p-4 py-12 md:py-16">
-        <div className="w-full max-w-5xl bg-white rounded-3xl border border-neutral-200 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-          {/* Left panel: Auth form */}
-          <div className="lg:col-span-6 p-8 sm:p-10 flex flex-col justify-between">
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-black text-neutral-950">
-                  {mode === 'login' ? 'Acesse o AgendaSpeed' : 'Solicitar criação da empresa'}
-                </h2>
-                <p className="text-sm text-neutral-500 mt-1">
-                  {mode === 'login'
-                    ? 'Insira as credenciais cadastradas no primeiro acesso.'
-                    : 'A liberação do acesso será feita pelo administrador do sistema.'}
-                </p>
-              </div>
+      <main className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-lg items-center px-4 py-10 sm:px-6">
+        <div className="w-full rounded-[2rem] border border-white/10 bg-white p-6 text-[#1A3038] shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:p-8">
+          <div className="mb-7">
+            <p className="mb-3 inline-flex rounded-full bg-orange-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-600">
+              {mode === 'login' ? 'Acesso ao painel' : 'Criar empresa'}
+            </p>
 
-              {/* Status messaging */}
-              {error && (
-                <div id="auth-error-msg" className="bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-xs leading-relaxed font-medium">
-                  {error}
-                </div>
-              )}
-              {message && (
-                <div id="auth-success-msg" className="bg-orange-50 border border-orange-200 text-orange-850 rounded-xl p-3 text-xs leading-relaxed font-medium">
-                  {message}
-                </div>
-              )}
+            <h1 className="text-3xl font-extrabold tracking-[-0.04em] text-[#1A3038]">
+              {mode === 'login' ? 'Entrar no AgendaSpeed' : 'Solicitar criação da empresa'}
+            </h1>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === 'register' && (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">Nome do Estabelecimento</label>
-                      <div className="relative">
-                        <Building className="absolute left-3.5 top-3.5 text-neutral-400 w-4 h-4" />
-                        <input
-                          id="input-reg-salon"
-                          type="text"
-                          placeholder="Ex: Salão da Paty, Barbearia Silva"
-                          value={salonName}
-                          onChange={(event) => setSalonName(event.target.value)}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">Nome do Responsável</label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-3.5 text-neutral-400 w-4 h-4" />
-                        <input
-                          id="input-reg-owner"
-                          type="text"
-                          placeholder="Ex: João da Silva"
-                          value={ownerName}
-                          onChange={(event) => setOwnerName(event.target.value)}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">Telefone / WhatsApp Comercial</label>
-                      <div className="relative">
-                        <Phone className="absolute left-3.5 top-3.5 text-neutral-400 w-4 h-4" />
-                        <input
-                          id="input-reg-phone"
-                          type="tel"
-                          placeholder="(99) 99999-9999"
-                          value={phone}
-                          onChange={(event) => setPhone(formatPhone(event.target.value))}
-                          className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">Endereço de E-mail</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 text-neutral-400 w-4 h-4" />
-                    <input
-                      id="input-auth-email"
-                      type="email"
-                      placeholder="Ex: agendazap10@gmail.com"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light] animate-none"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {mode === 'login' && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider">Senha de Acesso</label>
-                      <button
-                        type="button"
-                        onClick={handleForgotPassword}
-                        disabled={resetLoading}
-                        className="text-xs text-orange-600 hover:underline hover:text-orange-700 font-semibold cursor-pointer disabled:opacity-60"
-                      >
-                        {resetLoading ? 'Enviando...' : 'Esqueci minha senha'}
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-3.5 text-neutral-400 w-4 h-4" />
-                      <input
-                        id="input-auth-password"
-                        type="password"
-                        placeholder="••••••••••••"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        className="w-full bg-neutral-50 border border-neutral-250 focus:border-orange-500 focus:bg-white rounded-xl py-3 pl-10 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 caret-orange-600 outline-none transition [color-scheme:light]"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  id="btn-auth-submit"
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-all mt-6 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {mode === 'login' ? 'Entrar no Sistema' : 'Solicitar Cadastro'}
-                </button>
-              </form>
-            </div>
-
-            <div className="pt-8 border-t border-neutral-100 mt-6 text-center text-xs text-neutral-500">
-              {mode === 'login' ? (
-                <p>
-                  Não tem uma conta comercial ainda?{' '}
-                  <button
-                    onClick={() => { setMode('register'); setError(''); setMessage(''); }}
-                    className="text-orange-600 hover:underline font-bold cursor-pointer"
-                  >
-                    Solicitar criação da empresa
-                  </button>
-                </p>
-              ) : (
-                <p>
-                  Já possui uma conta registrada?{' '}
-                  <button
-                    onClick={() => { setMode('login'); setError(''); setMessage(''); }}
-                    className="text-orange-600 hover:underline font-bold cursor-pointer"
-                  >
-                    Acesse seu painel
-                  </button>
-                </p>
-              )}
-            </div>
+            <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
+              {mode === 'login'
+                ? 'Informe seus dados para acessar o painel.'
+                : 'Preencha os dados abaixo para solicitar seu acesso.'}
+            </p>
           </div>
 
-          {/* Right panel: Real access information */}
-          <div className="lg:col-span-6 bg-neutral-950 text-white p-8 sm:p-10 flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-neutral-800">
-            <div className="space-y-6">
-              <div className="flex items-center gap-2">
-                <span className="bg-orange-500/10 text-orange-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-orange-500/30">
-                  Acesso Seguro
-                </span>
-                <span className="text-zinc-500 text-xs">• Supabase Auth</span>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold tracking-tight">Login real do proprietário</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Use o e-mail e a senha definidos no primeiro acesso. O sistema valida a sessão e abre somente a empresa vinculada ao usuário.
-                </p>
-              </div>
-
-              <div className="space-y-2.5">
-                <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-xl bg-orange-500/10 p-2 text-orange-400">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-orange-400 uppercase tracking-widest block font-mono">Empresa protegida</span>
-                      <span className="text-sm font-semibold text-white block mt-0.5">Acesso por vínculo no Supabase</span>
-                      <span className="text-[11px] text-zinc-500 block mt-1">O dono visualiza apenas a empresa em que está vinculado como owner/admin.</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-xl bg-sky-500/10 p-2 text-sky-400">
-                      <Building className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-sky-400 uppercase tracking-widest block font-mono">DOM CABELO</span>
-                      <span className="text-sm font-semibold text-white block mt-0.5">Primeira empresa cadastrada</span>
-                      <span className="text-[11px] text-zinc-500 block mt-1">Login atual esperado: agendazap10@gmail.com.</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-xl bg-teal-500/10 p-2 text-teal-400">
-                      <HelpCircle className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-teal-400 uppercase tracking-widest block font-mono">Sem atalhos demo</span>
-                      <span className="text-sm font-semibold text-white block mt-0.5">Fluxo real iniciado</span>
-                      <span className="text-[11px] text-zinc-500 block mt-1">Os acessos profissionais serão ligados ao Supabase em uma próxima etapa.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          {error && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold leading-relaxed text-red-700">
+              {error}
             </div>
+          )}
 
-            <div className="pt-6 border-t border-neutral-900 text-zinc-500 text-xs space-y-2 mt-6">
-              <div className="flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-orange-500 shrink-0" />
-                <span>Login validado com <strong>Supabase Auth</strong>.</span>
-              </div>
-              <p>Após o login, o AgendaSpeed busca a empresa vinculada ao usuário autenticado.</p>
+          {message && (
+            <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-3 text-sm font-semibold leading-relaxed text-orange-700">
+              {message}
             </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'register' && (
+              <>
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Nome do estabelecimento
+                  </span>
+                  <div className="relative">
+                    <Building className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={salonName}
+                      onChange={(event) => setSalonName(event.target.value)}
+                      placeholder="Ex: Studio Bella"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold text-[#1A3038] outline-none transition focus:border-orange-500 focus:bg-white"
+                    />
+                  </div>
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Nome do responsável
+                  </span>
+                  <div className="relative">
+                    <User className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={ownerName}
+                      onChange={(event) => setOwnerName(event.target.value)}
+                      placeholder="Seu nome"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold text-[#1A3038] outline-none transition focus:border-orange-500 focus:bg-white"
+                    />
+                  </div>
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    WhatsApp comercial
+                  </span>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(event) => setPhone(formatPhone(event.target.value))}
+                      placeholder="(99) 99999-9999"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold text-[#1A3038] outline-none transition focus:border-orange-500 focus:bg-white"
+                    />
+                  </div>
+                </label>
+              </>
+            )}
+
+            <label className="block space-y-1.5">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                E-mail
+              </span>
+              <div className="relative">
+                <Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="seuemail@empresa.com"
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold text-[#1A3038] outline-none transition focus:border-orange-500 focus:bg-white"
+                />
+              </div>
+            </label>
+
+            {mode === 'login' && (
+              <label className="block space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Senha
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetLoading}
+                    className="text-xs font-black text-orange-600 transition hover:text-orange-700 disabled:opacity-60"
+                  >
+                    {resetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••••••"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold text-[#1A3038] outline-none transition focus:border-orange-500 focus:bg-white"
+                  />
+                </div>
+              </label>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.26)] transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {mode === 'login' ? 'Entrar no sistema' : 'Solicitar criação'}
+            </button>
+          </form>
+
+          <div className="mt-6 border-t border-slate-100 pt-5 text-center text-sm font-medium text-slate-500">
+            {mode === 'login' ? (
+              <p>
+                Ainda não tem acesso?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="font-black text-orange-600 hover:text-orange-700"
+                >
+                  Criar empresa
+                </button>
+              </p>
+            ) : (
+              <p>
+                Já possui acesso?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="font-black text-orange-600 hover:text-orange-700"
+                >
+                  Entrar no painel
+                </button>
+              </p>
+            )}
           </div>
         </div>
       </main>
-
-      {/* Mini footer */}
-      <footer className="py-6 border-t border-neutral-200 bg-white text-center text-xs text-neutral-400">
-        <p>© 2026 AgendaSpeed. Sistema seguro de agendamento de negócios de beleza.</p>
-      </footer>
     </div>
   );
 }

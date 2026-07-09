@@ -494,7 +494,7 @@ function buildClientFollowUpWhatsappUrl(params: {
   const message = [
     'Olá,',
     '',
-    'Horário marcado com sucesso! 😊',
+    'Atendimento realizado com sucesso! 😊',
     '',
     `Cliente: ${params.clientName}`,
     `Serviço: ${params.serviceName}`,
@@ -1163,7 +1163,7 @@ function BookingSuccessView({
         </div>
 
         <h1 className="mt-4 text-2xl font-black text-[#1A3038]">
-          Horário marcado com sucesso!
+          Atendimento realizado com sucesso!
         </h1>
         <p className="mt-2 text-sm font-medium text-slate-600">
           {getFirstName(clientName)}, seu agendamento foi registrado. Envie a confirmação pelo WhatsApp para o estabelecimento receber os dados.
@@ -1754,6 +1754,44 @@ export default function ClientBooking({
 
 
     setSubmittingBooking(true);
+
+    if (isDemoBooking) {
+      const demoAppointment: Appointment = {
+        id: `demo-${Date.now()}`,
+        dateTime: `${selectedDate}T${selectedTime}`,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        clientEmail: clientEmail.trim() || undefined,
+        serviceId: selectedService.id,
+        professionalId: selectedProfessional.id,
+        price: selectedService.price,
+        status: config.autoApprove ? 'confirmed' : 'scheduled',
+        paymentType: 'pendente',
+        notes: appointmentNotes || 'Agendamento de demonstração realizado pela vitrine pública.',
+        commissionPaid: false,
+        commissionValue,
+        depositPaid: false
+      };
+
+      onAddAppointment(demoAppointment);
+
+      const demoFollowUpLink = `${window.location.origin}/meus-agendamentos/demo`;
+      const demoWhatsappUrl = buildClientFollowUpWhatsappUrl({
+        companyPhone: config.phone || '1491096161',
+        companyName: config.name || 'AgendaSpeed',
+        clientName: clientName.trim(),
+        serviceName: selectedService.name,
+        professionalName: selectedProfessional.name,
+        selectedDate,
+        selectedTime,
+        followUpLink: demoFollowUpLink
+      });
+
+      setCreatedWhatsappUrl(demoWhatsappUrl);
+      setCurrentStep(5);
+      setSubmittingBooking(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.rpc('create_public_booking', {
