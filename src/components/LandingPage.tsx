@@ -184,11 +184,11 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             </div>
 
             <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[0.95] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
-              Pare de perder cliente porque não conseguiu responder na hora.
+              Agenda online premium
             </h1>
 
             <p className="mt-6 max-w-2xl text-base font-medium leading-8 text-zinc-300 sm:text-lg">
-              Com o <strong className="font-black text-white">AgendaSpeed</strong>, seu cliente vê os horários livres e agenda sozinho pelo link — sem depender da sua resposta no WhatsApp.
+              O cliente escolhe o serviço, profissional e horário em poucos cliques. Praticidade e comodidade para o seu cliente e agilidade para o seu negócio.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
