@@ -190,6 +190,30 @@ function isPublicScheduleDayOpen(params: {
   });
 }
 
+function buildDemoOpenScheduleDays(professionals: Professional[]): BookingScheduleDay[] {
+  const today = new Date();
+  const activeProfessionals = professionals.filter((professional) => professional.active);
+  const scheduleDays: BookingScheduleDay[] = [];
+
+  for (let dayIndex = 0; dayIndex < 3; dayIndex += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + dayIndex);
+    const dateStr = getLocalDateStr(date);
+
+    activeProfessionals.forEach((professional) => {
+      scheduleDays.push({
+        id: `demo-${professional.id}-${dateStr}`,
+        professionalId: professional.id,
+        date: dateStr,
+        status: 'open',
+        isOutOfRegularSchedule: true
+      });
+    });
+  }
+
+  return scheduleDays;
+}
+
 function normalizeRemoteProfessional(professional: Professional): Professional {
   const workDays = readRemoteValue<number[]>(professional, ['workDays', 'work_days']);
   const services = readRemoteValue<string[]>(professional, ['services', 'servicesIds', 'services_ids', 'service_ids']);
@@ -637,9 +661,9 @@ function BookingHeader({
                 <button
                   type="button"
                   onClick={onNavigateBack}
-                  className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-[#E0A96D]/60 hover:text-[#1A3038] sm:inline-flex"
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-[#E0A96D]/60 hover:text-[#1A3038]"
                 >
-                  Voltar
+                  Voltar ao site
                 </button>
               </div>
 
@@ -1246,8 +1270,19 @@ export default function ClientBooking({
     ? remoteBookingContext.professionals
     : state.professionals;
 
-  const appointments = remoteBookingContext?.appointments || state.appointments;
-  const blockedIntervals = remoteBookingContext?.agendaBlocks || agendaBlocks;
+  const isDemoBooking = !publicSlug;
+  const appointments = isDemoBooking
+    ? []
+    : remoteBookingContext?.appointments || state.appointments;
+  const blockedIntervals = isDemoBooking
+    ? []
+    : remoteBookingContext?.agendaBlocks || agendaBlocks;
+
+  const demoOpenDays = useMemo(() => {
+    return isDemoBooking ? buildDemoOpenScheduleDays(professionals) : [];
+  }, [isDemoBooking, professionals]);
+
+  const effectiveAgendaOpenDays = isDemoBooking ? demoOpenDays : agendaOpenDays;
 
   const [currentStep, setCurrentStep] = useState<BookingStep>(1);
 
@@ -1426,7 +1461,7 @@ export default function ClientBooking({
       selectedService,
       appointments,
       services,
-      openDays: agendaOpenDays,
+      openDays: effectiveAgendaOpenDays,
       numberOfDays: config.maxFutureDays || 30
     });
   }, [
@@ -1434,7 +1469,7 @@ export default function ClientBooking({
     selectedProfessional,
     selectedService,
     appointments,
-    agendaOpenDays,
+    effectiveAgendaOpenDays,
     services
   ]);
 
@@ -1449,7 +1484,7 @@ export default function ClientBooking({
         selectedProfessional,
         selectedService,
         services,
-        openDays: agendaOpenDays,
+        openDays: effectiveAgendaOpenDays,
         selectedDate: dateOption.dateStr
       });
 
@@ -1468,7 +1503,7 @@ export default function ClientBooking({
     appointments,
     baseDateOptions,
     blockedIntervals,
-    agendaOpenDays,
+    effectiveAgendaOpenDays,
     selectedProfessional,
     selectedService,
     services
@@ -1480,7 +1515,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
-      openDays: agendaOpenDays,
+      openDays: effectiveAgendaOpenDays,
       selectedDate
     });
 
@@ -1500,7 +1535,7 @@ export default function ClientBooking({
     selectedService,
     services,
     blockedIntervals,
-    agendaOpenDays,
+    effectiveAgendaOpenDays,
     selectedDate
   ]);
 
@@ -1568,7 +1603,7 @@ export default function ClientBooking({
     if (
       selectedProfessional &&
       !isPublicScheduleDayOpen({
-        openDays: agendaOpenDays,
+        openDays: effectiveAgendaOpenDays,
         selectedProfessional,
         selectedDate
       })
@@ -1645,7 +1680,7 @@ export default function ClientBooking({
 
     if (
       !isPublicScheduleDayOpen({
-        openDays: agendaOpenDays,
+        openDays: effectiveAgendaOpenDays,
         selectedProfessional,
         selectedDate
       })
@@ -1683,7 +1718,7 @@ export default function ClientBooking({
       selectedProfessional,
       selectedService,
       services,
-      openDays: agendaOpenDays,
+      openDays: effectiveAgendaOpenDays,
       selectedDate
     }).some((slot) => slot.time === selectedTime && slot.available);
 

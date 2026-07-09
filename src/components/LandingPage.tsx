@@ -106,33 +106,26 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             <Logo />
           </button>
 
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onNavigate('login')}
-              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-black text-white/85 transition hover:border-orange-500/60 hover:text-white"
+              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-black text-white/85 transition hover:border-orange-500/60 hover:text-white sm:px-4"
             >
               Entrar
             </button>
 
-            <WhatsAppButton className="inline-flex items-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 px-4 py-2 text-xs font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15" />
+            <WhatsAppButton className="hidden items-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 px-4 py-2 text-xs font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15 md:inline-flex" />
 
             <button
               type="button"
               onClick={() => onNavigate('register')}
-              className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600"
+              className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600 sm:px-4"
             >
-              Criar minha agenda
+              <span className="sm:hidden">Criar</span>
+              <span className="hidden sm:inline">Criar minha agenda</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('register')}
-            className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-600 sm:hidden"
-          >
-            Criar
-          </button>
         </div>
       </header>
 
@@ -144,11 +137,12 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               21 dias grátis • sem fidelidade
             </div>
 
-            <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.02] tracking-[-0.045em] sm:text-6xl">
-              Sua agenda online, simples e profissional.
+            <h1 className="mx-auto mt-6 max-w-[22rem] text-center text-[2.55rem] font-extrabold leading-[1.04] tracking-[-0.045em] sm:mx-0 sm:max-w-3xl sm:text-left sm:text-6xl">
+              <span className="block sm:inline">Sua agenda online</span>
+              <span className="block sm:inline"> simples e profissional.</span>
             </h1>
 
-            <p className="mt-5 max-w-xl text-base font-medium leading-8 text-slate-300 sm:text-lg">
+            <p className="mx-auto mt-5 max-w-xl text-center text-base font-medium leading-8 text-slate-300 sm:mx-0 sm:text-left sm:text-lg">
               Proporcione comodidade ao seu cliente e ganhe agilidade no atendimento,
               sem depender de troca de mensagens o dia todo.
             </p>
@@ -157,7 +151,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('register')}
-                className="group inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.30)] transition hover:bg-orange-600"
+                className="group inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-4 text-[15px] font-black text-white shadow-[0_18px_40px_rgba(249,115,22,0.30)] transition hover:bg-orange-600"
               >
                 Criar minha agenda
                 <ChevronRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
@@ -166,19 +160,19 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('client-booking')}
-                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.04] px-6 py-4 text-sm font-black text-white transition hover:border-orange-500/60 hover:bg-white/[0.07]"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.04] px-6 py-4 text-[15px] font-black text-white transition hover:border-orange-500/60 hover:bg-white/[0.07]"
               >
                 Ver exemplo
               </button>
 
-              <WhatsAppButton className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-500/35 bg-orange-500/10 px-6 py-4 text-sm font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15" />
+              <WhatsAppButton className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-500/35 bg-orange-500/10 px-6 py-4 text-[15px] font-black text-orange-200 transition hover:border-orange-500/70 hover:bg-orange-500/15" />
             </div>
 
             <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {['R$ 49,90/mês', 'Sem app para baixar', 'Sem limite de profissionais'].map((item) => (
                 <div
                   key={item}
-                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-center text-xs font-black text-white"
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-center text-sm font-black text-white"
                 >
                   {item}
                 </div>
@@ -206,7 +200,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               </span>
 
               <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-                Menos dependência do WhatsApp. Mais controle no painel.
+                Maior autonomia operacional no painel, minimizando a necessidade do WhatsApp.
               </h2>
             </div>
 
@@ -214,17 +208,17 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               {benefits.map((benefit) => (
                 <article
                   key={benefit.title}
-                  className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-orange-500/35"
+                  className="rounded-[1.4rem] border border-slate-200 bg-white p-4 text-center shadow-sm transition hover:-translate-y-1 hover:border-orange-500/35"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1A3038] text-white">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-[#1A3038] text-white">
                     {benefit.icon}
                   </div>
 
-                  <h3 className="mt-5 text-lg font-black text-[#1A3038]">
+                  <h3 className="mt-4 text-base font-black text-[#1A3038]">
                     {benefit.title}
                   </h3>
 
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
+                  <p className="mx-auto mt-2 max-w-[13rem] text-sm font-medium leading-6 text-slate-600">
                     {benefit.text}
                   </p>
                 </article>
@@ -279,11 +273,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-orange-500/25 bg-orange-500/10 p-4">
-                <p className="text-sm font-medium leading-6 text-slate-200">
-                  O cliente agenda pelo link, sem baixar aplicativo e sem ocupar espaço no celular.
-                </p>
-              </div>
+
             </div>
           </div>
         </section>
