@@ -661,7 +661,7 @@ function BookingHeader({
                 <button
                   type="button"
                   onClick={onNavigateBack}
-                  className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-[#E0A96D]/60 hover:text-[#1A3038]"
+                  className="inline-flex rounded-xl bg-orange-500 px-3 py-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(249,115,22,0.24)] transition hover:bg-orange-600"
                 >
                   Voltar ao site
                 </button>
@@ -1787,7 +1787,8 @@ export default function ClientBooking({
         followUpLink: demoFollowUpLink
       });
 
-      setCreatedWhatsappUrl(demoWhatsappUrl);
+      // No exemplo público, ocultamos o envio por WhatsApp para evitar fricção na demonstração.
+      setCreatedWhatsappUrl('');
       setCurrentStep(5);
       setSubmittingBooking(false);
       return;

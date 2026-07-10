@@ -600,7 +600,7 @@ export default function App() {
             onAuthSuccess={handleAuthSuccess}
             onNavigateBack={() => {
               setPreseedRole(null);
-              navigateTo('login', '/login');
+              navigateTo('landing', '/');
             }}
           />
         )}

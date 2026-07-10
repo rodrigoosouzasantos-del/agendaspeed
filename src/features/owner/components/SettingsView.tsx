@@ -146,6 +146,28 @@ function normalizeZipCode(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
+function formatConfigPhone(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function normalizeAddressText(value: string): string {
+  return value.replace(/\s{2,}/g, ' ');
+}
+
 function parseAddress(address: string): AddressParts {
   const trimmedAddress = address.trim();
 
@@ -278,7 +300,7 @@ export default function SettingsView({
   const updateAddressPart = (key: keyof AddressParts, value: string) => {
     const nextAddressParts = {
       ...addressParts,
-      [key]: key === 'zipCode' ? normalizeZipCode(value) : value
+      [key]: key === 'zipCode' ? normalizeZipCode(value) : normalizeAddressText(value)
     };
 
     onChangeConfigAddress(composeAddress(nextAddressParts));
@@ -369,9 +391,9 @@ export default function SettingsView({
                 <input
                   id="input-config-phone"
                   type="text"
-                  value={configPhone}
-                  onChange={(event) => onChangeConfigPhone(event.target.value)}
-                  placeholder="14999999999"
+                  value={formatConfigPhone(configPhone)}
+                  onChange={(event) => onChangeConfigPhone(formatConfigPhone(event.target.value))}
+                  placeholder="(14) 99999-9999"
                   className={inputClassName()}
                 />
               </Field>
