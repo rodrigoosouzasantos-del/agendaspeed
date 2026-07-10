@@ -1246,8 +1246,18 @@ export default function OwnerDashboard({
 
   useEffect(() => {
     let isMounted = true;
+    let refreshTimeoutId: number | null = null;
+    let requestInFlight = false;
+    let requestQueued = false;
 
     async function loadAppointmentsFromSupabase(showLoading = true) {
+      if (requestInFlight) {
+        requestQueued = true;
+        return;
+      }
+
+      requestInFlight = true;
+
       if (showLoading) {
         setIsLoadingAppointments(true);
       }
@@ -1256,48 +1266,79 @@ export default function OwnerDashboard({
 
       const { data, error } = await supabase.rpc("get_my_appointments");
 
-      if (!isMounted) return;
+      if (isMounted) {
+        if (error) {
+          console.error("Erro ao carregar agendamentos:", error.message);
+          setAppointmentsLoadError(
+            error.message ||
+              "Não foi possível carregar a agenda real do Supabase.",
+          );
+          setIsLoadingAppointments(false);
+        } else {
+          const rows = (
+            Array.isArray(data) ? data : []
+          ) as SupabaseAppointmentResponse[];
+          const nextAppointments = rows.map(
+            mapSupabaseAppointmentToAppAppointment,
+          );
 
-      if (error) {
-        console.error("Erro ao carregar agendamentos:", error.message);
-        setAppointmentsLoadError(
-          error.message || "Não foi possível carregar a agenda real do Supabase.",
-        );
-        setIsLoadingAppointments(false);
-        return;
+          setLiveAppointments(nextAppointments);
+          setIsLoadingAppointments(false);
+        }
       }
 
-      const rows = (
-        Array.isArray(data) ? data : []
-      ) as SupabaseAppointmentResponse[];
-      const nextAppointments = rows.map(mapSupabaseAppointmentToAppAppointment);
+      requestInFlight = false;
 
-      setLiveAppointments(nextAppointments);
-      setIsLoadingAppointments(false);
+      if (isMounted && requestQueued) {
+        requestQueued = false;
+        void loadAppointmentsFromSupabase(false);
+      }
     }
 
-    loadAppointmentsFromSupabase(true);
+    function scheduleAppointmentsRefresh() {
+      if (!isMounted) return;
 
-    const refreshInterval = window.setInterval(() => {
-      loadAppointmentsFromSupabase(false);
-    }, 10000);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadAppointmentsFromSupabase(false);
+      if (refreshTimeoutId !== null) {
+        window.clearTimeout(refreshTimeoutId);
       }
-    };
 
-    window.addEventListener("focus", handleVisibilityChange);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+      refreshTimeoutId = window.setTimeout(() => {
+        refreshTimeoutId = null;
+        void loadAppointmentsFromSupabase(false);
+      }, 400);
+    }
+
+    void loadAppointmentsFromSupabase(true);
+
+    const appointmentsChannel = supabase
+      .channel("owner-appointments-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+        },
+        scheduleAppointmentsRefresh,
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.error(
+            "Não foi possível ativar a atualização em tempo real da agenda.",
+          );
+        }
+      });
 
     return () => {
       isMounted = false;
-      window.clearInterval(refreshInterval);
-      window.removeEventListener("focus", handleVisibilityChange);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      if (refreshTimeoutId !== null) {
+        window.clearTimeout(refreshTimeoutId);
+      }
+
+      void supabase.removeChannel(appointmentsChannel);
     };
-    // Carrega e mantém a agenda real sincronizada. A tabela appointments é a fonte única.
+    // Carrega uma vez e sincroniza somente quando appointments realmente muda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
