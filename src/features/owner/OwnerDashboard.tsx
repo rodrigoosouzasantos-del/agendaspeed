@@ -12,7 +12,7 @@
  * - chamar views e modais separados.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   Appointment,
@@ -910,6 +910,11 @@ export default function OwnerDashboard({
   const clients = liveClients;
 
   const [activeTab, setActiveTab] = useState<OwnerTab>("painel");
+  const activeTabRef = useRef<OwnerTab>("painel");
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   // Recebimentos e despesas também deixam de iniciar pelo mock/localStorage.
   // A fonte oficial do caixa em produção passa a ser receipts, receipt_items e cash_expenses no Supabase.
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -932,6 +937,9 @@ export default function OwnerDashboard({
 
   const [editingProf, setEditingProf] = useState<Professional | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [professionalPendingHardDelete, setProfessionalPendingHardDelete] =
+    useState<Professional | null>(null);
+  const [isDeletingProfessional, setIsDeletingProfessional] = useState(false);
 
   const [newApptClientName, setNewApptClientName] = useState("");
   const [newApptClientPhone, setNewApptClientPhone] = useState("");
@@ -1244,6 +1252,7 @@ export default function OwnerDashboard({
   useEffect(() => {
     let isMounted = true;
     let refreshTimeoutId: number | null = null;
+    let safetyPollingIntervalId: number | null = null;
     let requestInFlight = false;
     let requestQueued = false;
 
@@ -1307,6 +1316,15 @@ export default function OwnerDashboard({
 
     void loadAppointmentsFromSupabase(true);
 
+    safetyPollingIntervalId = window.setInterval(() => {
+      const isOperationalTab =
+        activeTabRef.current === "painel" || activeTabRef.current === "agenda";
+
+      if (document.visibilityState === "visible" && isOperationalTab) {
+        void loadAppointmentsFromSupabase(false);
+      }
+    }, 180000);
+
     const appointmentsChannel = supabase
       .channel("owner-appointments-changes")
       .on(
@@ -1333,9 +1351,13 @@ export default function OwnerDashboard({
         window.clearTimeout(refreshTimeoutId);
       }
 
+      if (safetyPollingIntervalId !== null) {
+        window.clearInterval(safetyPollingIntervalId);
+      }
+
       void supabase.removeChannel(appointmentsChannel);
     };
-    // Carrega uma vez e sincroniza somente quando appointments realmente muda.
+    // Carrega uma vez, sincroniza via Realtime e mantém polling leve de segurança.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2156,7 +2178,7 @@ export default function OwnerDashboard({
     });
   };
 
-  const handleHardDeleteProf = async (professionalId: string) => {
+  const handleHardDeleteProf = (professionalId: string) => {
     const targetProfessional = professionals.find((professional) => {
       return professional.id === professionalId;
     });
@@ -2166,50 +2188,69 @@ export default function OwnerDashboard({
       return;
     }
 
-    const confirmed = confirm(
-      `Atenção: você está prestes a excluir definitivamente o profissional ${targetProfessional.name}.\n\nEsta ação remove o cadastro da lista. Se houver agendamentos vinculados no banco, o Supabase pode bloquear a exclusão para preservar o histórico.\n\nDeseja continuar?`,
-    );
+    setProfessionalPendingHardDelete(targetProfessional);
+  };
 
-    if (!confirmed) {
+  const handleCancelHardDeleteProfessional = () => {
+    if (isDeletingProfessional) return;
+
+    setProfessionalPendingHardDelete(null);
+  };
+
+  const handleConfirmHardDeleteProfessional = async () => {
+    const targetProfessional = professionalPendingHardDelete;
+
+    if (!targetProfessional || isDeletingProfessional) {
       return;
     }
 
-    if (!isValidUuid(professionalId)) {
+    setIsDeletingProfessional(true);
+
+    try {
+      if (!isValidUuid(targetProfessional.id)) {
+        const updatedProfessionals = professionals.filter((professional) => {
+          return professional.id !== targetProfessional.id;
+        });
+
+        setLiveProfessionals(updatedProfessionals);
+
+        onUpdateState({
+          ...state,
+          professionals: updatedProfessionals,
+        });
+
+        setProfessionalPendingHardDelete(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("professionals")
+        .delete()
+        .eq("id", targetProfessional.id);
+
+      if (error) {
+        alert(
+          error.message ||
+            "Não foi possível excluir o profissional. Verifique se existem agendamentos vinculados a ele.",
+        );
+        return;
+      }
+
       const updatedProfessionals = professionals.filter((professional) => {
-        return professional.id !== professionalId;
+        return professional.id !== targetProfessional.id;
       });
+
+      setLiveProfessionals(updatedProfessionals);
 
       onUpdateState({
         ...state,
         professionals: updatedProfessionals,
       });
 
-      return;
+      setProfessionalPendingHardDelete(null);
+    } finally {
+      setIsDeletingProfessional(false);
     }
-
-    const { error } = await supabase
-      .from("professionals")
-      .delete()
-      .eq("id", professionalId);
-
-    if (error) {
-      alert(
-        error.message ||
-          "Não foi possível excluir o profissional. Verifique se existem agendamentos vinculados a ele.",
-      );
-      return;
-    }
-
-    const updatedProfessionals = professionals.filter((professional) => {
-      return professional.id !== professionalId;
-    });
-
-    setLiveProfessionals(updatedProfessionals);
-
-    onUpdateState({
-      ...state,
-      professionals: updatedProfessionals,
-    });
   };
 
   const handleOpenProfessionalAgenda = (professional: Professional) => {
@@ -3431,6 +3472,44 @@ ${professionalAccessLink}`);
           )}
         </main>
       </div>
+
+      {professionalPendingHardDelete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-5 shadow-2xl">
+            <h2 className="text-lg font-black text-[#1A3038]">
+              Excluir profissional?
+            </h2>
+
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              Deseja excluir definitivamente{" "}
+              <strong className="text-neutral-900">
+                {professionalPendingHardDelete.name}
+              </strong>
+              ? A exclusão pode ser bloqueada caso existam agendamentos vinculados.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelHardDeleteProfessional}
+                disabled={isDeletingProfessional}
+                className="rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Não
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmHardDeleteProfessional}
+                disabled={isDeletingProfessional}
+                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingProfessional ? "Excluindo..." : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AppointmentModal
         isOpen={showApptModal}
