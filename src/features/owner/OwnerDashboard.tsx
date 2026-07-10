@@ -2223,10 +2223,9 @@ export default function OwnerDashboard({
         return;
       }
 
-      const { error } = await supabase
-        .from("professionals")
-        .delete()
-        .eq("id", targetProfessional.id);
+      const { error } = await supabase.rpc("delete_my_professional", {
+        p_professional_id: targetProfessional.id,
+      });
 
       if (error) {
         alert(
