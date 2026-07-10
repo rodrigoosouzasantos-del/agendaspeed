@@ -87,9 +87,19 @@ function getFallbackLocalState(): LocalState {
   };
 }
 
+function getProductionInitialState(): LocalState {
+  return {
+    config: { ...INITIAL_CONFIG },
+    services: [],
+    professionals: [],
+    clients: [],
+    appointments: [],
+  };
+}
+
 function getInitialAppState(): LocalState {
   if (isProductionLikeEnvironment()) {
-    return getFallbackLocalState();
+    return getProductionInitialState();
   }
 
   return getLocalState();

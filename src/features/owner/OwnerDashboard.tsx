@@ -891,7 +891,12 @@ export default function OwnerDashboard({
   onNavigateToClient,
   onLogOut,
 }: OwnerDashboardProps) {
-  const { config, professionals, services } = state;
+  const { config, services } = state;
+
+  // Profissionais exibidos no painel vêm exclusivamente do Supabase.
+  // O estado do App não é usado como fallback para evitar dados fictícios em produção.
+  const [liveProfessionals, setLiveProfessionals] = useState<Professional[]>([]);
+  const professionals = liveProfessionals;
 
   // A agenda do painel do dono não deve iniciar a partir do mock/localStorage do App.
   // Em produção, a fonte oficial dos agendamentos é sempre o Supabase via RPC.
@@ -1131,6 +1136,8 @@ export default function OwnerDashboard({
         mapSupabaseProfessionalToAppProfessional,
       );
 
+      setLiveProfessionals(nextProfessionals);
+
       onUpdateState({
         ...state,
         professionals: nextProfessionals,
@@ -1154,12 +1161,10 @@ export default function OwnerDashboard({
     async function loadServicesFromSupabase() {
       setIsLoadingServices(true);
 
-      const [servicesResult, categoriesResult, professionalsResult] =
-        await Promise.all([
-          supabase.rpc("get_my_services"),
-          supabase.rpc("get_my_service_categories"),
-          supabase.rpc("get_my_professionals"),
-        ]);
+      const [servicesResult, categoriesResult] = await Promise.all([
+        supabase.rpc("get_my_services"),
+        supabase.rpc("get_my_service_categories"),
+      ]);
 
       if (!isMounted) return;
 
@@ -1210,13 +1215,6 @@ export default function OwnerDashboard({
             )
           : buildInitialServiceCategoryOrders(nextCategories, nextServices);
 
-      const professionalRows = (
-        Array.isArray(professionalsResult.data) ? professionalsResult.data : []
-      ) as SupabaseProfessionalResponse[];
-      const nextProfessionals = professionalsResult.error
-        ? professionals
-        : professionalRows.map(mapSupabaseProfessionalToAppProfessional);
-
       setServiceCategories(nextCategories);
       setServiceCategoryOrders(nextCategoryOrders);
 
@@ -1228,7 +1226,6 @@ export default function OwnerDashboard({
 
       onUpdateState({
         ...state,
-        professionals: nextProfessionals,
         services: nextServices,
       });
 
@@ -2090,6 +2087,8 @@ export default function OwnerDashboard({
         })
       : [savedProfessional, ...professionals];
 
+    setLiveProfessionals(nextProfessionals);
+
     onUpdateState({
       ...state,
       professionals: nextProfessionals,
@@ -2109,6 +2108,8 @@ export default function OwnerDashboard({
       const updatedProfessionals = professionals.filter((professional) => {
         return professional.id !== professionalId;
       });
+
+      setLiveProfessionals(updatedProfessionals);
 
       onUpdateState({
         ...state,
@@ -2146,6 +2147,8 @@ export default function OwnerDashboard({
         }
       );
     });
+
+    setLiveProfessionals(updatedProfessionals);
 
     onUpdateState({
       ...state,
@@ -2200,6 +2203,8 @@ export default function OwnerDashboard({
     const updatedProfessionals = professionals.filter((professional) => {
       return professional.id !== professionalId;
     });
+
+    setLiveProfessionals(updatedProfessionals);
 
     onUpdateState({
       ...state,
@@ -2415,6 +2420,8 @@ ${professionalAccessLink}`);
         : professional;
     });
 
+    setLiveProfessionals(updatedProfessionals);
+
     onUpdateState({
       ...state,
       professionals: updatedProfessionals,
@@ -2462,6 +2469,8 @@ ${professionalAccessLink}`);
         ? savedProfessional
         : professional;
     });
+
+    setLiveProfessionals(updatedProfessionals);
 
     onUpdateState({
       ...state,
@@ -2546,6 +2555,8 @@ ${professionalAccessLink}`);
         ? savedProfessional
         : professional;
     });
+
+    setLiveProfessionals(updatedProfessionals);
 
     onUpdateState({
       ...state,
