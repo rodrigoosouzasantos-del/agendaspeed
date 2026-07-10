@@ -9,7 +9,9 @@
  */
 
 import React, {
+  useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 
@@ -210,12 +212,12 @@ function parseAddress(address: string): AddressParts {
 
 function composeAddress(parts: AddressParts): string {
   return [
-    parts.street.trim(),
-    parts.number.trim(),
-    parts.neighborhood.trim(),
+    parts.street,
+    parts.number,
+    parts.neighborhood,
     normalizeZipCode(parts.zipCode),
-    parts.city.trim(),
-    parts.complement.trim()
+    parts.city,
+    parts.complement
   ].join(' | ');
 }
 
@@ -293,8 +295,17 @@ export default function SettingsView({
     return localStorage.getItem('agendaspeed-company-responsible-name') || '';
   });
 
-  const addressParts = useMemo(() => {
+  const lastInternalAddressRef = useRef(configAddress);
+  const [addressParts, setAddressParts] = useState<AddressParts>(() => {
     return parseAddress(configAddress);
+  });
+
+  useEffect(() => {
+    if (configAddress === lastInternalAddressRef.current) {
+      return;
+    }
+
+    setAddressParts(parseAddress(configAddress));
   }, [configAddress]);
 
   const updateAddressPart = (key: keyof AddressParts, value: string) => {
@@ -303,7 +314,11 @@ export default function SettingsView({
       [key]: key === 'zipCode' ? normalizeZipCode(value) : normalizeAddressText(value)
     };
 
-    onChangeConfigAddress(composeAddress(nextAddressParts));
+    const nextComposedAddress = composeAddress(nextAddressParts);
+
+    setAddressParts(nextAddressParts);
+    lastInternalAddressRef.current = nextComposedAddress;
+    onChangeConfigAddress(nextComposedAddress);
   };
 
   const handleChangeResponsibleName = (value: string) => {

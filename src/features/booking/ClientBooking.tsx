@@ -1756,38 +1756,8 @@ export default function ClientBooking({
     setSubmittingBooking(true);
 
     if (isDemoBooking) {
-      const demoAppointment: Appointment = {
-        id: `demo-${Date.now()}`,
-        dateTime: `${selectedDate}T${selectedTime}`,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        clientEmail: clientEmail.trim() || undefined,
-        serviceId: selectedService.id,
-        professionalId: selectedProfessional.id,
-        price: selectedService.price,
-        status: config.autoApprove ? 'confirmed' : 'scheduled',
-        paymentType: 'pendente',
-        notes: appointmentNotes || 'Agendamento de demonstração realizado pela vitrine pública.',
-        commissionPaid: false,
-        commissionValue,
-        depositPaid: false
-      };
-
-      onAddAppointment(demoAppointment);
-
-      const demoFollowUpLink = `${window.location.origin}/meus-agendamentos/demo`;
-      const demoWhatsappUrl = buildClientFollowUpWhatsappUrl({
-        companyPhone: config.phone || '1491096161',
-        companyName: config.name || 'AgendaSpeed',
-        clientName: clientName.trim(),
-        serviceName: selectedService.name,
-        professionalName: selectedProfessional.name,
-        selectedDate,
-        selectedTime,
-        followUpLink: demoFollowUpLink
-      });
-
-      // No exemplo público, ocultamos o envio por WhatsApp para evitar fricção na demonstração.
+      // Demonstração fictícia: não grava no Supabase, não atualiza estado local
+      // e não polui nenhum cadastro, agenda ou histórico.
       setCreatedWhatsappUrl('');
       setCurrentStep(5);
       setSubmittingBooking(false);
