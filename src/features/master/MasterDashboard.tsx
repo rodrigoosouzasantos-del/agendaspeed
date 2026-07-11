@@ -395,7 +395,7 @@ function createFormFromTenant(tenant: TenantCard): CreateTenantForm {
     trialStartDate: toInputDate(tenant.trialStartedAt),
     trialEndDate: toInputDate(tenant.trialEndsAt),
     dueDate: toInputDate(tenant.dueDate),
-    monthlyPrice: String(tenant.monthlyPrice || 49.9),
+    monthlyPrice: (tenant.monthlyPrice || 49.9).toFixed(2),
     zipcode: formatZipcode(tenant.zipcode),
     street: tenant.street,
     number: tenant.number,
@@ -648,7 +648,7 @@ function CompanyModal({
             <label className="md:col-span-2"><span className={labelClass}>Início do teste</span><input type="date" value={form.trialStartDate} onChange={(e)=>{const value=e.target.value; setForm((current)=>({...current,trialStartDate:value,trialEndDate:current.status==="trial"?addDaysToDate(value,21):current.trialEndDate}));}} className={fieldClass} /></label>
             <label className="md:col-span-2"><span className={labelClass}>Fim do teste</span><input type="date" value={form.trialEndDate} onChange={(e)=>updateField("trialEndDate", e.target.value)} className={fieldClass} /></label>
             <label className="md:col-span-2"><span className={labelClass}>Vencimento</span><input type="date" value={form.dueDate} onChange={(e)=>updateField("dueDate", e.target.value)} className={fieldClass} /></label>
-            <label className="md:col-span-2"><span className={labelClass}>Valor mensal</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e)=>updateField("monthlyPrice", e.target.value)} className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>Valor mensal</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e)=>updateField("monthlyPrice", e.target.value)} onBlur={()=>{const value=Number(form.monthlyPrice); if(Number.isFinite(value)){updateField("monthlyPrice", value.toFixed(2));}}} className={fieldClass} /></label>
           </div>
 
           <section className="border-t border-slate-100 pt-3">
@@ -984,6 +984,12 @@ export default function MasterDashboard({
     setCreateTenantForm(createEmptyForm());
   };
 
+  const forceCloseCompanyModal = () => {
+    setShowCompanyModal(false);
+    setEditingTenantId(null);
+    setCreateTenantForm(createEmptyForm());
+  };
+
   const handleLookupZipcode = async () => {
     const zipcode = onlyDigits(createTenantForm.zipcode);
 
@@ -1100,15 +1106,16 @@ export default function MasterDashboard({
 
     if (companyModalMode === "create") {
       const { data, error } = await supabase.rpc("master_create_tenant", payload);
-      setIsSavingTenant(false);
 
       if (error) {
+        setIsSavingTenant(false);
         showToast("error", error.message || "Não foi possível criar a empresa.");
         return;
       }
 
       const result = (Array.isArray(data) ? data[0] : data) as CreatedTenantResult | null;
-      closeCompanyModal();
+      forceCloseCompanyModal();
+      setIsSavingTenant(false);
       await loadTenants();
 
       if (result?.first_access_token) {
@@ -1133,14 +1140,14 @@ export default function MasterDashboard({
       ...payload,
     });
 
-    setIsSavingTenant(false);
-
     if (error) {
+      setIsSavingTenant(false);
       showToast("error", error.message || "Não foi possível editar a empresa.");
       return;
     }
 
-    closeCompanyModal();
+    forceCloseCompanyModal();
+    setIsSavingTenant(false);
     await loadTenants();
     showToast("success", "Cadastro da empresa atualizado.");
   };
