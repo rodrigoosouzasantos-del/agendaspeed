@@ -21,7 +21,7 @@ interface AuthPageProps {
   initialRolePreseed?: 'owner' | 'professional' | null;
   onAuthSuccess: (user: {
     email: string;
-    role: 'owner' | 'professional';
+    role: 'owner' | 'professional' | 'developer';
     name: string;
     professionalId?: string;
     tenantId?: string;
@@ -40,6 +40,16 @@ type OwnerContext = {
   user_active?: boolean;
   is_active?: boolean;
 };
+
+function readBooleanRpcResult(data: unknown): boolean {
+  const value = Array.isArray(data) ? data[0] : data;
+  if (typeof value === 'boolean') return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return (record.is_master_user ?? record.is_developer ?? record.result ?? record.allowed) === true;
+  }
+  return false;
+}
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const onlyNumbers = (value: string) => value.replace(/\D/g, '');
@@ -88,6 +98,24 @@ export default function AuthPage({
 
     if (loginError) {
       setError('E-mail ou senha inválidos. Confira os dados e tente novamente.');
+      return;
+    }
+
+    const { data: masterAccessData, error: masterAccessError } =
+      await supabase.rpc('is_master_user');
+
+    if (masterAccessError) {
+      await supabase.auth.signOut();
+      setError(masterAccessError.message || 'Não foi possível validar o tipo de acesso do usuário.');
+      return;
+    }
+
+    if (readBooleanRpcResult(masterAccessData)) {
+      onAuthSuccess({
+        email: loginEmail,
+        role: 'developer',
+        name: 'Rodrigo Souza',
+      });
       return;
     }
 

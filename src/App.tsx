@@ -40,7 +40,7 @@ type AppView =
 
 type SessionUser = {
   email: string;
-  role: 'owner' | 'professional';
+  role: 'owner' | 'professional' | 'developer';
   name: string;
   professionalId?: string;
   tenantId?: string;
@@ -64,6 +64,16 @@ type OwnerContext = {
   user_active?: boolean;
   is_active?: boolean;
 };
+
+function readBooleanRpcResult(data: unknown): boolean {
+  const value = Array.isArray(data) ? data[0] : data;
+  if (typeof value === 'boolean') return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return (record.is_master_user ?? record.is_developer ?? record.result ?? record.allowed) === true;
+  }
+  return false;
+}
 
 
 function isProductionLikeEnvironment(): boolean {
@@ -309,6 +319,28 @@ export default function App() {
       return null;
     }
 
+    const { data: masterAccessData, error: masterAccessError } =
+      await supabase.rpc('is_master_user');
+
+    if (masterAccessError) {
+      console.error('Erro ao validar acesso do desenvolvedor:', masterAccessError.message);
+      setOwnerContext(null);
+      setSessionUser(null);
+      return null;
+    }
+
+    if (readBooleanRpcResult(masterAccessData)) {
+      const developerUser: SessionUser = {
+        email: activeSession.user.email || '',
+        role: 'developer',
+        name: 'Rodrigo Souza',
+      };
+
+      setOwnerContext(null);
+      setSessionUser(developerUser);
+      return developerUser;
+    }
+
     const { data, error } = await supabase.rpc('get_my_owner_context');
 
     if (error) {
@@ -370,16 +402,32 @@ export default function App() {
 
       if (!isMounted) return;
 
-      if ((pathname === '/painel' || pathname === '/owner') && !user) {
+      if (pathname === '/master' && user?.role !== 'developer') {
         navigateTo('login', '/login');
       }
 
-      if (pathname === '/owner' && user) {
+      if ((pathname === '/painel' || pathname === '/owner') && user?.role !== 'owner') {
+        if (user?.role === 'developer') {
+          navigateTo('master-dashboard', '/master');
+        } else {
+          navigateTo('login', '/login');
+        }
+      }
+
+      if (pathname === '/owner' && user?.role === 'owner') {
         navigateTo('owner-dashboard', '/painel');
       }
 
-      if ((pathname === '/login' || pathname === '/cadastro') && user?.role === 'owner') {
-        navigateTo('owner-dashboard', '/painel');
+      if (pathname === '/master' && user?.role === 'developer') {
+        navigateTo('master-dashboard', '/master');
+      }
+
+      if (pathname === '/login' || pathname === '/cadastro') {
+        if (user?.role === 'developer') {
+          navigateTo('master-dashboard', '/master');
+        } else if (user?.role === 'owner') {
+          navigateTo('owner-dashboard', '/painel');
+        }
       }
 
       setAuthChecking(false);
@@ -519,11 +567,19 @@ export default function App() {
 
   const handleAuthSuccess = (user: SessionUser) => {
     setSessionUser(user);
+
+    if (user.role === 'developer') {
+      setOwnerContext(null);
+      navigateTo('master-dashboard', '/master');
+      return;
+    }
+
     if (user.role === 'owner') {
       navigateTo('owner-dashboard', '/painel');
-    } else {
-      navigateTo('professional-dashboard', '/profissional');
+      return;
     }
+
+    navigateTo('professional-dashboard', '/profissional');
   };
 
   const handleLogOut = async () => {
@@ -568,7 +624,7 @@ export default function App() {
 
   const showDemoFloatingBar = !isProductionLike && false;
 
-  if (authChecking && currentView === 'owner-dashboard') {
+  if (authChecking && (currentView === 'owner-dashboard' || currentView === 'master-dashboard')) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
         <div className="rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
@@ -631,11 +687,26 @@ export default function App() {
           />
         )}
 
-        {currentView === 'master-dashboard' && (
+        {currentView === 'master-dashboard' && sessionUser?.role === 'developer' && (
           <MasterDashboard
             onLogOut={handleLogOut}
             onNavigateToLogin={() => navigateTo('login', '/login')}
           />
+        )}
+
+        {currentView === 'master-dashboard' && !authChecking && sessionUser?.role !== 'developer' && (
+          <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+            <div className="rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm">
+              <p className="text-xl font-black text-neutral-900">Acesso restrito</p>
+              <p className="mt-2 text-sm text-neutral-500">Faça login com o usuário desenvolvedor para acessar esta área.</p>
+              <button
+                onClick={() => navigateTo('login', '/login')}
+                className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
+              >
+                Ir para login
+              </button>
+            </div>
+          </div>
         )}
 
         {currentView === 'owner-dashboard' && sessionUser?.role === 'owner' && (
