@@ -21,11 +21,13 @@ import {
   Lock,
   LogOut,
   MessageCircle,
+  Pencil,
   Plus,
   RefreshCcw,
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   Unlock,
   Users,
   Wallet,
@@ -62,8 +64,19 @@ type TenantCard = {
   status: TenantStatus;
   monthlyPrice: number;
   createdAt: string;
+  updatedAt: string;
+  trialStartedAt: string;
   trialEndsAt: string;
   dueDate: string;
+  blockedAt: string;
+  cancelledAt: string;
+  zipcode: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
   professionalsCount: number;
   appointmentsCount: number;
 };
@@ -79,12 +92,18 @@ type MasterDashboardProps = {
 };
 
 type CreateTenantForm = {
+  companyCode: number | null;
   companyName: string;
   slug: string;
   responsibleName: string;
   email: string;
   whatsapp: string;
+  status: TenantStatus;
+  accessBlocked: boolean;
   trialStartDate: string;
+  trialEndDate: string;
+  dueDate: string;
+  monthlyPrice: string;
   zipcode: string;
   street: string;
   number: string;
@@ -205,6 +224,25 @@ function normalizeSlug(value: string): string {
     .slice(0, 40);
 }
 
+function toInputDate(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return date.toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+function addDaysToDate(dateValue: string, days: number): string {
+  if (!dateValue) return "";
+  const date = new Date(`${dateValue}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return date.toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
 function getStatusLabel(status: string): string {
   return STATUS_LABELS[status] || status || "—";
 }
@@ -265,10 +303,23 @@ function normalizeTenantRow(row: MasterTenantRow): TenantCard {
       49.9,
     ),
     createdAt: textValue(tenant.created_at),
+    updatedAt: textValue(tenant.updated_at),
+    trialStartedAt: textValue(
+      tenant.trial_started_at ?? subscription.trial_started_at,
+    ),
     trialEndsAt: textValue(
       tenant.trial_ends_at ?? subscription.trial_ends_at,
     ),
     dueDate: textValue(tenant.due_date ?? subscription.due_date),
+    blockedAt: textValue(tenant.blocked_at),
+    cancelledAt: textValue(tenant.cancelled_at),
+    zipcode: textValue(tenant.address_zipcode),
+    street: textValue(tenant.address_street),
+    number: textValue(tenant.address_number),
+    complement: textValue(tenant.address_complement),
+    neighborhood: textValue(tenant.address_neighborhood),
+    city: textValue(tenant.address_city),
+    state: textValue(tenant.address_state),
     professionalsCount: numberValue(row.professionals_count, 0),
     appointmentsCount: numberValue(row.appointments_count, 0),
   };
@@ -303,13 +354,23 @@ function getTrialCountdownLabel(tenant: TenantCard): string {
 }
 
 function createEmptyForm(): CreateTenantForm {
+  const trialStartDate = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+
   return {
+    companyCode: null,
     companyName: "",
     slug: "",
     responsibleName: "",
     email: "",
     whatsapp: "",
-    trialStartDate: new Date().toISOString().slice(0, 10),
+    status: "trial",
+    accessBlocked: false,
+    trialStartDate,
+    trialEndDate: addDaysToDate(trialStartDate, 21),
+    dueDate: "",
+    monthlyPrice: "49.90",
     zipcode: "",
     street: "",
     number: "",
@@ -318,6 +379,31 @@ function createEmptyForm(): CreateTenantForm {
     city: "",
     state: "",
     unknownZipcode: false,
+  };
+}
+
+function createFormFromTenant(tenant: TenantCard): CreateTenantForm {
+  return {
+    companyCode: tenant.companyCode,
+    companyName: tenant.name,
+    slug: tenant.slug,
+    responsibleName: tenant.responsibleName === "—" ? "" : tenant.responsibleName,
+    email: tenant.email,
+    whatsapp: formatWhatsapp(tenant.whatsapp),
+    status: tenant.status,
+    accessBlocked: tenant.status === "blocked" || Boolean(tenant.blockedAt),
+    trialStartDate: toInputDate(tenant.trialStartedAt),
+    trialEndDate: toInputDate(tenant.trialEndsAt),
+    dueDate: toInputDate(tenant.dueDate),
+    monthlyPrice: String(tenant.monthlyPrice || 49.9),
+    zipcode: formatZipcode(tenant.zipcode),
+    street: tenant.street,
+    number: tenant.number,
+    complement: tenant.complement,
+    neighborhood: tenant.neighborhood,
+    city: tenant.city,
+    state: tenant.state,
+    unknownZipcode: !onlyDigits(tenant.zipcode),
   };
 }
 
@@ -393,6 +479,8 @@ function TenantActions({
   handleGenerateFirstAccess,
   handleOpenWhatsApp,
   handleUpdateStatus,
+  onEdit,
+  onDelete,
 }: {
   tenant: TenantCard;
   origin: string;
@@ -400,80 +488,42 @@ function TenantActions({
   copyText: (text: string, successMessage: string) => Promise<void>;
   handleGenerateFirstAccess: (tenant: TenantCard) => Promise<void>;
   handleOpenWhatsApp: (tenant: TenantCard) => void;
-  handleUpdateStatus: (
-    tenantId: string,
-    status: TenantStatus,
-  ) => Promise<void>;
+  handleUpdateStatus: (tenantId: string, status: TenantStatus) => Promise<void>;
+  onEdit: (tenant: TenantCard) => void;
+  onDelete: (tenant: TenantCard) => void;
 }) {
   const isActionLoading = actionLoadingId === tenant.id;
   const vitrineUrl = `${origin}/${tenant.slug}`;
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
-      <button
-        type="button"
-        title="Abrir vitrine"
-        onClick={() =>
-          window.open(vitrineUrl, "_blank", "noopener,noreferrer")
-        }
-        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
-      >
+      <button type="button" title="Abrir vitrine" onClick={() => window.open(vitrineUrl, "_blank", "noopener,noreferrer")} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50">
         <ExternalLink className="h-4 w-4" />
       </button>
-
-      <button
-        type="button"
-        title="Copiar link da agenda"
-        onClick={() => copyText(vitrineUrl, "Link da agenda copiado.")}
-        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
-      >
+      <button type="button" title="Copiar link da agenda" onClick={() => copyText(vitrineUrl, "Link da agenda copiado.")} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50">
         <Clipboard className="h-4 w-4" />
       </button>
-
-      <button
-        type="button"
-        title="Gerar primeiro acesso"
-        disabled={isActionLoading}
-        onClick={() => handleGenerateFirstAccess(tenant)}
-        className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-orange-700 hover:bg-orange-100 disabled:opacity-60"
-      >
-        {isActionLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Users className="h-4 w-4" />
-        )}
+      <button type="button" title="Editar empresa" onClick={() => onEdit(tenant)} className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 hover:bg-sky-100">
+        <Pencil className="h-4 w-4" />
       </button>
-
-      <button
-        type="button"
-        title="Enviar WhatsApp"
-        onClick={() => handleOpenWhatsApp(tenant)}
-        className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100"
-      >
+      <button type="button" title="Gerar primeiro acesso" disabled={isActionLoading} onClick={() => handleGenerateFirstAccess(tenant)} className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-orange-700 hover:bg-orange-100 disabled:opacity-60">
+        {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+      </button>
+      <button type="button" title="Enviar WhatsApp" onClick={() => handleOpenWhatsApp(tenant)} className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100">
         <MessageCircle className="h-4 w-4" />
       </button>
-
       {tenant.status === "blocked" ? (
-        <button
-          type="button"
-          title="Reativar empresa"
-          disabled={isActionLoading}
-          onClick={() => handleUpdateStatus(tenant.id, "active")}
-          className="rounded-lg bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:opacity-60"
-        >
+        <button type="button" title="Reativar empresa" disabled={isActionLoading} onClick={() => handleUpdateStatus(tenant.id, "active")} className="rounded-lg bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:opacity-60">
           <Unlock className="h-4 w-4" />
         </button>
       ) : (
-        <button
-          type="button"
-          title="Suspender empresa"
-          disabled={isActionLoading}
-          onClick={() => handleUpdateStatus(tenant.id, "blocked")}
-          className="rounded-lg bg-red-600 p-2 text-white hover:bg-red-700 disabled:opacity-60"
-        >
+        <button type="button" title="Suspender empresa" disabled={isActionLoading} onClick={() => handleUpdateStatus(tenant.id, "blocked")} className="rounded-lg bg-red-600 p-2 text-white hover:bg-red-700 disabled:opacity-60">
           <Lock className="h-4 w-4" />
         </button>
       )}
+      <button type="button" title="Excluir empresa" onClick={() => onDelete(tenant)} className="rounded-lg border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50">
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -487,6 +537,8 @@ function TenantTable({
   handleGenerateFirstAccess,
   handleOpenWhatsApp,
   handleUpdateStatus,
+  onEdit,
+  onDelete,
 }: {
   tenants: TenantCard[];
   loading: boolean;
@@ -495,35 +547,21 @@ function TenantTable({
   copyText: (text: string, successMessage: string) => Promise<void>;
   handleGenerateFirstAccess: (tenant: TenantCard) => Promise<void>;
   handleOpenWhatsApp: (tenant: TenantCard) => void;
-  handleUpdateStatus: (
-    tenantId: string,
-    status: TenantStatus,
-  ) => Promise<void>;
+  handleUpdateStatus: (tenantId: string, status: TenantStatus) => Promise<void>;
+  onEdit: (tenant: TenantCard) => void;
+  onDelete: (tenant: TenantCard) => void;
 }) {
   if (loading) {
-    return (
-      <div className="flex min-h-[220px] items-center justify-center">
-        <Loader2 className="h-7 w-7 animate-spin text-orange-500" />
-      </div>
-    );
+    return <div className="flex min-h-[220px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-orange-500" /></div>;
   }
 
   if (tenants.length === 0) {
-    return (
-      <div className="flex min-h-[220px] items-center justify-center p-6 text-center">
-        <div>
-          <Building2 className="mx-auto h-8 w-8 text-slate-300" />
-          <p className="mt-3 text-base font-black text-slate-900">
-            Nenhuma empresa encontrada
-          </p>
-        </div>
-      </div>
-    );
+    return <div className="flex min-h-[220px] items-center justify-center p-6 text-center"><div><Building2 className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-base font-black text-slate-900">Nenhuma empresa encontrada</p></div></div>;
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] border-collapse text-left">
+      <table className="w-full min-w-[1080px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-200 bg-[#F4F6F6] text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
             <th className="px-4 py-3">Cód. empresa</th>
@@ -537,59 +575,19 @@ function TenantTable({
         <tbody>
           {tenants.map((tenant) => {
             const countdownLabel = getTrialCountdownLabel(tenant);
-
             return (
-              <tr
-                key={tenant.id}
-                className="border-b border-slate-100 align-middle hover:bg-slate-50/80"
-              >
-                <td className="px-4 py-3 font-mono text-sm font-black text-[#10232A]">
-                  {formatCompanyCode(tenant.companyCode)}
-                </td>
-
+              <tr key={tenant.id} className="border-b border-slate-100 align-middle hover:bg-slate-50/80">
+                <td className="px-4 py-3 font-mono text-sm font-black text-[#10232A]">{formatCompanyCode(tenant.companyCode)}</td>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{tenant.name}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {tenant.responsibleName} · {tenant.email || "Sem e-mail"}
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                    agendaspeed.com.br/{tenant.slug}
-                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{tenant.responsibleName} · {tenant.email || "Sem e-mail"}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">agendaspeed.com.br/{tenant.slug}</p>
                 </td>
-
+                <td className="px-4 py-3"><StatusBadge status={tenant.status} />{countdownLabel && <p className="mt-1 text-[11px] font-black text-amber-700">{countdownLabel}</p>}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatDate(getTenantDisplayDueDate(tenant))}</td>
+                <td className={`px-4 py-3 font-black ${tenant.status === "past_due" ? "text-red-700" : "text-slate-950"}`}>{formatCurrency(getTenantDisplayValue(tenant))}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={tenant.status} />
-                  {countdownLabel && (
-                    <p className="mt-1 text-[11px] font-black text-amber-700">
-                      {countdownLabel}
-                    </p>
-                  )}
-                </td>
-
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">
-                  {formatDate(getTenantDisplayDueDate(tenant))}
-                </td>
-
-                <td
-                  className={`px-4 py-3 font-black ${
-                    tenant.status === "past_due"
-                      ? "text-red-700"
-                      : "text-slate-950"
-                  }`}
-                >
-                  {formatCurrency(getTenantDisplayValue(tenant))}
-                </td>
-
-                <td className="px-4 py-3">
-                  <TenantActions
-                    tenant={tenant}
-                    origin={origin}
-                    actionLoadingId={actionLoadingId}
-                    copyText={copyText}
-                    handleGenerateFirstAccess={handleGenerateFirstAccess}
-                    handleOpenWhatsApp={handleOpenWhatsApp}
-                    handleUpdateStatus={handleUpdateStatus}
-                  />
+                  <TenantActions tenant={tenant} origin={origin} actionLoadingId={actionLoadingId} copyText={copyText} handleGenerateFirstAccess={handleGenerateFirstAccess} handleOpenWhatsApp={handleOpenWhatsApp} handleUpdateStatus={handleUpdateStatus} onEdit={onEdit} onDelete={onDelete} />
                 </td>
               </tr>
             );
@@ -600,7 +598,8 @@ function TenantTable({
   );
 }
 
-function NewTenantModal({
+function CompanyModal({
+  mode,
   form,
   setForm,
   isOpen,
@@ -611,6 +610,7 @@ function NewTenantModal({
   onSubmit,
   onLookupZipcode,
 }: {
+  mode: "create" | "edit";
   form: CreateTenantForm;
   setForm: React.Dispatch<React.SetStateAction<CreateTenantForm>>;
   isOpen: boolean;
@@ -623,312 +623,69 @@ function NewTenantModal({
 }) {
   if (!isOpen) return null;
 
-  const updateField = (
-    field: keyof CreateTenantForm,
-    value: string | boolean,
-  ) => {
-    setForm((current) => ({ ...current, [field]: value }));
-  };
-
-  const fieldClass =
-    "h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10";
+  const updateField = (field: keyof CreateTenantForm, value: string | boolean | number | null) => setForm((current) => ({ ...current, [field]: value }));
+  const fieldClass = "h-8 w-full rounded-md border border-slate-200 px-2.5 text-xs font-semibold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10";
+  const labelClass = "mb-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-600";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-4 py-6">
-      <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#10232A] px-5 py-4 text-white">
-          <div>
-            <h2 className="text-lg font-black">Nova empresa</h2>
-            <p className="mt-1 text-xs font-semibold text-white/70">
-              A empresa será criada com 21 dias de teste gratuito.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            className="rounded-lg p-2 text-white/80 hover:bg-white/10"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-3 py-3">
+      <div className="w-full max-w-6xl rounded-xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-[#10232A] px-4 py-3 text-white">
+          <div><h2 className="text-base font-black">{mode === "create" ? "Nova empresa" : "Editar empresa"}</h2><p className="mt-0.5 text-[11px] font-semibold text-white/70">{mode === "create" ? "Cadastro inicial com controle comercial completo." : `Empresa ${formatCompanyCode(form.companyCode || 0)}`}</p></div>
+          <button type="button" onClick={onClose} disabled={isSaving} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10"><X className="h-4 w-4" /></button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-6 p-5">
-          <section>
-            <h3 className="text-sm font-black uppercase tracking-wide text-[#10232A]">
-              Dados da empresa
-            </h3>
-
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  Nome da empresa
-                </span>
-                <input
-                  value={form.companyName}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setForm((current) => ({
-                      ...current,
-                      companyName: value,
-                      slug: current.slug || normalizeSlug(value),
-                    }));
-                  }}
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  Endereço da agenda
-                </span>
-                <input
-                  value={form.slug}
-                  onChange={(event) =>
-                    updateField("slug", normalizeSlug(event.target.value))
-                  }
-                  required
-                  className={fieldClass}
-                />
-                <span className="block text-[11px] font-semibold text-slate-500">
-                  {origin}/{form.slug || "suaempresa"}
-                </span>
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  Responsável
-                </span>
-                <input
-                  value={form.responsibleName}
-                  onChange={(event) =>
-                    updateField("responsibleName", event.target.value)
-                  }
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  E-mail
-                </span>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => updateField("email", event.target.value)}
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  WhatsApp
-                </span>
-                <input
-                  value={form.whatsapp}
-                  onChange={(event) =>
-                    updateField("whatsapp", formatWhatsapp(event.target.value))
-                  }
-                  inputMode="numeric"
-                  required
-                  placeholder="(14) 99999-9999"
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-xs font-black text-slate-700">
-                  Data inicial do teste
-                </span>
-                <input
-                  type="date"
-                  value={form.trialStartDate}
-                  onChange={(event) =>
-                    updateField("trialStartDate", event.target.value)
-                  }
-                  required
-                  className={fieldClass}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="border-t border-slate-100 pt-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-sm font-black uppercase tracking-wide text-[#10232A]">
-                Endereço da empresa
-              </h3>
-
-              <label className="inline-flex items-center gap-2 text-xs font-black text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.unknownZipcode}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setForm((current) => ({
-                      ...current,
-                      unknownZipcode: checked,
-                      zipcode: checked ? "" : current.zipcode,
-                    }));
-                  }}
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                Não sei o CEP
-              </label>
-            </div>
-
-            <div className="mt-3 grid gap-4 md:grid-cols-6">
-              <label className="space-y-1.5 md:col-span-2">
-                <span className="text-xs font-black text-slate-700">CEP</span>
-                <div className="flex gap-2">
-                  <input
-                    value={form.zipcode}
-                    onChange={(event) =>
-                      updateField("zipcode", formatZipcode(event.target.value))
-                    }
-                    disabled={form.unknownZipcode}
-                    inputMode="numeric"
-                    placeholder="00000-000"
-                    className={`${fieldClass} min-w-0 flex-1 disabled:bg-slate-100`}
-                  />
-                  <button
-                    type="button"
-                    onClick={onLookupZipcode}
-                    disabled={
-                      form.unknownZipcode ||
-                      onlyDigits(form.zipcode).length !== 8 ||
-                      isLoadingZipcode
-                    }
-                    className="inline-flex h-10 items-center justify-center rounded-lg bg-[#10232A] px-3 text-xs font-black text-white disabled:opacity-50"
-                  >
-                    {isLoadingZipcode ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Buscar"
-                    )}
-                  </button>
-                </div>
-              </label>
-
-              <label className="space-y-1.5 md:col-span-3">
-                <span className="text-xs font-black text-slate-700">
-                  Logradouro
-                </span>
-                <input
-                  value={form.street}
-                  onChange={(event) => updateField("street", event.target.value)}
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5 md:col-span-1">
-                <span className="text-xs font-black text-slate-700">
-                  Número
-                </span>
-                <input
-                  value={form.number}
-                  onChange={(event) => updateField("number", event.target.value)}
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5 md:col-span-3">
-                <span className="text-xs font-black text-slate-700">
-                  Complemento
-                </span>
-                <input
-                  value={form.complement}
-                  onChange={(event) =>
-                    updateField("complement", event.target.value)
-                  }
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5 md:col-span-3">
-                <span className="text-xs font-black text-slate-700">
-                  Bairro
-                </span>
-                <input
-                  value={form.neighborhood}
-                  onChange={(event) =>
-                    updateField("neighborhood", event.target.value)
-                  }
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5 md:col-span-4">
-                <span className="text-xs font-black text-slate-700">
-                  Cidade
-                </span>
-                <input
-                  value={form.city}
-                  onChange={(event) => updateField("city", event.target.value)}
-                  required
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="space-y-1.5 md:col-span-2">
-                <span className="text-xs font-black text-slate-700">
-                  Estado
-                </span>
-                <input
-                  value={form.state}
-                  onChange={(event) =>
-                    updateField(
-                      "state",
-                      event.target.value.toUpperCase().slice(0, 2),
-                    )
-                  }
-                  required
-                  maxLength={2}
-                  className={`${fieldClass} uppercase`}
-                />
-              </label>
-            </div>
-          </section>
-
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-60"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Criando...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  Criar empresa
-                </>
-              )}
-            </button>
+        <form onSubmit={onSubmit} className="space-y-3 p-4">
+          <div className="grid gap-2 md:grid-cols-12">
+            {mode === "edit" && <label className="md:col-span-1"><span className={labelClass}>Código</span><input value={formatCompanyCode(form.companyCode || 0)} disabled className={`${fieldClass} bg-slate-100`} /></label>}
+            <label className={mode === "edit" ? "md:col-span-3" : "md:col-span-4"}><span className={labelClass}>Nome da empresa</span><input value={form.companyName} onChange={(e) => { const value=e.target.value; setForm((current)=>({...current, companyName:value, slug: mode === "create" && !current.slug ? normalizeSlug(value) : current.slug})); }} required className={fieldClass} /></label>
+            <label className="md:col-span-3"><span className={labelClass}>Endereço da agenda</span><input value={form.slug} onChange={(e)=>updateField("slug", normalizeSlug(e.target.value))} required className={fieldClass} /><span className="mt-0.5 block truncate text-[9px] font-semibold text-slate-400">{origin}/{form.slug || "suaempresa"}</span></label>
+            <label className="md:col-span-2"><span className={labelClass}>Responsável</span><input value={form.responsibleName} onChange={(e)=>updateField("responsibleName", e.target.value)} required className={fieldClass} /></label>
+            <label className="md:col-span-3"><span className={labelClass}>E-mail</span><input type="email" value={form.email} onChange={(e)=>updateField("email", e.target.value)} required className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>WhatsApp</span><input value={form.whatsapp} onChange={(e)=>updateField("whatsapp", formatWhatsapp(e.target.value))} required className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>Status</span><select value={form.status} onChange={(e)=>{const status=e.target.value as TenantStatus; setForm((current)=>({...current,status,accessBlocked:status==="blocked"||status==="cancelled"}));}} className={fieldClass}><option value="trial">EM TESTE</option><option value="active">ATIVA</option><option value="past_due">INADIMPLENTE</option><option value="blocked">SUSPENSA</option><option value="cancelled">CANCELADA</option></select></label>
+            <label className="md:col-span-2"><span className={labelClass}>Bloquear acesso</span><select value={form.accessBlocked ? "yes" : "no"} onChange={(e)=>updateField("accessBlocked", e.target.value === "yes")} className={fieldClass}><option value="no">NÃO</option><option value="yes">SIM</option></select></label>
+            <label className="md:col-span-2"><span className={labelClass}>Início do teste</span><input type="date" value={form.trialStartDate} onChange={(e)=>{const value=e.target.value; setForm((current)=>({...current,trialStartDate:value,trialEndDate:current.status==="trial"?addDaysToDate(value,21):current.trialEndDate}));}} className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>Fim do teste</span><input type="date" value={form.trialEndDate} onChange={(e)=>updateField("trialEndDate", e.target.value)} className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>Vencimento</span><input type="date" value={form.dueDate} onChange={(e)=>updateField("dueDate", e.target.value)} className={fieldClass} /></label>
+            <label className="md:col-span-2"><span className={labelClass}>Valor mensal</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e)=>updateField("monthlyPrice", e.target.value)} className={fieldClass} /></label>
           </div>
+
+          <section className="border-t border-slate-100 pt-3">
+            <div className="mb-2 flex items-center justify-between"><h3 className="text-[11px] font-black uppercase tracking-[0.08em] text-[#10232A]">Endereço da empresa</h3><label className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-700"><input type="checkbox" checked={form.unknownZipcode} onChange={(e)=>{const checked=e.target.checked; setForm((current)=>({...current,unknownZipcode:checked,zipcode:checked?"":current.zipcode}));}} className="h-3.5 w-3.5" />Não sei o CEP</label></div>
+            <div className="grid gap-2 md:grid-cols-12">
+              <label className="md:col-span-2"><span className={labelClass}>CEP</span><div className="flex gap-1.5"><input value={form.zipcode} onChange={(e)=>updateField("zipcode", formatZipcode(e.target.value))} disabled={form.unknownZipcode} className={`${fieldClass} min-w-0 flex-1 disabled:bg-slate-100`} /><button type="button" onClick={onLookupZipcode} disabled={form.unknownZipcode || onlyDigits(form.zipcode).length !== 8 || isLoadingZipcode} className="h-8 rounded-md bg-[#10232A] px-2.5 text-[10px] font-black text-white disabled:opacity-50">{isLoadingZipcode ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Buscar"}</button></div></label>
+              <label className="md:col-span-4"><span className={labelClass}>Logradouro</span><input value={form.street} onChange={(e)=>updateField("street", e.target.value)} required className={fieldClass} /></label>
+              <label className="md:col-span-1"><span className={labelClass}>Número</span><input value={form.number} onChange={(e)=>updateField("number", e.target.value)} required className={fieldClass} /></label>
+              <label className="md:col-span-2"><span className={labelClass}>Complemento</span><input value={form.complement} onChange={(e)=>updateField("complement", e.target.value)} className={fieldClass} /></label>
+              <label className="md:col-span-3"><span className={labelClass}>Bairro</span><input value={form.neighborhood} onChange={(e)=>updateField("neighborhood", e.target.value)} required className={fieldClass} /></label>
+              <label className="md:col-span-8"><span className={labelClass}>Cidade</span><input value={form.city} onChange={(e)=>updateField("city", e.target.value)} required className={fieldClass} /></label>
+              <label className="md:col-span-4"><span className={labelClass}>Estado</span><input value={form.state} onChange={(e)=>updateField("state", e.target.value.toUpperCase().slice(0,2))} required className={`${fieldClass} uppercase`} /></label>
+            </div>
+          </section>
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={onClose} disabled={isSaving} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Cancelar</button><button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-md bg-orange-500 px-3 py-2 text-xs font-black text-white disabled:opacity-60">{isSaving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Salvando...</> : mode === "create" ? <><Plus className="h-3.5 w-3.5" />Criar empresa</> : <><Pencil className="h-3.5 w-3.5" />Salvar alterações</>}</button></div>
         </form>
       </div>
     </div>
   );
 }
+
+function DeleteTenantModal({ tenant, confirmationName, setConfirmationName, isDeleting, onClose, onConfirm }: { tenant: TenantCard | null; confirmationName: string; setConfirmationName: (value:string)=>void; isDeleting:boolean; onClose:()=>void; onConfirm:()=>Promise<void>; }) {
+  if (!tenant) return null;
+  const matches = confirmationName.trim().toLowerCase() === tenant.name.trim().toLowerCase();
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700"><Trash2 className="h-5 w-5" /></div><div><h2 className="text-lg font-black text-slate-950">Excluir empresa definitivamente?</h2><p className="mt-2 text-sm font-semibold leading-6 text-slate-600">A empresa e todos os dados vinculados serão excluídos. Esta ação não poderá ser desfeita.</p></div></div>
+        <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3"><p className="text-xs font-black uppercase tracking-wide text-red-700">Digite exatamente</p><p className="mt-1 text-sm font-black text-red-800">{tenant.name}</p></div>
+        <input value={confirmationName} onChange={(e)=>setConfirmationName(e.target.value)} className="mt-4 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-red-400" />
+        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} disabled={isDeleting} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">Cancelar</button><button type="button" onClick={()=>void onConfirm()} disabled={!matches || isDeleting} className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{isDeleting ? <><Loader2 className="h-4 w-4 animate-spin" />Excluindo...</> : <><Trash2 className="h-4 w-4" />Excluir definitivamente</>}</button></div>
+      </div>
+    </div>
+  );
+}
+
 
 function FinancialTable({
   tenants,
@@ -1021,11 +778,16 @@ export default function MasterDashboard({
   const [activeView, setActiveView] = useState<MasterView>("companies");
   const [errorMessage, setErrorMessage] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
-  const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
+  const [companyModalMode, setCompanyModalMode] = useState<"create" | "edit">("create");
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
   const [createTenantForm, setCreateTenantForm] =
     useState<CreateTenantForm>(createEmptyForm());
   const [isSavingTenant, setIsSavingTenant] = useState(false);
   const [isLoadingZipcode, setIsLoadingZipcode] = useState(false);
+  const [tenantPendingDelete, setTenantPendingDelete] = useState<TenantCard | null>(null);
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
+  const [isDeletingTenant, setIsDeletingTenant] = useState(false);
 
   const origin =
     typeof window !== "undefined"
@@ -1201,6 +963,27 @@ export default function MasterDashboard({
     );
   };
 
+  const openCreateTenantModal = () => {
+    setCompanyModalMode("create");
+    setEditingTenantId(null);
+    setCreateTenantForm(createEmptyForm());
+    setShowCompanyModal(true);
+  };
+
+  const openEditTenantModal = (tenant: TenantCard) => {
+    setCompanyModalMode("edit");
+    setEditingTenantId(tenant.id);
+    setCreateTenantForm(createFormFromTenant(tenant));
+    setShowCompanyModal(true);
+  };
+
+  const closeCompanyModal = () => {
+    if (isSavingTenant) return;
+    setShowCompanyModal(false);
+    setEditingTenantId(null);
+    setCreateTenantForm(createEmptyForm());
+  };
+
   const handleLookupZipcode = async () => {
     const zipcode = onlyDigits(createTenantForm.zipcode);
 
@@ -1249,71 +1032,151 @@ export default function MasterDashboard({
     }
   };
 
-  const handleCreateTenant = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (isSavingTenant) return;
-
+  const validateCompanyForm = (): string => {
     const digitsWhatsapp = onlyDigits(createTenantForm.whatsapp);
 
     if (digitsWhatsapp.length < 10 || digitsWhatsapp.length > 11) {
-      showToast("error", "Informe um WhatsApp válido.");
-      return;
+      return "Informe um WhatsApp válido.";
     }
 
     if (
       !createTenantForm.unknownZipcode &&
       onlyDigits(createTenantForm.zipcode).length !== 8
     ) {
-      showToast("error", "Informe um CEP válido ou marque Não sei o CEP.");
+      return "Informe um CEP válido ou marque Não sei o CEP.";
+    }
+
+    if (createTenantForm.status === "trial" && !createTenantForm.trialEndDate) {
+      return "Informe a data final do teste.";
+    }
+
+    if (
+      createTenantForm.status !== "trial" &&
+      createTenantForm.status !== "cancelled" &&
+      !createTenantForm.dueDate
+    ) {
+      return "Informe a data de vencimento.";
+    }
+
+    return "";
+  };
+
+  const buildCompanyRpcPayload = () => ({
+    p_name: createTenantForm.companyName.trim(),
+    p_slug: createTenantForm.slug.trim(),
+    p_owner_name: createTenantForm.responsibleName.trim(),
+    p_owner_email: createTenantForm.email.trim().toLowerCase(),
+    p_owner_phone: onlyDigits(createTenantForm.whatsapp),
+    p_status: createTenantForm.status,
+    p_access_blocked: createTenantForm.accessBlocked,
+    p_trial_start_date: createTenantForm.trialStartDate || null,
+    p_trial_end_date: createTenantForm.trialEndDate || null,
+    p_due_date: createTenantForm.dueDate || null,
+    p_monthly_price: Number(createTenantForm.monthlyPrice) || 0,
+    p_address_zipcode: createTenantForm.unknownZipcode
+      ? null
+      : onlyDigits(createTenantForm.zipcode),
+    p_address_street: createTenantForm.street.trim(),
+    p_address_number: createTenantForm.number.trim(),
+    p_address_complement: createTenantForm.complement.trim() || null,
+    p_address_neighborhood: createTenantForm.neighborhood.trim(),
+    p_address_city: createTenantForm.city.trim(),
+    p_address_state: createTenantForm.state.trim().toUpperCase(),
+  });
+
+  const handleSaveCompany = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSavingTenant) return;
+
+    const validationError = validateCompanyForm();
+
+    if (validationError) {
+      showToast("error", validationError);
       return;
     }
 
     setIsSavingTenant(true);
+    const payload = buildCompanyRpcPayload();
 
-    const { data, error } = await supabase.rpc(
-      "master_create_trial_tenant",
-      {
-        p_name: createTenantForm.companyName.trim(),
-        p_slug: createTenantForm.slug.trim(),
-        p_owner_name: createTenantForm.responsibleName.trim(),
-        p_owner_email: createTenantForm.email.trim().toLowerCase(),
-        p_owner_phone: digitsWhatsapp,
-        p_trial_start_date: createTenantForm.trialStartDate,
-        p_address_zipcode: createTenantForm.unknownZipcode
-          ? null
-          : onlyDigits(createTenantForm.zipcode),
-        p_address_street: createTenantForm.street.trim(),
-        p_address_number: createTenantForm.number.trim(),
-        p_address_complement: createTenantForm.complement.trim() || null,
-        p_address_neighborhood: createTenantForm.neighborhood.trim(),
-        p_address_city: createTenantForm.city.trim(),
-        p_address_state: createTenantForm.state.trim().toUpperCase(),
-      },
-    );
+    if (companyModalMode === "create") {
+      const { data, error } = await supabase.rpc("master_create_tenant", payload);
+      setIsSavingTenant(false);
+
+      if (error) {
+        showToast("error", error.message || "Não foi possível criar a empresa.");
+        return;
+      }
+
+      const result = (Array.isArray(data) ? data[0] : data) as CreatedTenantResult | null;
+      closeCompanyModal();
+      await loadTenants();
+
+      if (result?.first_access_token) {
+        await copyText(
+          `${origin}/primeiro-acesso/${result.first_access_token}`,
+          "Empresa criada. Link de primeiro acesso copiado.",
+        );
+      } else {
+        showToast("success", "Empresa criada com sucesso.");
+      }
+      return;
+    }
+
+    if (!editingTenantId) {
+      setIsSavingTenant(false);
+      showToast("error", "Empresa não identificada para edição.");
+      return;
+    }
+
+    const { error } = await supabase.rpc("master_update_tenant", {
+      p_tenant_id: editingTenantId,
+      ...payload,
+    });
 
     setIsSavingTenant(false);
 
     if (error) {
-      showToast("error", error.message || "Não foi possível criar a empresa.");
+      showToast("error", error.message || "Não foi possível editar a empresa.");
       return;
     }
 
-    const result = (Array.isArray(data) ? data[0] : data) as
-      | CreatedTenantResult
-      | null;
-
-    setShowCreateTenantModal(false);
-    setCreateTenantForm(createEmptyForm());
+    closeCompanyModal();
     await loadTenants();
+    showToast("success", "Cadastro da empresa atualizado.");
+  };
 
-    if (result?.first_access_token) {
-      await copyText(
-        `${origin}/primeiro-acesso/${result.first_access_token}`,
-        "Empresa criada. Link de primeiro acesso copiado.",
-      );
-    } else {
-      showToast("success", "Empresa criada com 21 dias de teste.");
+  const openDeleteTenantModal = (tenant: TenantCard) => {
+    setTenantPendingDelete(tenant);
+    setDeleteConfirmationName("");
+  };
+
+  const closeDeleteTenantModal = () => {
+    if (isDeletingTenant) return;
+    setTenantPendingDelete(null);
+    setDeleteConfirmationName("");
+  };
+
+  const handleDeleteTenant = async () => {
+    if (!tenantPendingDelete || isDeletingTenant) return;
+
+    setIsDeletingTenant(true);
+
+    const { error } = await supabase.rpc("master_delete_tenant", {
+      p_tenant_id: tenantPendingDelete.id,
+      p_confirmation_name: deleteConfirmationName.trim(),
+    });
+
+    setIsDeletingTenant(false);
+
+    if (error) {
+      showToast("error", error.message || "Não foi possível excluir a empresa.");
+      return;
     }
+
+    const deletedName = tenantPendingDelete.name;
+    closeDeleteTenantModal();
+    await loadTenants();
+    showToast("success", `Empresa ${deletedName} excluída definitivamente.`);
   };
 
   const currentTitle = {
@@ -1392,7 +1255,7 @@ export default function MasterDashboard({
                 {activeView === "companies" && (
                   <button
                     type="button"
-                    onClick={() => setShowCreateTenantModal(true)}
+                    onClick={openCreateTenantModal}
                     className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-sm font-black text-white hover:bg-orange-600"
                   >
                     <Plus className="h-4 w-4" />
@@ -1513,6 +1376,8 @@ export default function MasterDashboard({
                     handleGenerateFirstAccess={handleGenerateFirstAccess}
                     handleOpenWhatsApp={handleOpenWhatsApp}
                     handleUpdateStatus={handleUpdateStatus}
+                    onEdit={openEditTenantModal}
+                    onDelete={openDeleteTenantModal}
                   />
                 </div>
               </div>
@@ -1595,20 +1460,26 @@ export default function MasterDashboard({
         </div>
       </div>
 
-      <NewTenantModal
+      <CompanyModal
+        mode={companyModalMode}
         form={createTenantForm}
         setForm={setCreateTenantForm}
-        isOpen={showCreateTenantModal}
+        isOpen={showCompanyModal}
         isSaving={isSavingTenant}
         isLoadingZipcode={isLoadingZipcode}
         origin={origin}
-        onClose={() => {
-          if (isSavingTenant) return;
-          setShowCreateTenantModal(false);
-          setCreateTenantForm(createEmptyForm());
-        }}
-        onSubmit={handleCreateTenant}
+        onClose={closeCompanyModal}
+        onSubmit={handleSaveCompany}
         onLookupZipcode={handleLookupZipcode}
+      />
+
+      <DeleteTenantModal
+        tenant={tenantPendingDelete}
+        confirmationName={deleteConfirmationName}
+        setConfirmationName={setDeleteConfirmationName}
+        isDeleting={isDeletingTenant}
+        onClose={closeDeleteTenantModal}
+        onConfirm={handleDeleteTenant}
       />
     </main>
   );
