@@ -132,7 +132,7 @@ export default function AuthPage({
 
     if (!ownerContext?.tenant_id || !ownerIsActive) {
       await supabase.auth.signOut();
-      setError('Usuário autenticado, mas sem empresa ativa vinculada.');
+      setError('O acesso desta empresa está suspenso temporariamente. Entre em contato para mais informações..');
       return;
     }
 
