@@ -54,6 +54,7 @@ import ReceiptsView, {
 } from "./components/ReceiptsView";
 import SettingsView from "./components/SettingsView";
 import { supabase } from "../../lib/supabase";
+import { prepareImageForStorage } from "../../lib/imageUpload";
 
 import AppointmentModal from "./modals/AppointmentModal";
 import ProfessionalModal from "./modals/ProfessionalModal";
@@ -105,6 +106,42 @@ type TenantSettingsResponse = {
 interface SettingsViewMediaFiles {
   logoFile: File | null;
   coverFile: File | null;
+}
+
+async function legacyDataUrlToPreparedImage(params: {
+  dataUrl: string;
+  maxWidth: number;
+  maxHeight: number;
+  maxOutputBytes: number;
+  outputFileName: string;
+}): Promise<File> {
+  const {
+    dataUrl,
+    maxWidth,
+    maxHeight,
+    maxOutputBytes,
+    outputFileName,
+  } = params;
+
+  const response = await fetch(dataUrl);
+
+  if (!response.ok) {
+    throw new Error('Não foi possível ler a imagem antiga salva em Base64.');
+  }
+
+  const blob = await response.blob();
+  const sourceFile = new File(
+    [blob],
+    outputFileName,
+    { type: blob.type || 'image/jpeg' },
+  );
+
+  return prepareImageForStorage(sourceFile, {
+    maxWidth,
+    maxHeight,
+    maxOutputBytes,
+    outputFileName,
+  });
 }
 
 async function uploadTenantPublicImage(params: {
@@ -2788,19 +2825,42 @@ ${professionalAccessLink}`);
       let nextLogoUrl = configLogo;
       let nextCoverUrl = configCoverImage;
 
-      if (mediaFiles.logoFile) {
-        nextLogoUrl = await uploadTenantPublicImage({
-          bucket: 'tenant-logos',
-          path: `${tenantId}/logo.webp`,
-          file: mediaFiles.logoFile,
+      let logoFileToUpload = mediaFiles.logoFile;
+      let coverFileToUpload = mediaFiles.coverFile;
+
+      if (!logoFileToUpload && configLogo.startsWith('data:image/')) {
+        logoFileToUpload = await legacyDataUrlToPreparedImage({
+          dataUrl: configLogo,
+          maxWidth: 500,
+          maxHeight: 500,
+          maxOutputBytes: 150 * 1024,
+          outputFileName: 'logo.webp',
         });
       }
 
-      if (mediaFiles.coverFile) {
+      if (!coverFileToUpload && configCoverImage.startsWith('data:image/')) {
+        coverFileToUpload = await legacyDataUrlToPreparedImage({
+          dataUrl: configCoverImage,
+          maxWidth: 1600,
+          maxHeight: 700,
+          maxOutputBytes: 300 * 1024,
+          outputFileName: 'cover.webp',
+        });
+      }
+
+      if (logoFileToUpload) {
+        nextLogoUrl = await uploadTenantPublicImage({
+          bucket: 'tenant-logos',
+          path: `${tenantId}/logo.webp`,
+          file: logoFileToUpload,
+        });
+      }
+
+      if (coverFileToUpload) {
         nextCoverUrl = await uploadTenantPublicImage({
           bucket: 'tenant-covers',
           path: `${tenantId}/cover.webp`,
-          file: mediaFiles.coverFile,
+          file: coverFileToUpload,
         });
       }
 
