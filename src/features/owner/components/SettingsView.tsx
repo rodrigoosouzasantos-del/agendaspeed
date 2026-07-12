@@ -76,6 +76,10 @@ interface SettingsViewProps {
   onChangeBookingLunchStart: (value: string) => void;
   onChangeBookingLunchEnd: (value: string) => void;
 
+  isSaving: boolean;
+  saveSuccessVersion: number;
+  saveSuccessMessage: string;
+
   onSubmit: (
     event: React.FormEvent,
     mediaFiles: SettingsViewMediaFiles
@@ -250,6 +254,9 @@ export default function SettingsView({
   onChangeBookingLunchStart,
   onChangeBookingLunchEnd,
 
+  isSaving,
+  saveSuccessVersion,
+  saveSuccessMessage,
   onSubmit
 }: SettingsViewProps) {
   const [showAdvancedRules, setShowAdvancedRules] = useState(false);
@@ -294,6 +301,27 @@ export default function SettingsView({
       }
     };
   }, [logoPreviewUrl, coverPreviewUrl]);
+
+  useEffect(() => {
+    if (saveSuccessVersion <= 0) {
+      return;
+    }
+
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl);
+    }
+
+    if (coverPreviewUrl) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+
+    setLogoFile(null);
+    setCoverFile(null);
+    setLogoPreviewUrl('');
+    setCoverPreviewUrl('');
+    setLogoImageError('');
+    setCoverImageError('');
+  }, [saveSuccessVersion]);
 
   const handleSelectLogo = async (file: File | undefined) => {
     if (!file) {
@@ -388,7 +416,7 @@ export default function SettingsView({
       );
     }
 
-    if (isPreparingLogo || isPreparingCover) {
+    if (isPreparingLogo || isPreparingCover || isSaving) {
       event.preventDefault();
       return;
     }
@@ -422,11 +450,15 @@ export default function SettingsView({
           <button
             id="btn-save-config-top"
             type="submit"
-            disabled={isPreparingLogo || isPreparingCover}
+            disabled={isPreparingLogo || isPreparingCover || isSaving}
             className="w-full rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60 sm:w-max flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" />
-            {isPreparingLogo || isPreparingCover ? 'Preparando imagens...' : 'Salvar alterações'}
+            {isSaving
+              ? 'Salvando...'
+              : isPreparingLogo || isPreparingCover
+                ? 'Preparando imagens...'
+                : 'Salvar alterações'}
           </button>
         </div>
       </div>
@@ -922,16 +954,31 @@ export default function SettingsView({
         </div>
       </div>
 
-      <div className="flex justify-end pt-1">
-        <button
-          id="btn-save-config"
-          type="submit"
-          disabled={isPreparingLogo || isPreparingCover}
-          className="rounded-xl bg-[#0f4c5c] px-6 py-3 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
-        >
-          <Save className="h-4 w-4" />
-          {isPreparingLogo || isPreparingCover ? 'Preparando imagens...' : 'Salvar alterações globais'}
-        </button>
+      <div className="space-y-2 pt-1">
+        {saveSuccessMessage && (
+          <div
+            role="status"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black text-emerald-700"
+          >
+            {saveSuccessMessage}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            id="btn-save-config"
+            type="submit"
+            disabled={isPreparingLogo || isPreparingCover || isSaving}
+            className="rounded-xl bg-[#0f4c5c] px-6 py-3 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving
+              ? 'SALVANDO...'
+              : isPreparingLogo || isPreparingCover
+                ? 'PREPARANDO IMAGENS...'
+                : 'SALVAR'}
+          </button>
+        </div>
       </div>
     </form>
   );

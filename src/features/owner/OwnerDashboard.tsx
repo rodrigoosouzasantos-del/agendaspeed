@@ -1070,6 +1070,8 @@ export default function OwnerDashboard({
 
   const [tenantId, setTenantId] = useState("");
   const [isSavingTenantSettings, setIsSavingTenantSettings] = useState(false);
+  const [settingsSaveSuccessVersion, setSettingsSaveSuccessVersion] = useState(0);
+  const [settingsSaveMessage, setSettingsSaveMessage] = useState("");
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(false);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
@@ -2779,6 +2781,7 @@ ${professionalAccessLink}`);
       return;
     }
 
+    setSettingsSaveMessage("");
     setIsSavingTenantSettings(true);
 
     try {
@@ -2860,7 +2863,11 @@ ${professionalAccessLink}`);
         ...state,
         config: updatedConfig,
       });
+
+      setSettingsSaveMessage("Alterações salvas com sucesso.");
+      setSettingsSaveSuccessVersion((currentVersion) => currentVersion + 1);
     } catch (error) {
+      setSettingsSaveMessage("");
       console.error('Erro ao salvar configurações da empresa:', error);
       alert(
         error instanceof Error
@@ -3533,6 +3540,9 @@ ${professionalAccessLink}`);
               onChangeBookingWorkHoursEnd={setBookingWorkHoursEnd}
               onChangeBookingLunchStart={setBookingLunchStart}
               onChangeBookingLunchEnd={setBookingLunchEnd}
+              isSaving={isSavingTenantSettings}
+              saveSuccessVersion={settingsSaveSuccessVersion}
+              saveSuccessMessage={settingsSaveMessage}
               onSubmit={handleSaveCompanyConfig}
             />
           )}
