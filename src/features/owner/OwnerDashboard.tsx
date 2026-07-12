@@ -102,6 +102,39 @@ type TenantSettingsResponse = {
   booking_lunch_end: string;
 };
 
+interface SettingsViewMediaFiles {
+  logoFile: File | null;
+  coverFile: File | null;
+}
+
+async function uploadTenantPublicImage(params: {
+  bucket: 'tenant-logos' | 'tenant-covers';
+  path: string;
+  file: File;
+}): Promise<string> {
+  const { bucket, path, file } = params;
+
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, {
+      cacheControl: '3600',
+      contentType: 'image/webp',
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || 'Não foi possível enviar a imagem.');
+  }
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+
+  if (!data.publicUrl) {
+    throw new Error('A imagem foi enviada, mas a URL pública não foi gerada.');
+  }
+
+  return `${data.publicUrl}?v=${Date.now()}`;
+}
+
 function mapTenantSettingsToConfig(
   currentConfig: EstablishmentConfig,
   settings: TenantSettingsResponse,
@@ -2733,76 +2766,110 @@ ${professionalAccessLink}`);
     });
   };
 
-  const handleSaveCompanyConfig = async (event: React.FormEvent) => {
+  const handleSaveCompanyConfig = async (
+    event: React.FormEvent,
+    mediaFiles: SettingsViewMediaFiles,
+  ) => {
     event.preventDefault();
 
     if (isSavingTenantSettings) return;
 
-    const updatedConfig: EstablishmentConfig = {
-      ...config,
-      name: configName,
-      address: configAddress,
-      phone: configPhone,
-      instagram: configInstagram,
-      logo: configLogo,
-      coverImage: configCoverImage,
-      workHoursStart: bookingWorkHoursStart,
-      workHoursEnd: bookingWorkHoursEnd,
-      minLeadTimeMinutes: bookingMinLeadTimeMinutes,
-      maxFutureDays: bookingMaxFutureDays,
-      autoApprove: configAutoApprove,
-      defaultMsgTemplate: configDefaultTemplate,
-    };
-
-    onUpdateState({
-      ...state,
-      config: updatedConfig,
-    });
+    if (!tenantId) {
+      alert('Não foi possível identificar a empresa para salvar as imagens.');
+      return;
+    }
 
     setIsSavingTenantSettings(true);
 
-    const { data, error } = await supabase.rpc("update_my_tenant_settings", {
-      p_name: configName,
-      p_address: configAddress,
-      p_phone: configPhone,
-      p_instagram: configInstagram,
-      p_logo_url: configLogo,
-      p_cover_url: configCoverImage,
-      p_default_msg_template: configDefaultTemplate,
-      p_booking_min_lead_time_minutes: bookingMinLeadTimeMinutes,
-      p_booking_min_cancel_lead_time_minutes: bookingMinCancelLeadTimeMinutes,
-      p_booking_min_reschedule_lead_time_minutes:
-        bookingMinRescheduleLeadTimeMinutes,
-      p_booking_allow_client_confirmation: bookingAllowClientConfirmation,
-      p_booking_allow_client_cancellation: bookingAllowClientCancellation,
-      p_booking_allow_client_reschedule: bookingAllowClientReschedule,
-      p_booking_slot_interval_minutes: bookingSlotIntervalMinutes,
-      p_booking_max_future_days: bookingMaxFutureDays,
-      p_booking_work_hours_start: bookingWorkHoursStart,
-      p_booking_work_hours_end: bookingWorkHoursEnd,
-      p_booking_lunch_start: bookingLunchStart,
-      p_booking_lunch_end: bookingLunchEnd,
-    });
+    try {
+      let nextLogoUrl = configLogo;
+      let nextCoverUrl = configCoverImage;
 
-    setIsSavingTenantSettings(false);
+      if (mediaFiles.logoFile) {
+        nextLogoUrl = await uploadTenantPublicImage({
+          bucket: 'tenant-logos',
+          path: `${tenantId}/logo.webp`,
+          file: mediaFiles.logoFile,
+        });
+      }
 
-    if (error) {
-      console.error("Erro ao salvar configurações da empresa:", error.message);
-      alert(`Não foi possível salvar no Supabase: ${error.message}`);
-      return;
-    }
+      if (mediaFiles.coverFile) {
+        nextCoverUrl = await uploadTenantPublicImage({
+          bucket: 'tenant-covers',
+          path: `${tenantId}/cover.webp`,
+          file: mediaFiles.coverFile,
+        });
+      }
 
-    const saveResult = Array.isArray(data) ? data[0] : null;
+      const { data, error } = await supabase.rpc('update_my_tenant_settings', {
+        p_name: configName,
+        p_address: configAddress,
+        p_phone: configPhone,
+        p_instagram: configInstagram,
+        p_logo_url: nextLogoUrl,
+        p_cover_url: nextCoverUrl,
+        p_default_msg_template: configDefaultTemplate,
+        p_booking_min_lead_time_minutes: bookingMinLeadTimeMinutes,
+        p_booking_min_cancel_lead_time_minutes: bookingMinCancelLeadTimeMinutes,
+        p_booking_min_reschedule_lead_time_minutes:
+          bookingMinRescheduleLeadTimeMinutes,
+        p_booking_allow_client_confirmation: bookingAllowClientConfirmation,
+        p_booking_allow_client_cancellation: bookingAllowClientCancellation,
+        p_booking_allow_client_reschedule: bookingAllowClientReschedule,
+        p_booking_slot_interval_minutes: bookingSlotIntervalMinutes,
+        p_booking_max_future_days: bookingMaxFutureDays,
+        p_booking_work_hours_start: bookingWorkHoursStart,
+        p_booking_work_hours_end: bookingWorkHoursEnd,
+        p_booking_lunch_start: bookingLunchStart,
+        p_booking_lunch_end: bookingLunchEnd,
+      });
 
-    if (saveResult && saveResult.success === false) {
+      if (error) {
+        throw new Error(error.message || 'Não foi possível salvar as configurações.');
+      }
+
+      const saveResult = Array.isArray(data) ? data[0] : null;
+
+      if (saveResult && saveResult.success === false) {
+        throw new Error(
+          saveResult.message ||
+            'Não foi possível salvar as configurações no Supabase.',
+        );
+      }
+
+      const updatedConfig: EstablishmentConfig = {
+        ...config,
+        name: configName,
+        address: configAddress,
+        phone: configPhone,
+        instagram: configInstagram,
+        logo: nextLogoUrl,
+        coverImage: nextCoverUrl,
+        workHoursStart: bookingWorkHoursStart,
+        workHoursEnd: bookingWorkHoursEnd,
+        minLeadTimeMinutes: bookingMinLeadTimeMinutes,
+        maxFutureDays: bookingMaxFutureDays,
+        autoApprove: configAutoApprove,
+        defaultMsgTemplate: configDefaultTemplate,
+      };
+
+      setConfigLogo(nextLogoUrl);
+      setConfigCoverImage(nextCoverUrl);
+
+      onUpdateState({
+        ...state,
+        config: updatedConfig,
+      });
+    } catch (error) {
+      console.error('Erro ao salvar configurações da empresa:', error);
       alert(
-        saveResult.message ||
-          "Não foi possível salvar as configurações no Supabase.",
+        error instanceof Error
+          ? `Não foi possível salvar: ${error.message}`
+          : 'Não foi possível salvar as configurações.',
       );
-      return;
+    } finally {
+      setIsSavingTenantSettings(false);
     }
-
-    // Configurações salvas sem alerta nativo para manter a experiência limpa.
   };
 
   const handleAddManualClient = (clientData: {
