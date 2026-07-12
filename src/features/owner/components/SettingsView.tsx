@@ -10,7 +10,6 @@
 
 import React, {
   useEffect,
-  useMemo,
   useRef,
   useState
 } from 'react';
@@ -26,6 +25,13 @@ import {
   Save,
   Settings2
 } from 'lucide-react';
+
+import { prepareImageForStorage } from '../../../lib/imageUpload';
+
+interface SettingsViewMediaFiles {
+  logoFile: File | null;
+  coverFile: File | null;
+}
 
 interface SettingsViewProps {
   configName: string;
@@ -70,7 +76,10 @@ interface SettingsViewProps {
   onChangeBookingLunchStart: (value: string) => void;
   onChangeBookingLunchEnd: (value: string) => void;
 
-  onSubmit: (event: React.FormEvent) => void;
+  onSubmit: (
+    event: React.FormEvent,
+    mediaFiles: SettingsViewMediaFiles
+  ) => void;
 }
 
 interface AddressParts {
@@ -80,52 +89,6 @@ interface AddressParts {
   zipCode: string;
   city: string;
   complement: string;
-}
-
-function compressImageFile(params: {
-  file: File | undefined;
-  maxWidth: number;
-  maxHeight: number;
-  quality: number;
-  onLoadImage: (value: string) => void;
-}) {
-  const { file, maxWidth, maxHeight, quality, onLoadImage } = params;
-
-  if (!file) {
-    return;
-  }
-
-  const reader = new FileReader();
-
-  reader.onload = () => {
-    const image = new Image();
-
-    image.onload = () => {
-      const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-      const canvas = document.createElement('canvas');
-
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        onLoadImage(String(reader.result || ''));
-        return;
-      }
-
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      onLoadImage(canvas.toDataURL('image/jpeg', quality));
-    };
-
-    image.onerror = () => {
-      onLoadImage(String(reader.result || ''));
-    };
-
-    image.src = String(reader.result || '');
-  };
-
-  reader.readAsDataURL(file);
 }
 
 function safeNumber(value: string, fallback = 0) {
@@ -295,6 +258,18 @@ export default function SettingsView({
     return localStorage.getItem('agendaspeed-company-responsible-name') || '';
   });
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState('');
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const [logoImageError, setLogoImageError] = useState('');
+  const [coverImageError, setCoverImageError] = useState('');
+  const [isPreparingLogo, setIsPreparingLogo] = useState(false);
+  const [isPreparingCover, setIsPreparingCover] = useState(false);
+
+  const displayedLogo = logoPreviewUrl || configLogo;
+  const displayedCoverImage = coverPreviewUrl || configCoverImage;
+
   const lastInternalAddressRef = useRef(configAddress);
   const [addressParts, setAddressParts] = useState<AddressParts>(() => {
     return parseAddress(configAddress);
@@ -307,6 +282,86 @@ export default function SettingsView({
 
     setAddressParts(parseAddress(configAddress));
   }, [configAddress]);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+
+      if (coverPreviewUrl) {
+        URL.revokeObjectURL(coverPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl, coverPreviewUrl]);
+
+  const handleSelectLogo = async (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    setLogoImageError('');
+    setIsPreparingLogo(true);
+
+    try {
+      const preparedFile = await prepareImageForStorage(file, {
+        maxWidth: 500,
+        maxHeight: 500,
+        maxOutputBytes: 150 * 1024,
+        outputFileName: 'logo.webp'
+      });
+
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+
+      setLogoFile(preparedFile);
+      setLogoPreviewUrl(URL.createObjectURL(preparedFile));
+    } catch (error) {
+      setLogoFile(null);
+      setLogoImageError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível preparar a logo.'
+      );
+    } finally {
+      setIsPreparingLogo(false);
+    }
+  };
+
+  const handleSelectCover = async (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    setCoverImageError('');
+    setIsPreparingCover(true);
+
+    try {
+      const preparedFile = await prepareImageForStorage(file, {
+        maxWidth: 1600,
+        maxHeight: 700,
+        maxOutputBytes: 300 * 1024,
+        outputFileName: 'cover.webp'
+      });
+
+      if (coverPreviewUrl) {
+        URL.revokeObjectURL(coverPreviewUrl);
+      }
+
+      setCoverFile(preparedFile);
+      setCoverPreviewUrl(URL.createObjectURL(preparedFile));
+    } catch (error) {
+      setCoverFile(null);
+      setCoverImageError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível preparar a fachada.'
+      );
+    } finally {
+      setIsPreparingCover(false);
+    }
+  };
 
   const updateAddressPart = (key: keyof AddressParts, value: string) => {
     const nextAddressParts = {
@@ -333,7 +388,15 @@ export default function SettingsView({
       );
     }
 
-    onSubmit(event);
+    if (isPreparingLogo || isPreparingCover) {
+      event.preventDefault();
+      return;
+    }
+
+    onSubmit(event, {
+      logoFile,
+      coverFile
+    });
   };
 
   return (
@@ -359,10 +422,11 @@ export default function SettingsView({
           <button
             id="btn-save-config-top"
             type="submit"
-            className="w-full rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] sm:w-max flex items-center justify-center gap-2"
+            disabled={isPreparingLogo || isPreparingCover}
+            className="w-full rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60 sm:w-max flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" />
-            Salvar alterações
+            {isPreparingLogo || isPreparingCover ? 'Preparando imagens...' : 'Salvar alterações'}
           </button>
         </div>
       </div>
@@ -502,9 +566,9 @@ export default function SettingsView({
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <Field label="Logo do estabelecimento">
                   <div className="mt-2 h-24 overflow-hidden rounded-xl border border-slate-200 bg-white flex items-center justify-center">
-                    {configLogo ? (
+                    {displayedLogo ? (
                       <img
-                        src={configLogo}
+                        src={displayedLogo}
                         alt="Logo do salão"
                         className="h-full w-full object-contain"
                       />
@@ -527,26 +591,43 @@ export default function SettingsView({
                 <input
                   id="input-config-logo"
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={(event) => {
-                    compressImageFile({
-                      file: event.target.files?.[0],
-                      maxWidth: 400,
-                      maxHeight: 400,
-                      quality: 0.82,
-                      onLoadImage: onChangeConfigLogo
-                    });
+                    void handleSelectLogo(event.target.files?.[0]);
+                    event.target.value = '';
                   }}
                   className="hidden"
                 />
+
+                <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-500">
+                  JPG, PNG ou WebP. O sistema converte para WebP e limita o arquivo final a 150 KB.
+                </p>
+
+                {isPreparingLogo && (
+                  <p className="mt-2 text-[10px] font-black text-[#0f4c5c]">
+                    Preparando logo...
+                  </p>
+                )}
+
+                {logoFile && !isPreparingLogo && (
+                  <p className="mt-2 text-[10px] font-black text-emerald-700">
+                    Logo pronta: {Math.ceil(logoFile.size / 1024)} KB
+                  </p>
+                )}
+
+                {logoImageError && (
+                  <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-red-700">
+                    {logoImageError}
+                  </p>
+                )}
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <Field label="Fachada da vitrine">
                   <div className="mt-2 h-24 overflow-hidden rounded-xl border border-slate-200 bg-white flex items-center justify-center">
-                    {configCoverImage ? (
+                    {displayedCoverImage ? (
                       <img
-                        src={configCoverImage}
+                        src={displayedCoverImage}
                         alt="Fachada da Vitrine"
                         className="h-full w-full object-cover"
                       />
@@ -569,18 +650,35 @@ export default function SettingsView({
                 <input
                   id="input-config-cover"
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={(event) => {
-                    compressImageFile({
-                      file: event.target.files?.[0],
-                      maxWidth: 1200,
-                      maxHeight: 420,
-                      quality: 0.78,
-                      onLoadImage: onChangeConfigCoverImage
-                    });
+                    void handleSelectCover(event.target.files?.[0]);
+                    event.target.value = '';
                   }}
                   className="hidden"
                 />
+
+                <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-500">
+                  JPG, PNG ou WebP. O sistema converte para WebP e limita o arquivo final a 300 KB.
+                </p>
+
+                {isPreparingCover && (
+                  <p className="mt-2 text-[10px] font-black text-[#0f4c5c]">
+                    Preparando fachada...
+                  </p>
+                )}
+
+                {coverFile && !isPreparingCover && (
+                  <p className="mt-2 text-[10px] font-black text-emerald-700">
+                    Fachada pronta: {Math.ceil(coverFile.size / 1024)} KB
+                  </p>
+                )}
+
+                {coverImageError && (
+                  <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-red-700">
+                    {coverImageError}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -828,10 +926,11 @@ export default function SettingsView({
         <button
           id="btn-save-config"
           type="submit"
-          className="rounded-xl bg-[#0f4c5c] px-6 py-3 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] flex items-center gap-2"
+          disabled={isPreparingLogo || isPreparingCover}
+          className="rounded-xl bg-[#0f4c5c] px-6 py-3 text-xs font-black text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
         >
           <Save className="h-4 w-4" />
-          Salvar alterações globais
+          {isPreparingLogo || isPreparingCover ? 'Preparando imagens...' : 'Salvar alterações globais'}
         </button>
       </div>
     </form>
