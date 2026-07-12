@@ -605,6 +605,7 @@ function BookingHeader({
   companyAddress,
   companyPhone,
   instagram,
+  showBackToSiteButton,
   onNavigateBack
 }: {
   logoUrl: string;
@@ -613,6 +614,7 @@ function BookingHeader({
   companyAddress: string;
   companyPhone: string;
   instagram: string;
+  showBackToSiteButton: boolean;
   onNavigateBack: () => void;
 }) {
   const formattedAddress = normalizePublicAddress(companyAddress);
@@ -658,13 +660,15 @@ function BookingHeader({
                   {companyName || 'AgendaSpeed'}
                 </h1>
 
-                <button
-                  type="button"
-                  onClick={onNavigateBack}
-                  className="inline-flex rounded-xl bg-orange-500 px-3 py-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(249,115,22,0.24)] transition hover:bg-orange-600"
-                >
-                  Voltar ao site
-                </button>
+                {showBackToSiteButton && (
+                  <button
+                    type="button"
+                    onClick={onNavigateBack}
+                    className="inline-flex rounded-xl bg-orange-500 px-3 py-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(249,115,22,0.24)] transition hover:bg-orange-600"
+                  >
+                    Voltar ao site
+                  </button>
+                )}
               </div>
 
               <div className="mt-2 space-y-1.5 text-xs font-semibold leading-relaxed text-slate-600">
@@ -1893,6 +1897,7 @@ export default function ClientBooking({
           companyAddress={config.address}
           companyPhone={config.phone}
           instagram={config.instagram}
+          showBackToSiteButton={isDemoBooking}
           onNavigateBack={onNavigateBack}
         />
       )}
