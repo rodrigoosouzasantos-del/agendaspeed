@@ -145,7 +145,7 @@ async function legacyDataUrlToPreparedImage(params: {
 }
 
 async function uploadTenantPublicImage(params: {
-  bucket: 'tenant-logos' | 'tenant-covers';
+  bucket: 'tenant-logos' | 'tenant-covers' | 'professional-avatars';
   path: string;
   file: File;
 }): Promise<string> {
@@ -1110,6 +1110,7 @@ export default function OwnerDashboard({
   const [settingsSaveSuccessVersion, setSettingsSaveSuccessVersion] = useState(0);
   const [settingsSaveMessage, setSettingsSaveMessage] = useState("");
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(false);
+  const [isSavingProfessional, setIsSavingProfessional] = useState(false);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
   const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
@@ -2116,81 +2117,180 @@ export default function OwnerDashboard({
     setShowProfModal(true);
   };
 
-  const handleAddNewProf = async (event: React.FormEvent) => {
+  const handleAddNewProf = async (
+    event: React.FormEvent,
+    media: {
+      avatarFile: File | null;
+      removeAvatar: boolean;
+    },
+  ) => {
     event.preventDefault();
+
+    if (isSavingProfessional) return;
 
     if (!profName || !profPhone || !profRole) {
       alert("Favor inserir nome, WhatsApp e cargo do profissional.");
       return;
     }
 
-    const professionalToSave: Professional = {
-      id: editingProf?.id || "",
-      name: profName,
-      phone: profPhone,
-      email: profEmail || editingProf?.email || "",
-      role: profRole,
-      displayOrder: Number(profDisplayOrder) || 999,
-      avatar: profAvatar.trim(),
-      active: editingProf ? profActive : true,
-      workDays: profWorkDays,
-      workHoursStart: profHoursStart,
-      workHoursEnd: profHoursEnd,
-      lunchStart: profLunchStart,
-      lunchEnd: profLunchEnd,
-      noLunchBreak: profNoLunchBreak,
-      defaultAppointmentDuration: Number(profDefaultAppointmentDuration) || 30,
-      services: profServicesIds,
-      remType: (profRemType === "commission_fixed"
-        ? "commission_fixed"
-        : "commission_percent") as RemunerationType,
-      remValue: Number(profRemValue) || 0,
-      chairRentalValue: editingProf?.chairRentalValue || 0,
-      chairRentalStatus: editingProf?.chairRentalStatus || "inactive",
-      permissions: normalizeProfessionalPermissions(
-        editingProf?.permissions || defaultProfessionalPermissions,
-      ),
-    };
-
-    const { data, error } = await supabase.rpc("upsert_my_professional", {
-      p_professional: buildProfessionalPayload(professionalToSave),
-    });
-
-    if (error) {
-      alert(error.message || "Não foi possível salvar o profissional.");
+    if (!tenantId) {
+      alert("Não foi possível identificar a empresa para salvar a foto.");
       return;
     }
 
-    const savedRow = (
-      Array.isArray(data) ? data[0] : null
-    ) as SupabaseProfessionalResponse | null;
+    setIsSavingProfessional(true);
 
-    if (!savedRow?.id) {
-      alert("Profissional salvo, mas não foi possível recarregar o registro.");
-      return;
+    try {
+      const existingAvatar = editingProf?.avatar || profAvatar.trim();
+      const initialAvatar = media.removeAvatar ? "" : existingAvatar;
+
+      const professionalToSave: Professional = {
+        id: editingProf?.id || "",
+        name: profName,
+        phone: profPhone,
+        email: profEmail || editingProf?.email || "",
+        role: profRole,
+        displayOrder: Number(profDisplayOrder) || 999,
+        avatar: initialAvatar,
+        active: editingProf ? profActive : true,
+        workDays: profWorkDays,
+        workHoursStart: profHoursStart,
+        workHoursEnd: profHoursEnd,
+        lunchStart: profLunchStart,
+        lunchEnd: profLunchEnd,
+        noLunchBreak: profNoLunchBreak,
+        defaultAppointmentDuration:
+          Number(profDefaultAppointmentDuration) || 30,
+        services: profServicesIds,
+        remType: (profRemType === "commission_fixed"
+          ? "commission_fixed"
+          : "commission_percent") as RemunerationType,
+        remValue: Number(profRemValue) || 0,
+        chairRentalValue: editingProf?.chairRentalValue || 0,
+        chairRentalStatus: editingProf?.chairRentalStatus || "inactive",
+        permissions: normalizeProfessionalPermissions(
+          editingProf?.permissions || defaultProfessionalPermissions,
+        ),
+      };
+
+      const firstSaveResult = await supabase.rpc("upsert_my_professional", {
+        p_professional: buildProfessionalPayload(professionalToSave),
+      });
+
+      if (firstSaveResult.error) {
+        throw new Error(
+          firstSaveResult.error.message ||
+            "Não foi possível salvar o profissional.",
+        );
+      }
+
+      const firstSavedRow = (
+        Array.isArray(firstSaveResult.data) ? firstSaveResult.data[0] : null
+      ) as SupabaseProfessionalResponse | null;
+
+      if (!firstSavedRow?.id) {
+        throw new Error(
+          "Profissional salvo, mas não foi possível recarregar o registro.",
+        );
+      }
+
+      let finalSavedRow = firstSavedRow;
+      let avatarFileToUpload = media.avatarFile;
+
+      if (
+        !avatarFileToUpload &&
+        !media.removeAvatar &&
+        existingAvatar.startsWith("data:image/")
+      ) {
+        avatarFileToUpload = await legacyDataUrlToPreparedImage({
+          dataUrl: existingAvatar,
+          maxWidth: 600,
+          maxHeight: 600,
+          maxOutputBytes: 200 * 1024,
+          outputFileName: "avatar.webp",
+        });
+      }
+
+      if (avatarFileToUpload) {
+        const avatarUrl = await uploadTenantPublicImage({
+          bucket: "professional-avatars",
+          path: `${tenantId}/${firstSavedRow.id}.webp`,
+          file: avatarFileToUpload,
+        });
+
+        const professionalWithAvatar: Professional = {
+          ...mapSupabaseProfessionalToAppProfessional(firstSavedRow),
+          avatar: avatarUrl,
+        };
+
+        const avatarSaveResult = await supabase.rpc("upsert_my_professional", {
+          p_professional: buildProfessionalPayload(professionalWithAvatar),
+        });
+
+        if (avatarSaveResult.error) {
+          throw new Error(
+            avatarSaveResult.error.message ||
+              "A foto foi enviada, mas não foi possível vinculá-la ao profissional.",
+          );
+        }
+
+        const avatarSavedRow = (
+          Array.isArray(avatarSaveResult.data)
+            ? avatarSaveResult.data[0]
+            : null
+        ) as SupabaseProfessionalResponse | null;
+
+        if (!avatarSavedRow?.id) {
+          throw new Error(
+            "A foto foi enviada, mas o cadastro atualizado não retornou.",
+          );
+        }
+
+        finalSavedRow = avatarSavedRow;
+      } else if (media.removeAvatar) {
+        const { error: removeError } = await supabase.storage
+          .from("professional-avatars")
+          .remove([`${tenantId}/${firstSavedRow.id}.webp`]);
+
+        if (removeError) {
+          console.warn(
+            "O cadastro ficou sem foto, mas o arquivo antigo não pôde ser removido:",
+            removeError.message,
+          );
+        }
+      }
+
+      const savedProfessional =
+        mapSupabaseProfessionalToAppProfessional(finalSavedRow);
+
+      const nextProfessionals = editingProf
+        ? professionals.map((professional) => {
+            return professional.id === editingProf.id
+              ? savedProfessional
+              : professional;
+          })
+        : [savedProfessional, ...professionals];
+
+      setLiveProfessionals(nextProfessionals);
+
+      onUpdateState({
+        ...state,
+        professionals: nextProfessionals,
+      });
+
+      setShowProfModal(false);
+      setEditingProf(null);
+      resetProfessionalForm();
+    } catch (error) {
+      console.error("Erro ao salvar profissional:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar o profissional.",
+      );
+    } finally {
+      setIsSavingProfessional(false);
     }
-
-    const savedProfessional =
-      mapSupabaseProfessionalToAppProfessional(savedRow);
-
-    const nextProfessionals = editingProf
-      ? professionals.map((professional) => {
-          return professional.id === editingProf.id
-            ? savedProfessional
-            : professional;
-        })
-      : [savedProfessional, ...professionals];
-
-    setLiveProfessionals(nextProfessionals);
-
-    onUpdateState({
-      ...state,
-      professionals: nextProfessionals,
-    });
-
-    setShowProfModal(false);
-    setEditingProf(null);
-    resetProfessionalForm();
   };
 
   const handleDeleteProf = async (professionalId: string) => {
@@ -3709,6 +3809,7 @@ ${professionalAccessLink}`);
         onChangeServicesIds={setProfServicesIds}
         onChangeRemunerationType={setProfRemType}
         onChangeRemunerationValue={setProfRemValue}
+        isSaving={isSavingProfessional}
         onClose={() => {
           setShowProfModal(false);
           setEditingProf(null);

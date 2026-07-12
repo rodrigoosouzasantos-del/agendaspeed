@@ -11,7 +11,7 @@
  * - definir serviços habilitados.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 
 import {
@@ -19,6 +19,8 @@ import {
   RemunerationType,
   Service
 } from '../../../types';
+
+import { prepareImageForStorage } from '../../../lib/imageUpload';
 
 interface ProfessionalModalProps {
   isOpen: boolean;
@@ -61,52 +63,15 @@ interface ProfessionalModalProps {
   onChangeRemunerationType: (value: RemunerationType) => void;
   onChangeRemunerationValue: (value: number) => void;
 
+  isSaving?: boolean;
   onClose: () => void;
-  onSubmit: (event: React.FormEvent) => void;
-}
-
-function compressImageFile(params: {
-  file: File | undefined;
-  onLoadImage: (value: string) => void;
-}) {
-  const { file, onLoadImage } = params;
-
-  if (!file) {
-    return;
-  }
-
-  const reader = new FileReader();
-
-  reader.onload = () => {
-    const image = new Image();
-
-    image.onload = () => {
-      const maxSize = 400;
-      const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
-      const canvas = document.createElement('canvas');
-
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        onLoadImage(String(reader.result || ''));
-        return;
-      }
-
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      onLoadImage(canvas.toDataURL('image/jpeg', 0.82));
-    };
-
-    image.onerror = () => {
-      onLoadImage(String(reader.result || ''));
-    };
-
-    image.src = String(reader.result || '');
-  };
-
-  reader.readAsDataURL(file);
+  onSubmit: (
+    event: React.FormEvent,
+    media: {
+      avatarFile: File | null;
+      removeAvatar: boolean;
+    }
+  ) => void;
 }
 
 export default function ProfessionalModal({
@@ -147,9 +112,89 @@ export default function ProfessionalModal({
   onChangeServicesIds,
   onChangeRemunerationType,
   onChangeRemunerationValue,
+  isSaving = false,
   onClose,
   onSubmit
 }: ProfessionalModalProps) {
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
+  const [avatarProcessingMessage, setAvatarProcessingMessage] = useState('');
+  const [avatarProcessingError, setAvatarProcessingError] = useState('');
+  const [isProcessingAvatar, setIsProcessingAvatar] = useState(false);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+
+  useEffect(() => {
+    setAvatarFile(null);
+    setAvatarPreviewUrl('');
+    setAvatarProcessingMessage('');
+    setAvatarProcessingError('');
+    setIsProcessingAvatar(false);
+    setRemoveAvatar(false);
+  }, [isOpen, editingProfessional?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
+
+  const currentAvatarPreview = avatarPreviewUrl || avatar;
+
+  const handleSelectAvatar = async (file: File | undefined) => {
+    if (!file) return;
+
+    setAvatarProcessingError('');
+    setAvatarProcessingMessage('');
+    setIsProcessingAvatar(true);
+
+    try {
+      const preparedFile = await prepareImageForStorage(file, {
+        maxWidth: 600,
+        maxHeight: 600,
+        maxOutputBytes: 200 * 1024,
+        outputFileName: 'avatar.webp'
+      });
+
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+
+      const nextPreviewUrl = URL.createObjectURL(preparedFile);
+
+      setAvatarFile(preparedFile);
+      setAvatarPreviewUrl(nextPreviewUrl);
+      setRemoveAvatar(false);
+      setAvatarProcessingMessage(
+        `Foto pronta: ${Math.max(1, Math.round(preparedFile.size / 1024))} KB`
+      );
+    } catch (error) {
+      setAvatarFile(null);
+      setAvatarPreviewUrl('');
+      setAvatarProcessingMessage('');
+      setAvatarProcessingError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível preparar a foto.'
+      );
+    } finally {
+      setIsProcessingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    if (avatarPreviewUrl) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+
+    setAvatarFile(null);
+    setAvatarPreviewUrl('');
+    setAvatarProcessingMessage('');
+    setAvatarProcessingError('');
+    setRemoveAvatar(true);
+    onChangeAvatar('');
+  };
   if (!isOpen) {
     return null;
   }
@@ -203,7 +248,15 @@ export default function ProfessionalModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4 text-xs">
+        <form
+          onSubmit={(event) =>
+            onSubmit(event, {
+              avatarFile,
+              removeAvatar
+            })
+          }
+          className="space-y-4 text-xs"
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
@@ -280,9 +333,9 @@ export default function ProfessionalModal({
 
           <div className="bg-neutral-50 border rounded-2xl p-3 space-y-3">
             <div className="flex items-center gap-3">
-              {avatar ? (
+              {currentAvatarPreview ? (
                 <img
-                  src={avatar}
+                  src={currentAvatarPreview}
                   alt="Foto do profissional"
                   className="w-16 h-16 rounded-2xl object-cover border bg-white shrink-0"
                   referrerPolicy="no-referrer"
@@ -313,10 +366,10 @@ export default function ProfessionalModal({
                 Escolher foto
               </label>
 
-              {avatar && (
+              {currentAvatarPreview && (
                 <button
                   type="button"
-                  onClick={() => onChangeAvatar('')}
+                  onClick={handleRemoveAvatar}
                   className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-black text-neutral-600 hover:bg-neutral-50"
                 >
                   Remover
@@ -327,15 +380,25 @@ export default function ProfessionalModal({
             <input
               id="input-prof-avatar-file"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={(event) => {
-                compressImageFile({
-                  file: event.target.files?.[0],
-                  onLoadImage: onChangeAvatar
-                });
+                void handleSelectAvatar(event.target.files?.[0]);
+                event.target.value = '';
               }}
               className="hidden"
             />
+
+            {avatarProcessingMessage && (
+              <p className="text-[10px] font-bold text-emerald-700">
+                {avatarProcessingMessage}
+              </p>
+            )}
+
+            {avatarProcessingError && (
+              <p className="text-[10px] font-bold text-red-700">
+                {avatarProcessingError}
+              </p>
+            )}
           </div>
 
           {editingProfessional && (
@@ -569,11 +632,14 @@ export default function ProfessionalModal({
           <button
             id="btn-prof-form-submit"
             type="submit"
-            className="w-full bg-[#0f4c5c] hover:bg-[#123945] text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer"
+            disabled={isSaving || isProcessingAvatar}
+            className="w-full bg-[#0f4c5c] hover:bg-[#123945] text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {editingProfessional
-              ? 'Salvar Alterações de Cadastro'
-              : 'Cadastrar Profissional'}
+            {isSaving
+              ? 'SALVANDO...'
+              : editingProfessional
+                ? 'Salvar Alterações de Cadastro'
+                : 'Cadastrar Profissional'}
           </button>
         </form>
       </div>
