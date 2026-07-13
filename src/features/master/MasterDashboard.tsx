@@ -79,6 +79,8 @@ type TenantCard = {
   state: string;
   professionalsCount: number;
   appointmentsCount: number;
+  signupSource: string;
+  selfRegisteredAt: string;
 };
 
 type Toast = {
@@ -322,6 +324,8 @@ function normalizeTenantRow(row: MasterTenantRow): TenantCard {
     state: textValue(tenant.address_state),
     professionalsCount: numberValue(row.professionals_count, 0),
     appointmentsCount: numberValue(row.appointments_count, 0),
+    signupSource: textValue(tenant.signup_source, "master"),
+    selfRegisteredAt: textValue(tenant.self_registered_at),
   };
 }
 
@@ -582,6 +586,16 @@ function TenantTable({
                   <p className="font-black text-slate-950">{tenant.name}</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">{tenant.responsibleName} · {tenant.email || "Sem e-mail"}</p>
                   <p className="mt-1 text-[11px] font-semibold text-slate-400">agendaspeed.com.br/{tenant.slug}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${tenant.signupSource === "public_trial" ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
+                      {tenant.signupSource === "public_trial" ? "Cadastro pelo site" : "Criada pelo desenvolvedor"}
+                    </span>
+                    {tenant.selfRegisteredAt && (
+                      <span className="text-[10px] font-bold text-slate-400">
+                        Cadastro automático em {formatDate(tenant.selfRegisteredAt)}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3"><StatusBadge status={tenant.status} />{countdownLabel && <p className="mt-1 text-[11px] font-black text-amber-700">{countdownLabel}</p>}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatDate(getTenantDisplayDueDate(tenant))}</td>
@@ -857,6 +871,7 @@ export default function MasterDashboard({
           tenant.email,
           tenant.whatsapp,
           tenant.status,
+          tenant.signupSource,
         ]
           .join(" ")
           .toLowerCase();
