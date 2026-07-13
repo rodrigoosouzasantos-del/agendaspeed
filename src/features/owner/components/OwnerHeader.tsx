@@ -10,11 +10,12 @@
  */
 
 import React from 'react';
-import { ExternalLink, LogOut } from 'lucide-react';
+import { ExternalLink, LogOut, MessageCircle } from 'lucide-react';
 
 interface OwnerHeaderProps {
   logoUrl: string;
   companyName: string;
+  publicBookingUrl: string;
   onNavigateToClient: () => void;
   onLogOut: () => void;
 }
@@ -22,9 +23,30 @@ interface OwnerHeaderProps {
 export default function OwnerHeader({
   logoUrl,
   companyName,
+  publicBookingUrl,
   onNavigateToClient,
   onLogOut
 }: OwnerHeaderProps) {
+  const handleShareOnWhatsApp = () => {
+    if (!publicBookingUrl) {
+      return;
+    }
+
+    const message = [
+      `📅 Agendamento online — ${companyName || 'AgendaSpeed'}`,
+      '',
+      'Agende seu horário em poucos minutos:',
+      '',
+      publicBookingUrl,
+    ].join('\n');
+
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(message)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+  };
+
   return (
     <header className="sticky top-0 z-45 bg-white border-b border-neutral-200/80 px-6 py-3 shadow-xs">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-3 items-center justify-between">

@@ -81,6 +81,8 @@ function isValidUuid(value: string): boolean {
 
 type TenantSettingsResponse = {
   tenant_id: string;
+  tenant_slug?: string;
+  slug?: string;
   name: string;
   address: string;
   phone: string;
@@ -178,14 +180,12 @@ function mapTenantSettingsToConfig(
 ): EstablishmentConfig {
   return {
     ...currentConfig,
-    // Dados públicos vazios no Supabase devem continuar vazios.
-    // Nunca reutilizar logo, fachada ou Instagram fictícios do estado inicial.
-    name: settings.name || '',
-    address: settings.address || '',
-    phone: settings.phone || settings.whatsapp || '',
-    instagram: settings.instagram || '',
-    logo: settings.logo_url || '',
-    coverImage: settings.cover_url || '',
+    name: settings.name || currentConfig.name,
+    address: settings.address || currentConfig.address,
+    phone: settings.phone || settings.whatsapp || currentConfig.phone,
+    instagram: settings.instagram || currentConfig.instagram,
+    logo: settings.logo_url || currentConfig.logo,
+    coverImage: settings.cover_url || currentConfig.coverImage,
     defaultMsgTemplate:
       settings.default_msg_template || currentConfig.defaultMsgTemplate,
     minLeadTimeMinutes: Number(
@@ -959,6 +959,31 @@ function extractClientPublicToken(data: unknown): string {
   return "";
 }
 
+function buildOwnerPublicBookingUrl(slug: string): string {
+  const normalizedSlug = String(slug || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+|\/+$/g, "");
+
+  if (!normalizedSlug) {
+    return "";
+  }
+
+  if (typeof window === "undefined") {
+    return `https://agendaspeed.com.br/${normalizedSlug}`;
+  }
+
+  const hostname = window.location.hostname;
+  const isLocalhost =
+    hostname === "localhost" || hostname === "127.0.0.1";
+
+  const origin = isLocalhost
+    ? "https://agendaspeed.com.br"
+    : window.location.origin.replace("https://www.", "https://");
+
+  return `${origin}/${normalizedSlug}`;
+}
+
 export default function OwnerDashboard({
   state,
   onUpdateState,
@@ -1080,7 +1105,7 @@ export default function OwnerDashboard({
   });
   const [servDuration, setServDuration] = useState(30);
   const [servDisplayOrder, setServDisplayOrder] = useState(1);
-  const [servPrice, setServPrice] = useState(0);
+  const [servPrice, setServPrice] = useState(50);
   const [servDescription, setServDescription] = useState("");
   const [servActive, setServActive] = useState(true);
   const [servRequireDeposit, setServRequireDeposit] = useState(false);
@@ -1126,6 +1151,7 @@ export default function OwnerDashboard({
   const [bookingLunchEnd, setBookingLunchEnd] = useState("13:00");
 
   const [tenantId, setTenantId] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
   const [isSavingTenantSettings, setIsSavingTenantSettings] = useState(false);
   const [settingsSaveSuccessVersion, setSettingsSaveSuccessVersion] = useState(0);
   const [settingsSaveMessage, setSettingsSaveMessage] = useState("");
@@ -1164,6 +1190,34 @@ export default function OwnerDashboard({
       if (!firstSettings) return;
 
       setTenantId(firstSettings.tenant_id || "");
+
+      const settingsSlug = String(
+        firstSettings.tenant_slug || firstSettings.slug || "",
+      ).trim();
+
+      if (settingsSlug) {
+        setTenantSlug(settingsSlug);
+      } else {
+        const { data: ownerContextData, error: ownerContextError } =
+          await supabase.rpc("get_my_owner_context");
+
+        if (ownerContextError) {
+          console.error(
+            "Erro ao carregar o endereço público da agenda:",
+            ownerContextError.message,
+          );
+        } else {
+          const ownerContext = Array.isArray(ownerContextData)
+            ? ownerContextData[0]
+            : ownerContextData;
+
+          const ownerContextSlug = String(
+            ownerContext?.tenant_slug || ownerContext?.slug || "",
+          ).trim();
+
+          setTenantSlug(ownerContextSlug);
+        }
+      }
 
       const nextConfig = mapTenantSettingsToConfig(config, firstSettings);
 
@@ -1777,7 +1831,7 @@ export default function OwnerDashboard({
     setServCategory(serviceCategories[0] || "CABELO");
     setServDuration(30);
     setServDisplayOrder(1);
-    setServPrice(0);
+    setServPrice(50);
     setServDescription("");
     setServActive(true);
     setServRequireDeposit(false);
@@ -3846,6 +3900,8 @@ ${professionalAccessLink}`);
     categoryOrders: serviceCategoryOrders,
   });
 
+  const publicBookingUrl = buildOwnerPublicBookingUrl(tenantSlug);
+
   return (
     <div
       id="owner-dashboard"
@@ -3854,6 +3910,7 @@ ${professionalAccessLink}`);
       <OwnerHeader
         logoUrl={configLogo}
         companyName={configName}
+        publicBookingUrl={publicBookingUrl}
         onNavigateToClient={onNavigateToClient}
         onLogOut={onLogOut}
       />
