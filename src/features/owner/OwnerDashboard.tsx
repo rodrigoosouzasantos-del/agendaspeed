@@ -45,7 +45,7 @@ import OwnerSidebar from "./components/OwnerSidebar";
 import DashboardHomeView from "./components/DashboardHomeView";
 import AgendaView from "./components/AgendaView";
 import ProfessionalsView from "./components/ProfessionalsView";
-import ServicesView from "./components/ServicesView";
+import ServicesView, { ServiceActionResult } from "./components/ServicesView";
 import ClientsView from "./components/ClientsView";
 import FinanceView from "./components/FinanceView";
 import ReceiptsView, {
@@ -2824,29 +2824,143 @@ ${professionalAccessLink}`);
     setServCategory(normalizedCategory);
   };
 
-  const handleDisableServiceCategory = async (categoryName: string) => {
-    const normalizedCategory = normalizeServiceCategoryName(categoryName);
+  const handleToggleServiceActive = async (
+    service: Service,
+  ): Promise<ServiceActionResult> => {
+    const serviceToSave: Service = {
+      ...service,
+      active: !service.active,
+    };
 
-    const hasServiceUsingCategory = services.some((service) => {
-      return (
-        normalizeServiceCategoryName(service.category) === normalizedCategory
-      );
+    const { data, error } = await supabase.rpc("upsert_my_service", {
+      p_service: buildServicePayload(serviceToSave),
     });
 
-    if (hasServiceUsingCategory) {
-      alert(
-        "Esta categoria possui serviços cadastrados. Altere ou inative os serviços antes de desativar a categoria.",
-      );
-      return;
+    if (error) {
+      return {
+        success: false,
+        title: "Não foi possível alterar o serviço",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
     }
 
-    const { error } = await supabase.rpc("disable_my_service_category", {
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseServiceResponse | null;
+
+    if (!savedRow?.id) {
+      return {
+        success: false,
+        title: "Alteração não confirmada",
+        message: "O serviço foi processado, mas o cadastro atualizado não retornou.",
+      };
+    }
+
+    const savedService = mapSupabaseServiceToAppService(savedRow);
+    const nextServices = services.map((currentService) => {
+      return currentService.id === savedService.id ? savedService : currentService;
+    });
+
+    setLiveServices(nextServices);
+    onUpdateState({
+      ...state,
+      services: nextServices,
+    });
+
+    return {
+      success: true,
+      title: savedService.active ? "Serviço ativado" : "Serviço desativado",
+      message: savedService.active
+        ? "O serviço voltou a aparecer na vitrine para novos agendamentos."
+        : "O serviço foi retirado da vitrine, mas o histórico foi preservado.",
+    };
+  };
+
+  const handleDeleteService = async (
+    service: Service,
+  ): Promise<ServiceActionResult> => {
+    const { data, error } = await supabase.rpc("delete_my_service", {
+      p_service_id: service.id,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        title: "Não foi possível excluir o serviço",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
+    }
+
+    const result = (Array.isArray(data) ? data[0] : null) as {
+      success?: boolean;
+      message?: string;
+      code?: string;
+    } | null;
+
+    if (!result?.success) {
+      return {
+        success: false,
+        title:
+          result?.code === "HAS_APPOINTMENTS"
+            ? "Este serviço possui histórico"
+            : "Não foi possível excluir o serviço",
+        message:
+          result?.message ||
+          "Desative o serviço para removê-lo da vitrine sem perder informações antigas.",
+      };
+    }
+
+    const nextServices = services.filter((currentService) => {
+      return currentService.id !== service.id;
+    });
+
+    setLiveServices(nextServices);
+    onUpdateState({
+      ...state,
+      services: nextServices,
+    });
+
+    return {
+      success: true,
+      title: "Serviço excluído",
+      message: "O serviço foi removido definitivamente do cadastro.",
+    };
+  };
+
+  const handleDeleteServiceCategory = async (
+    categoryName: string,
+  ): Promise<ServiceActionResult> => {
+    const normalizedCategory = normalizeServiceCategoryName(categoryName);
+
+    const { data, error } = await supabase.rpc("delete_my_service_category", {
       p_name: normalizedCategory,
     });
 
     if (error) {
-      alert(error.message || "Não foi possível desativar a categoria.");
-      return;
+      return {
+        success: false,
+        title: "Não foi possível excluir a categoria",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
+    }
+
+    const result = (Array.isArray(data) ? data[0] : null) as {
+      success?: boolean;
+      message?: string;
+      code?: string;
+    } | null;
+
+    if (!result?.success) {
+      return {
+        success: false,
+        title:
+          result?.code === "HAS_SERVICES"
+            ? "Esta categoria ainda possui serviços"
+            : "Não foi possível excluir a categoria",
+        message:
+          result?.message ||
+          "Mova ou exclua os serviços vinculados antes de remover a categoria.",
+      };
     }
 
     setServiceCategories((currentCategories) => {
@@ -2855,21 +2969,23 @@ ${professionalAccessLink}`);
       });
 
       if (servCategory === normalizedCategory) {
-        setServCategory(nextCategories[0] || "CABELO");
+        setServCategory(nextCategories[0] || "");
       }
 
       return nextCategories;
     });
 
     setServiceCategoryOrders((currentOrders) => {
-      const nextOrders = {
-        ...currentOrders,
-      };
-
+      const nextOrders = { ...currentOrders };
       delete nextOrders[normalizedCategory];
-
       return nextOrders;
     });
+
+    return {
+      success: true,
+      title: "Categoria excluída",
+      message: "A categoria foi removida definitivamente do cadastro.",
+    };
   };
 
   const handleChangeServiceCategoryOrder = async (
@@ -3583,7 +3699,9 @@ ${professionalAccessLink}`);
               onOpenCreateService={handleOpenCreateService}
               onEditService={handleEditServiceTrigger}
               onAddCategory={handleAddServiceCategory}
-              onDisableCategory={handleDisableServiceCategory}
+              onToggleServiceActive={handleToggleServiceActive}
+              onDeleteService={handleDeleteService}
+              onDeleteCategory={handleDeleteServiceCategory}
               onChangeCategoryOrder={handleChangeServiceCategoryOrder}
             />
           )}
