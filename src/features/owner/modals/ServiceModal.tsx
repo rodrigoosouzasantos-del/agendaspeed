@@ -146,30 +146,30 @@ export default function ServiceModal({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1 sm:col-span-1">
-              <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
-                Categoria
-              </label>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
+              Categoria
+            </label>
 
-              <select 
-                id="select-service-category"
-                value={normalizeCategoryName(category)}
-                onChange={(event) => onChangeCategory(normalizeCategoryName(event.target.value))}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none font-semibold"
-                required
-              >
-                {normalizedCategories.map((item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select 
+              id="select-service-category"
+              value={normalizeCategoryName(category)}
+              onChange={(event) => onChangeCategory(normalizeCategoryName(event.target.value))}
+              className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none font-semibold"
+              required
+            >
+              {normalizedCategories.map((item) => (
+                <option
+                  key={item}
+                  value={item}
+                >
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[0.8fr_0.8fr_1.2fr]">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
                 Duração (min)
@@ -201,22 +201,23 @@ export default function ServiceModal({
                 required
               />
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
-              Preço de Tabela
-            </label>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">
+                Preço de Tabela
+              </label>
 
-            <input 
-              id="input-service-price"
-              type="text" 
-              inputMode="numeric"
-              value={formatCurrencyInput(price)}
-              onChange={(event) => onChangePrice(parseCurrencyInput(event.target.value))}
-              className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none font-bold"
-              required
-            />
+              <input 
+                id="input-service-price"
+                type="text" 
+                inputMode="numeric"
+                value={formatCurrencyInput(price)}
+                onChange={(event) => onChangePrice(parseCurrencyInput(event.target.value))}
+                placeholder="R$ 0,00"
+                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none font-bold"
+                required
+              />
+            </div>
           </div>
 
           {editingService && (
