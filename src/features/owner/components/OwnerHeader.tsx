@@ -1,16 +1,22 @@
 /**
- * Cabeçalho superior do Painel do Dono - AgendaZap.
+ * Cabeçalho superior do Painel do Dono - AgendaSpeed.
  *
- * Responsável por exibir:
- * - logo do estabelecimento;
- * - nome do estabelecimento;
- * - identificação do painel administrativo;
- * - botão para visualizar o link público de agendamento;
- * - botão de sair.
+ * Exibe:
+ * - logo e nome do estabelecimento;
+ * - link público da agenda;
+ * - cópia rápida do link;
+ * - compartilhamento;
+ * - saída do painel.
  */
 
-import React from 'react';
-import { ExternalLink, LogOut, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  LogOut,
+  Share2,
+} from 'lucide-react';
 
 interface OwnerHeaderProps {
   logoUrl: string;
@@ -25,14 +31,26 @@ export default function OwnerHeader({
   companyName,
   publicBookingUrl,
   onNavigateToClient,
-  onLogOut
+  onLogOut,
 }: OwnerHeaderProps) {
-  const handleShareOnWhatsApp = () => {
-    if (!publicBookingUrl) {
-      return;
-    }
+  const [linkCopied, setLinkCopied] = useState(false);
 
-    const message = [
+  const handleCopyLink = async () => {
+    if (!publicBookingUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(publicBookingUrl);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2200);
+    } catch {
+      window.prompt('Copie o link da sua agenda:', publicBookingUrl);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!publicBookingUrl) return;
+
+    const shareText = [
       `📅 Agendamento online — ${companyName || 'AgendaSpeed'}`,
       '',
       'Agende seu horário em poucos minutos:',
@@ -40,56 +58,102 @@ export default function OwnerHeader({
       publicBookingUrl,
     ].join('\n');
 
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Agendamento online — ${companyName || 'AgendaSpeed'}`,
+          text: shareText,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+      }
+    }
+
     window.open(
-      `https://wa.me/?text=${encodeURIComponent(message)}`,
+      `https://wa.me/?text=${encodeURIComponent(shareText)}`,
       '_blank',
       'noopener,noreferrer',
     );
   };
 
   return (
-    <header className="sticky top-0 z-45 bg-white border-b border-neutral-200/80 px-6 py-3 shadow-xs">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-3 items-center justify-between">
-        
+    <header className="sticky top-0 z-45 border-b border-neutral-200/80 bg-white px-6 py-3 shadow-xs">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 md:flex-row">
         <div className="flex items-center space-x-2">
-          <img 
-            src={logoUrl} 
-            alt="Logo" 
-            className="w-10 h-10 rounded-xl object-contain border bg-neutral-100"
-            referrerPolicy="no-referrer"
-          />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={`Logo ${companyName}`}
+              className="h-10 w-10 rounded-xl border bg-neutral-100 object-contain"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-neutral-100 text-xs font-black text-neutral-500">
+              AS
+            </div>
+          )}
 
           <div>
-            <span className="text-base font-black tracking-tight leading-none block">
+            <span className="block text-base font-black leading-none tracking-tight">
               {companyName}
             </span>
 
-            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block font-mono mt-0.5">
+            <span className="mt-0.5 block font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-500">
               PAINEL DO PROPRIETÁRIO ADM
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button 
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
             id="btn-goto-booking"
-            onClick={onNavigateToClient} 
-            className="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+            type="button"
+            onClick={onNavigateToClient}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-3.5 py-2 text-xs font-bold text-orange-600 transition hover:bg-orange-100"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Ver Link de Agendamento
+            <ExternalLink className="h-3.5 w-3.5" />
+            Link agenda
           </button>
-          
-          <button 
-            id="btn-owner-logout"
-            onClick={onLogOut}
-            className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+
+          <button
+            id="btn-copy-booking-link"
+            type="button"
+            onClick={handleCopyLink}
+            disabled={!publicBookingUrl}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2 text-xs font-bold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            {linkCopied ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            {linkCopied ? 'Link copiado' : 'Copiar link'}
+          </button>
+
+          <button
+            id="btn-share-booking-link"
+            type="button"
+            onClick={handleShare}
+            disabled={!publicBookingUrl}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Compartilhar
+          </button>
+
+          <button
+            id="btn-owner-logout"
+            type="button"
+            onClick={onLogOut}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-neutral-800"
+          >
+            <LogOut className="h-3.5 w-3.5" />
             Sair Administrador
           </button>
         </div>
-
       </div>
     </header>
   );

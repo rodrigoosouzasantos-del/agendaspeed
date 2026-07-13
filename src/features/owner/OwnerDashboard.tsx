@@ -1203,7 +1203,7 @@ export default function OwnerDashboard({
 
         if (ownerContextError) {
           console.error(
-            "Erro ao carregar o endereço público da agenda:",
+            "Erro ao carregar o link público da agenda:",
             ownerContextError.message,
           );
         } else {
@@ -1211,11 +1211,9 @@ export default function OwnerDashboard({
             ? ownerContextData[0]
             : ownerContextData;
 
-          const ownerContextSlug = String(
-            ownerContext?.tenant_slug || ownerContext?.slug || "",
-          ).trim();
-
-          setTenantSlug(ownerContextSlug);
+          setTenantSlug(
+            String(ownerContext?.tenant_slug || ownerContext?.slug || "").trim(),
+          );
         }
       }
 
@@ -3900,8 +3898,6 @@ ${professionalAccessLink}`);
     categoryOrders: serviceCategoryOrders,
   });
 
-  const publicBookingUrl = buildOwnerPublicBookingUrl(tenantSlug);
-
   return (
     <div
       id="owner-dashboard"
@@ -3910,7 +3906,7 @@ ${professionalAccessLink}`);
       <OwnerHeader
         logoUrl={configLogo}
         companyName={configName}
-        publicBookingUrl={publicBookingUrl}
+        publicBookingUrl={buildOwnerPublicBookingUrl(tenantSlug)}
         onNavigateToClient={onNavigateToClient}
         onLogOut={onLogOut}
       />
