@@ -1266,11 +1266,13 @@ export default function ClientBooking({
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
   }, [state.config, remoteBookingContext]);
 
-  const services = remoteBookingContext?.services?.length
+  // Em uma vitrine real, a resposta do Supabase é a única fonte válida.
+  // Mesmo uma lista vazia é um resultado legítimo e não deve cair em dados demo/localStorage.
+  const services = remoteBookingContext
     ? remoteBookingContext.services
     : state.services;
 
-  const professionals = remoteBookingContext?.professionals?.length
+  const professionals = remoteBookingContext
     ? remoteBookingContext.professionals
     : state.professionals;
 
@@ -1437,6 +1439,12 @@ export default function ClientBooking({
   const categories = useMemo(() => {
     return getActiveServiceCategories(services);
   }, [services]);
+
+  useEffect(() => {
+    if (!categories.includes(activeCategory)) {
+      setActiveCategory('Todos');
+    }
+  }, [categories, activeCategory]);
 
   const filteredServices = useMemo(() => {
     return filterServicesByCategory({

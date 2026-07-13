@@ -826,7 +826,7 @@ function getInitialServiceCategories(services: Service[]): string[] {
     return uniqueCategories;
   }
 
-  return ["BARBA & CABELO", "CABELO", "UNHAS", "ESTÉTICA"];
+  return [];
 }
 
 function getServiceDisplayOrder(service: Service): number {
@@ -961,7 +961,12 @@ export default function OwnerDashboard({
   onNavigateToClient,
   onLogOut,
 }: OwnerDashboardProps) {
-  const { config, services } = state;
+  const { config } = state;
+
+  // Serviços exibidos no painel vêm exclusivamente do Supabase.
+  // Evita que dados antigos do estado global/localStorage sejam usados como fallback.
+  const [liveServices, setLiveServices] = useState<Service[]>([]);
+  const services = liveServices;
 
   // Profissionais exibidos no painel vêm exclusivamente do Supabase.
   // O estado do App não é usado como fallback para evitar dados fictícios em produção.
@@ -1296,6 +1301,7 @@ export default function OwnerDashboard({
             )
           : buildInitialServiceCategoryOrders(nextCategories, nextServices);
 
+      setLiveServices(nextServices);
       setServiceCategories(nextCategories);
       setServiceCategoryOrders(nextCategoryOrders);
 
@@ -2582,6 +2588,8 @@ ${professionalAccessLink}`);
         })
       : [savedService, ...services];
 
+    setLiveServices(nextServices);
+
     onUpdateState({
       ...state,
       services: nextServices,
@@ -2898,6 +2906,8 @@ ${professionalAccessLink}`);
         categoryOrder: normalizedOrder,
       };
     });
+
+    setLiveServices(updatedServices);
 
     onUpdateState({
       ...state,
