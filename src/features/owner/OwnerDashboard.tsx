@@ -178,12 +178,14 @@ function mapTenantSettingsToConfig(
 ): EstablishmentConfig {
   return {
     ...currentConfig,
-    name: settings.name || currentConfig.name,
-    address: settings.address || currentConfig.address,
-    phone: settings.phone || settings.whatsapp || currentConfig.phone,
-    instagram: settings.instagram || currentConfig.instagram,
-    logo: settings.logo_url || currentConfig.logo,
-    coverImage: settings.cover_url || currentConfig.coverImage,
+    // Dados públicos vazios no Supabase devem continuar vazios.
+    // Nunca reutilizar logo, fachada ou Instagram fictícios do estado inicial.
+    name: settings.name || '',
+    address: settings.address || '',
+    phone: settings.phone || settings.whatsapp || '',
+    instagram: settings.instagram || '',
+    logo: settings.logo_url || '',
+    coverImage: settings.cover_url || '',
     defaultMsgTemplate:
       settings.default_msg_template || currentConfig.defaultMsgTemplate,
     minLeadTimeMinutes: Number(
@@ -1078,7 +1080,7 @@ export default function OwnerDashboard({
   });
   const [servDuration, setServDuration] = useState(30);
   const [servDisplayOrder, setServDisplayOrder] = useState(1);
-  const [servPrice, setServPrice] = useState(50);
+  const [servPrice, setServPrice] = useState(0);
   const [servDescription, setServDescription] = useState("");
   const [servActive, setServActive] = useState(true);
   const [servRequireDeposit, setServRequireDeposit] = useState(false);
@@ -1775,7 +1777,7 @@ export default function OwnerDashboard({
     setServCategory(serviceCategories[0] || "CABELO");
     setServDuration(30);
     setServDisplayOrder(1);
-    setServPrice(50);
+    setServPrice(0);
     setServDescription("");
     setServActive(true);
     setServRequireDeposit(false);

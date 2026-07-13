@@ -271,12 +271,14 @@ function mergeConfigWithFallback(
   return {
     ...fallbackConfig,
     ...remoteConfig,
-    name: String(remoteConfig.name || fallbackConfig.name || ''),
-    logo: String(remoteConfig.logo || fallbackConfig.logo || ''),
-    coverImage: String(remoteConfig.coverImage || fallbackConfig.coverImage || ''),
-    address: String(remoteConfig.address || fallbackConfig.address || ''),
-    phone: String(remoteConfig.phone || fallbackConfig.phone || ''),
-    instagram: String(remoteConfig.instagram || fallbackConfig.instagram || ''),
+    // Em vitrine real, identidade e mídias vêm exclusivamente do Supabase.
+    // Campos vazios são legítimos e não podem cair em dados fictícios do estado inicial.
+    name: String(readRemoteValue(remoteConfig, ['name']) ?? ''),
+    logo: String(readRemoteValue(remoteConfig, ['logo', 'logo_url', 'logoUrl']) ?? ''),
+    coverImage: String(readRemoteValue(remoteConfig, ['coverImage', 'cover_url', 'coverUrl', 'cover']) ?? ''),
+    address: String(readRemoteValue(remoteConfig, ['address']) ?? ''),
+    phone: String(readRemoteValue(remoteConfig, ['phone', 'whatsapp']) ?? ''),
+    instagram: String(readRemoteValue(remoteConfig, ['instagram']) ?? ''),
     workDays: Array.isArray(remoteConfig.workDays)
       ? remoteConfig.workDays as number[]
       : Array.isArray(remoteConfig.work_days)

@@ -64,10 +64,14 @@ function parseCurrencyInput(value: string): number {
 }
 
 function formatCurrencyInput(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '';
+  }
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
-  }).format(Number.isFinite(value) ? value : 0);
+  }).format(value);
 }
 
 export default function ServiceModal({

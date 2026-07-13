@@ -236,6 +236,16 @@ export default function AuthPage({
   }, [initialRolePreseed]);
 
   useEffect(() => {
+    if (mode !== 'register') return;
+
+    // Cadastro público novo nunca deve herdar e-mail de login anterior.
+    // O único preenchimento permitido é a retomada segura após confirmação de e-mail.
+    if (!loadPendingTrial()) {
+      setEmail('');
+    }
+  }, [mode]);
+
+  useEffect(() => {
     if (mode !== 'register' || slugWasEdited) return;
     setSlug(normalizeSlug(salonName));
   }, [mode, salonName, slugWasEdited]);
@@ -681,7 +691,7 @@ export default function AuthPage({
           <div className="mb-7">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="inline-flex rounded-full bg-orange-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-600">
-                {mode === 'login' ? 'Acesso ao painel' : `Teste grátis · Etapa ${registerStep} de 2`}
+                {mode === 'login' ? 'Acesso ao painel' : 'Teste grátis'}
               </p>
               {mode === 'register' && (
                 <span className="text-xs font-black text-emerald-700">21 dias grátis</span>
@@ -718,7 +728,7 @@ export default function AuthPage({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             {mode === 'register' && registerStep === 1 && (
               <>
                 <label className="block space-y-1.5">
@@ -749,7 +759,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">E-mail</span>
                   <div className="relative">
                     <Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input type="email" name="trial-contact-email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -845,7 +855,7 @@ export default function AuthPage({
               <>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">E-mail</span>
-                  <div className="relative"><Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" /></div>
+                  <div className="relative"><Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" /><input type="email" name="login-email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" /></div>
                 </label>
 
                 <label className="block space-y-1.5">
