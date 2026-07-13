@@ -47,7 +47,7 @@ export default function OwnerHeader({
     }
   };
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!publicBookingUrl) return;
 
     const shareText = [
@@ -57,20 +57,6 @@ export default function OwnerHeader({
       '',
       publicBookingUrl,
     ].join('\n');
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Agendamento online — ${companyName || 'AgendaSpeed'}`,
-          text: shareText,
-        });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
-      }
-    }
 
     window.open(
       `https://wa.me/?text=${encodeURIComponent(shareText)}`,
