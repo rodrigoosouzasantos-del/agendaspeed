@@ -370,8 +370,10 @@ type SupabaseServiceResponse = {
 };
 
 type SupabaseServiceCategoryResponse = {
+  id: string;
   name: string;
   sort_order: number;
+  active: boolean;
 };
 
 function mapSupabaseServiceToAppService(
@@ -1058,6 +1060,17 @@ export default function OwnerDashboard({
 
     return buildInitialServiceCategoryOrders(initialCategories, services);
   });
+  const [serviceCategoryStatuses, setServiceCategoryStatuses] = useState<
+    Record<string, boolean>
+  >(() => {
+    return getInitialServiceCategories(services).reduce<Record<string, boolean>>(
+      (accumulator, category) => {
+        accumulator[normalizeServiceCategoryName(category)] = true;
+        return accumulator;
+      },
+      {},
+    );
+  });
 
   const [servName, setServName] = useState("");
   const [servCategory, setServCategory] = useState(() => {
@@ -1301,9 +1314,30 @@ export default function OwnerDashboard({
             )
           : buildInitialServiceCategoryOrders(nextCategories, nextServices);
 
+      const nextCategoryStatuses =
+        categoryRows.length > 0
+          ? categoryRows.reduce<Record<string, boolean>>(
+              (accumulator, category) => {
+                const normalizedCategory = normalizeServiceCategoryName(
+                  category.name,
+                );
+                accumulator[normalizedCategory] = category.active !== false;
+                return accumulator;
+              },
+              {},
+            )
+          : nextCategories.reduce<Record<string, boolean>>(
+              (accumulator, category) => {
+                accumulator[normalizeServiceCategoryName(category)] = true;
+                return accumulator;
+              },
+              {},
+            );
+
       setLiveServices(nextServices);
       setServiceCategories(nextCategories);
       setServiceCategoryOrders(nextCategoryOrders);
+      setServiceCategoryStatuses(nextCategoryStatuses);
 
       if (
         !nextCategories.includes(normalizeServiceCategoryName(servCategory))
@@ -2786,17 +2820,25 @@ ${professionalAccessLink}`);
     setShowPermissionModal(savedProfessional);
   };
 
-  const handleAddServiceCategory = async (categoryName: string) => {
+  const handleAddServiceCategory = async (
+    categoryName: string,
+  ): Promise<ServiceActionResult> => {
     const normalizedCategory = normalizeServiceCategoryName(categoryName);
 
     if (!normalizedCategory) {
-      alert("Informe o nome da categoria.");
-      return;
+      return {
+        success: false,
+        title: "Nome obrigatório",
+        message: "Informe o nome da categoria para continuar.",
+      };
     }
 
     if (serviceCategories.includes(normalizedCategory)) {
-      alert("Esta categoria já está cadastrada.");
-      return;
+      return {
+        success: false,
+        title: "Categoria já cadastrada",
+        message: "Use outro nome ou edite a categoria existente.",
+      };
     }
 
     const nextOrder = Object.keys(serviceCategoryOrders).length + 1;
@@ -2807,8 +2849,11 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível cadastrar a categoria.");
-      return;
+      return {
+        success: false,
+        title: "Não foi possível cadastrar a categoria",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
     }
 
     setServiceCategories((currentCategories) => [
@@ -2821,7 +2866,187 @@ ${professionalAccessLink}`);
       [normalizedCategory]: nextOrder,
     }));
 
+    setServiceCategoryStatuses((currentStatuses) => ({
+      ...currentStatuses,
+      [normalizedCategory]: true,
+    }));
+
     setServCategory(normalizedCategory);
+
+    return {
+      success: true,
+      title: "Categoria cadastrada",
+      message: "A categoria já pode ser usada nos serviços e no carrossel da vitrine.",
+    };
+  };
+
+  const handleRenameServiceCategory = async (
+    currentName: string,
+    newName: string,
+  ): Promise<ServiceActionResult> => {
+    const normalizedCurrentName = normalizeServiceCategoryName(currentName);
+    const normalizedNewName = normalizeServiceCategoryName(newName);
+
+    if (!normalizedNewName) {
+      return {
+        success: false,
+        title: "Nome obrigatório",
+        message: "Informe o novo nome da categoria.",
+      };
+    }
+
+    const { data, error } = await supabase.rpc("rename_my_service_category", {
+      p_current_name: normalizedCurrentName,
+      p_new_name: normalizedNewName,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        title: "Não foi possível alterar o nome",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
+    }
+
+    const result = (Array.isArray(data) ? data[0] : null) as {
+      success?: boolean;
+      message?: string;
+      old_name?: string;
+      new_name?: string;
+    } | null;
+
+    if (!result?.success) {
+      return {
+        success: false,
+        title: "Nome não alterado",
+        message: result?.message || "Verifique o nome informado.",
+      };
+    }
+
+    setServiceCategories((currentCategories) =>
+      currentCategories.map((category) =>
+        category === normalizedCurrentName ? normalizedNewName : category,
+      ),
+    );
+
+    setServiceCategoryOrders((currentOrders) => {
+      const nextOrders = { ...currentOrders };
+      nextOrders[normalizedNewName] = nextOrders[normalizedCurrentName] ?? 999;
+      delete nextOrders[normalizedCurrentName];
+      return nextOrders;
+    });
+
+    setServiceCategoryStatuses((currentStatuses) => {
+      const nextStatuses = { ...currentStatuses };
+      nextStatuses[normalizedNewName] =
+        nextStatuses[normalizedCurrentName] !== false;
+      delete nextStatuses[normalizedCurrentName];
+      return nextStatuses;
+    });
+
+    const nextServices = services.map((service) => {
+      if (
+        normalizeServiceCategoryName(service.category) !== normalizedCurrentName
+      ) {
+        return service;
+      }
+
+      return {
+        ...service,
+        category: normalizedNewName,
+      };
+    });
+
+    setLiveServices(nextServices);
+
+    onUpdateState({
+      ...state,
+      services: nextServices,
+    });
+
+    if (servCategory === normalizedCurrentName) {
+      setServCategory(normalizedNewName);
+    }
+
+    return {
+      success: true,
+      title: "Nome da categoria alterado",
+      message: "O novo nome já será usado nos serviços e no carrossel da vitrine.",
+    };
+  };
+
+  const handleToggleServiceCategoryActive = async (
+    categoryName: string,
+  ): Promise<ServiceActionResult> => {
+    const normalizedCategory = normalizeServiceCategoryName(categoryName);
+    const nextActive = serviceCategoryStatuses[normalizedCategory] === false;
+
+    const { data, error } = await supabase.rpc(
+      "set_my_service_category_active",
+      {
+        p_name: normalizedCategory,
+        p_active: nextActive,
+      },
+    );
+
+    if (error) {
+      return {
+        success: false,
+        title: "Não foi possível alterar a categoria",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
+    }
+
+    const result = (Array.isArray(data) ? data[0] : null) as {
+      success?: boolean;
+      message?: string;
+      active?: boolean;
+    } | null;
+
+    if (!result?.success) {
+      return {
+        success: false,
+        title: "Alteração não concluída",
+        message: result?.message || "Tente novamente em alguns instantes.",
+      };
+    }
+
+    setServiceCategoryStatuses((currentStatuses) => ({
+      ...currentStatuses,
+      [normalizedCategory]: nextActive,
+    }));
+
+    let nextServices = services;
+
+    if (!nextActive) {
+      nextServices = services.map((service) => {
+        if (
+          normalizeServiceCategoryName(service.category) !== normalizedCategory
+        ) {
+          return service;
+        }
+
+        return {
+          ...service,
+          active: false,
+        };
+      });
+
+      setLiveServices(nextServices);
+
+      onUpdateState({
+        ...state,
+        services: nextServices,
+      });
+    }
+
+    return {
+      success: true,
+      title: nextActive ? "Categoria ativada" : "Categoria desativada",
+      message: nextActive
+        ? "A categoria voltou ao cadastro. Ative manualmente os serviços que deseja exibir."
+        : "A categoria e todos os serviços vinculados foram retirados da vitrine.",
+    };
   };
 
   const handleToggleServiceActive = async (
@@ -2981,6 +3206,12 @@ ${professionalAccessLink}`);
       return nextOrders;
     });
 
+    setServiceCategoryStatuses((currentStatuses) => {
+      const nextStatuses = { ...currentStatuses };
+      delete nextStatuses[normalizedCategory];
+      return nextStatuses;
+    });
+
     return {
       success: true,
       title: "Categoria excluída",
@@ -2991,7 +3222,7 @@ ${professionalAccessLink}`);
   const handleChangeServiceCategoryOrder = async (
     categoryName: string,
     order: number,
-  ) => {
+  ): Promise<ServiceActionResult> => {
     const normalizedCategory = normalizeServiceCategoryName(categoryName);
     const normalizedOrder = Number.isFinite(order) && order > 0 ? order : 999;
 
@@ -3006,8 +3237,11 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível salvar a ordem da categoria.");
-      return;
+      return {
+        success: false,
+        title: "Não foi possível salvar a ordem",
+        message: error.message || "Tente novamente em alguns instantes.",
+      };
     }
 
     const updatedServices = services.map((service) => {
@@ -3029,6 +3263,12 @@ ${professionalAccessLink}`);
       ...state,
       services: updatedServices,
     });
+
+    return {
+      success: true,
+      title: "Ordem atualizada",
+      message: "A posição da categoria no carrossel foi salva.",
+    };
   };
 
   const handleSaveCompanyConfig = async (
@@ -3696,9 +3936,12 @@ ${professionalAccessLink}`);
               services={sortedServices}
               categories={serviceCategories}
               categoryOrders={serviceCategoryOrders}
+              categoryStatuses={serviceCategoryStatuses}
               onOpenCreateService={handleOpenCreateService}
               onEditService={handleEditServiceTrigger}
               onAddCategory={handleAddServiceCategory}
+              onRenameCategory={handleRenameServiceCategory}
+              onToggleCategoryActive={handleToggleServiceCategoryActive}
               onToggleServiceActive={handleToggleServiceActive}
               onDeleteService={handleDeleteService}
               onDeleteCategory={handleDeleteServiceCategory}
