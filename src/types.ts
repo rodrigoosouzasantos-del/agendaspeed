@@ -67,9 +67,30 @@ export interface Appointment {
 
 
 
-export type ReceiptStatus = 'paid' | 'cancelled';
+export type ReceiptStatus = 'paid' | 'pending' | 'cancelled';
 
-export type ReceiptItemType = 'appointment' | 'extra' | 'manual';
+export type ReceiptItemType = 'appointment' | 'extra' | 'manual' | 'product';
+
+export interface Product {
+  id: string;
+  tenantId?: string;
+  code: string;
+  description: string;
+  quantity: number;
+  costPrice: number;
+  salePrice: number;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ReceiptPayment {
+  id: string;
+  receiptId: string;
+  paymentType: PaymentType;
+  amount: number;
+  createdAt?: string;
+}
 
 export interface ReceiptItem {
   id: string;
@@ -79,6 +100,10 @@ export interface ReceiptItem {
   serviceName: string;
   professionalId: string;
   professionalName: string;
+  productId?: string;
+  itemDescription?: string;
+  quantity?: number;
+  unitPrice?: number;
   price: number;
   commissionValue: number;
   itemType: ReceiptItemType;
@@ -91,11 +116,14 @@ export interface Receipt {
   clientPhone: string;
   appointmentId?: string;
   items: ReceiptItem[];
+  payments?: ReceiptPayment[];
   paymentType: PaymentType;
   status: ReceiptStatus;
   subtotal: number;
   discountValue: number;
   totalAmount: number;
+  amountPaid?: number;
+  amountPending?: number;
   notes?: string;
   paidAt: string;
   createdAt: string;
