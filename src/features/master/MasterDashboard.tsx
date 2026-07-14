@@ -31,6 +31,7 @@ import {
   Unlock,
   Users,
   Wallet,
+  CheckCircle2,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
@@ -118,6 +119,40 @@ type CreateTenantForm = {
 
 type CreatedTenantResult = {
   first_access_token?: string;
+};
+
+type MasterSaasInvoice = {
+  invoiceId: string;
+  tenantId: string;
+  companyCode: number;
+  tenantName: string;
+  referenceMonth: string;
+  amount: number;
+  dueDate: string;
+  invoiceStatus: string;
+  paymentMethod: string;
+  paidAt: string;
+  paidAmount: number;
+  provider: string;
+  providerPaymentId: string;
+  createdAt: string;
+};
+
+type MasterSaasInvoiceResponse = {
+  invoice_id: string;
+  tenant_id: string;
+  company_code: number;
+  tenant_name: string;
+  reference_month: string;
+  amount: number;
+  due_date: string;
+  invoice_status: string;
+  payment_method: string | null;
+  paid_at: string | null;
+  paid_amount: number | null;
+  provider: string | null;
+  provider_payment_id: string | null;
+  created_at: string;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -779,6 +814,131 @@ function FinancialTable({
   );
 }
 
+
+function getMasterInvoiceStatusLabel(status: string): string {
+  if (status === "paid") return "PAGA";
+  if (status === "pending") return "PENDENTE";
+  if (status === "waiting_payment") return "AGUARDANDO";
+  if (status === "manual_review") return "EM ANÁLISE";
+  if (status === "overdue") return "EM ATRASO";
+  if (status === "cancelled") return "CANCELADA";
+  if (status === "refunded") return "ESTORNADA";
+  return status || "—";
+}
+
+function getMasterInvoiceStatusClass(status: string): string {
+  if (status === "paid") return "bg-emerald-100 text-emerald-700";
+  if (status === "overdue") return "bg-red-100 text-red-700";
+  if (status === "manual_review") return "bg-amber-100 text-amber-700";
+  return "bg-slate-100 text-slate-700";
+}
+
+function MasterInvoicesTable({
+  invoices,
+  loading,
+  actionLoadingId,
+  onConfirmPix,
+}: {
+  invoices: MasterSaasInvoice[];
+  loading: boolean;
+  actionLoadingId: string | null;
+  onConfirmPix: (invoice: MasterSaasInvoice) => Promise<void>;
+}) {
+  if (loading) {
+    return (
+      <div className="flex min-h-[180px] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-slate-200 bg-[#F4F6F6] text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
+            <th className="px-4 py-3">Empresa</th>
+            <th className="px-4 py-3">Competência</th>
+            <th className="px-4 py-3">Vencimento</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Forma</th>
+            <th className="px-4 py-3 text-right">Valor</th>
+            <th className="px-4 py-3 text-right">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.map((invoice) => (
+            <tr
+              key={invoice.invoiceId}
+              className="border-b border-slate-100 hover:bg-slate-50/80"
+            >
+              <td className="px-4 py-3">
+                <p className="font-black text-slate-950">
+                  {formatCompanyCode(invoice.companyCode)} · {invoice.tenantName}
+                </p>
+              </td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">
+                {formatDate(invoice.referenceMonth)}
+              </td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">
+                {formatDate(invoice.dueDate)}
+              </td>
+              <td className="px-4 py-3">
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-black ${getMasterInvoiceStatusClass(invoice.invoiceStatus)}`}
+                >
+                  {getMasterInvoiceStatusLabel(invoice.invoiceStatus)}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-600">
+                {invoice.paymentMethod === "pix_manual"
+                  ? "Pix manual"
+                  : invoice.paymentMethod || "—"}
+              </td>
+              <td className="px-4 py-3 text-right font-black text-[#10232A]">
+                {formatCurrency(invoice.amount)}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {invoice.invoiceStatus === "paid" ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Confirmada
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionLoadingId === invoice.invoiceId}
+                    onClick={() => void onConfirmPix(invoice)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {actionLoadingId === invoice.invoiceId ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Confirmar Pix
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+
+          {invoices.length === 0 && (
+            <tr>
+              <td
+                colSpan={7}
+                className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
+              >
+                Nenhuma mensalidade foi gerada pelos clientes.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function MasterDashboard({
   onLogOut,
   onNavigateToLogin,
@@ -802,6 +962,10 @@ export default function MasterDashboard({
   const [tenantPendingDelete, setTenantPendingDelete] = useState<TenantCard | null>(null);
   const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
   const [isDeletingTenant, setIsDeletingTenant] = useState(false);
+  const [saasInvoices, setSaasInvoices] = useState<MasterSaasInvoice[]>([]);
+  const [isLoadingSaasInvoices, setIsLoadingSaasInvoices] = useState(false);
+  const [invoiceActionLoadingId, setInvoiceActionLoadingId] =
+    useState<string | null>(null);
 
   const origin =
     typeof window !== "undefined"
@@ -850,8 +1014,93 @@ export default function MasterDashboard({
     setLoading(false);
   };
 
+
+  const loadSaasInvoices = async () => {
+    setIsLoadingSaasInvoices(true);
+
+    const { data, error } = await supabase.rpc("get_master_saas_invoices");
+
+    if (error) {
+      setSaasInvoices([]);
+      setIsLoadingSaasInvoices(false);
+      showToast(
+        "error",
+        error.message || "Não foi possível carregar as mensalidades.",
+      );
+      return;
+    }
+
+    const rows = (
+      Array.isArray(data) ? data : []
+    ) as MasterSaasInvoiceResponse[];
+
+    setSaasInvoices(
+      rows.map((row) => ({
+        invoiceId: row.invoice_id,
+        tenantId: row.tenant_id,
+        companyCode: Number(row.company_code) || 0,
+        tenantName: row.tenant_name || "Empresa",
+        referenceMonth: row.reference_month || "",
+        amount: Number(row.amount) || 0,
+        dueDate: row.due_date || "",
+        invoiceStatus: row.invoice_status || "pending",
+        paymentMethod: row.payment_method || "",
+        paidAt: row.paid_at || "",
+        paidAmount: Number(row.paid_amount) || 0,
+        provider: row.provider || "",
+        providerPaymentId: row.provider_payment_id || "",
+        createdAt: row.created_at || "",
+      })),
+    );
+
+    setIsLoadingSaasInvoices(false);
+  };
+
+  const handleConfirmManualPix = async (invoice: MasterSaasInvoice) => {
+    const confirmed = window.confirm(
+      `Confirmar o pagamento Pix de ${formatCurrency(invoice.amount)} da empresa ${invoice.tenantName}?`,
+    );
+
+    if (!confirmed) return;
+
+    setInvoiceActionLoadingId(invoice.invoiceId);
+
+    const { data, error } = await supabase.rpc(
+      "master_confirm_manual_saas_invoice",
+      {
+        p_invoice_id: invoice.invoiceId,
+        p_paid_amount: invoice.amount,
+        p_notes: "Pagamento Pix confirmado manualmente pela Área Master.",
+      },
+    );
+
+    setInvoiceActionLoadingId(null);
+
+    if (error) {
+      showToast(
+        "error",
+        error.message || "Não foi possível confirmar o pagamento.",
+      );
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (result?.success === false) {
+      showToast(
+        "error",
+        result.message || "Não foi possível confirmar o pagamento.",
+      );
+      return;
+    }
+
+    await Promise.all([loadSaasInvoices(), loadTenants()]);
+    showToast("success", "Pix confirmado e assinatura renovada.");
+  };
+
   useEffect(() => {
     void loadTenants();
+    void loadSaasInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1434,6 +1683,24 @@ export default function MasterDashboard({
                   <FinancialTable
                     tenants={filteredTenants}
                     loading={loading}
+                  />
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <h2 className="text-sm font-black text-[#10232A]">
+                      Mensalidades geradas
+                    </h2>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                      Confirme o Pix somente após conferir o valor recebido.
+                    </p>
+                  </div>
+
+                  <MasterInvoicesTable
+                    invoices={saasInvoices}
+                    loading={isLoadingSaasInvoices}
+                    actionLoadingId={invoiceActionLoadingId}
+                    onConfirmPix={handleConfirmManualPix}
                   />
                 </div>
               </div>

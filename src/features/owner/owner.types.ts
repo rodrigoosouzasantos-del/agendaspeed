@@ -34,6 +34,7 @@ export type OwnerTab =
   | 'clientes'
   | 'recebimentos'
   | 'financeiro'
+  | 'mensalidade'
   | 'configuracoes';
 
 export type CalendarView = 'today' | 'week' | 'all';
@@ -153,4 +154,52 @@ export interface AppointmentStatusChangePayload {
 export interface ServiceCategoryOrderOption {
   name: string;
   order: number;
+}
+
+
+export type SaasSubscriptionStatus =
+  | 'trial'
+  | 'active'
+  | 'past_due'
+  | 'blocked'
+  | 'cancelled'
+  | string;
+
+export interface OwnerSaasSubscription {
+  tenantId: string;
+  subscriptionId: string;
+  tenantName: string;
+  subscriptionStatus: SaasSubscriptionStatus;
+  monthlyPrice: number;
+  trialStartedAt: string;
+  trialEndsAt: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  dueDate: string;
+  paidUntil: string;
+  billingMethod: string;
+  externalProvider: string;
+  externalSubscriptionId: string;
+  daysUntilDue: number;
+  isDueSoon: boolean;
+  isOverdue: boolean;
+  pixKey: string;
+  pixKeyType: string;
+  pixBeneficiaryName: string;
+  whatsappSupport: string;
+  asaasEnabled: boolean;
+}
+
+export interface OwnerSaasInvoice {
+  id: string;
+  referenceMonth: string;
+  amount: number;
+  dueDate: string;
+  status: string;
+  paymentMethod: string;
+  paidAt: string;
+  paidAmount: number;
+  provider: string;
+  providerInvoiceUrl: string;
+  createdAt: string;
 }

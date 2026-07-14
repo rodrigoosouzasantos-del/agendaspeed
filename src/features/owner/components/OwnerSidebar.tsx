@@ -17,6 +17,7 @@ import {
   BriefcaseBusiness,
   Calendar,
   DollarSign,
+  CreditCard,
   Menu,
   Settings,
   TrendingUp,
@@ -31,6 +32,7 @@ interface OwnerSidebarProps {
   activeTab: OwnerTab;
   onChangeTab: (tab: OwnerTab) => void;
   onOpenTodayAgenda: () => void;
+  subscriptionStatus?: string;
 }
 
 interface SidebarItem {
@@ -43,7 +45,8 @@ interface SidebarItem {
 export default function OwnerSidebar({
   activeTab,
   onChangeTab,
-  onOpenTodayAgenda
+  onOpenTodayAgenda,
+  subscriptionStatus = 'trial'
 }: OwnerSidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -85,6 +88,11 @@ export default function OwnerSidebar({
       icon: DollarSign
     },
     {
+      tab: 'mensalidade',
+      label: 'Mensalidade',
+      icon: CreditCard
+    },
+    {
       tab: 'configuracoes',
       label: 'Configurações',
       icon: Settings
@@ -105,6 +113,13 @@ export default function OwnerSidebar({
     return sidebarItems.map((item) => {
       const Icon = item.icon;
       const isActive = activeTab === item.tab;
+      const isSubscriptionItem = item.tab === 'mensalidade';
+      const subscriptionDotClass =
+        subscriptionStatus === 'trial'
+          ? 'bg-amber-400'
+          : subscriptionStatus === 'active'
+            ? 'bg-emerald-500'
+            : 'bg-red-500';
 
       return (
         <button
@@ -119,7 +134,13 @@ export default function OwnerSidebar({
           }`}
         >
           <Icon className="h-4 w-4" />
-          <span>{item.label}</span>
+          <span className="flex-1">{item.label}</span>
+          {isSubscriptionItem && (
+            <span
+              title="Situação da mensalidade"
+              className={`h-2.5 w-2.5 rounded-full ring-2 ring-white ${subscriptionDotClass}`}
+            />
+          )}
         </button>
       );
     });

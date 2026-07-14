@@ -49,6 +49,10 @@ interface DashboardHomeViewProps {
   services: Service[];
   configWorkDays: number[];
   financialSummary: OwnerFinancialSummary;
+  subscriptionStatus?: string;
+  subscriptionDaysUntilDue?: number;
+  subscriptionIsDueSoon?: boolean;
+  subscriptionIsOverdue?: boolean;
   onChangeTab: (tab: OwnerTab) => void;
   onOpenTodayAgenda: () => void;
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => void;
@@ -712,6 +716,10 @@ export default function DashboardHomeView({
   services,
   configWorkDays,
   financialSummary,
+  subscriptionStatus = '',
+  subscriptionDaysUntilDue = 0,
+  subscriptionIsDueSoon = false,
+  subscriptionIsOverdue = false,
   onChangeTab,
   onOpenTodayAgenda,
   onUpdateAppointmentStatus
@@ -1165,6 +1173,39 @@ export default function DashboardHomeView({
 
   return (
     <div id="view-painel" className="space-y-3 text-left animate-none">
+
+      {(subscriptionIsOverdue || subscriptionIsDueSoon) && (
+        <button
+          type="button"
+          onClick={() => onChangeTab('mensalidade')}
+          className={`w-full rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:shadow-md ${
+            subscriptionIsOverdue
+              ? 'border-red-200 bg-red-50 text-red-900'
+              : 'border-amber-200 bg-amber-50 text-amber-900'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
+                subscriptionIsOverdue ? 'bg-red-500' : 'bg-amber-400'
+              }`}
+            />
+            <div>
+              <p className="text-sm font-black">
+                {subscriptionIsOverdue
+                  ? 'Sua mensalidade está em atraso'
+                  : subscriptionStatus === 'trial'
+                    ? `Seu período de teste termina em ${Math.max(0, subscriptionDaysUntilDue)} dia${Math.max(0, subscriptionDaysUntilDue) === 1 ? '' : 's'}`
+                    : `Sua mensalidade vence em ${Math.max(0, subscriptionDaysUntilDue)} dia${Math.max(0, subscriptionDaysUntilDue) === 1 ? '' : 's'}`}
+              </p>
+              <p className="mt-1 text-xs font-semibold opacity-80">
+                Acesse Mensalidade para consultar o valor e as formas de pagamento.
+              </p>
+            </div>
+          </div>
+        </button>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="h-1.5 bg-[#0f4c5c]" />
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">

@@ -29,7 +29,13 @@ import {
   CashExpense,
 } from "../../types";
 
-import { CalendarView, OwnerDashboardProps, OwnerTab } from "./owner.types";
+import {
+  CalendarView,
+  OwnerDashboardProps,
+  OwnerSaasInvoice,
+  OwnerSaasSubscription,
+  OwnerTab,
+} from "./owner.types";
 
 import {
   calculateCommissionValue,
@@ -48,6 +54,7 @@ import ProfessionalsView from "./components/ProfessionalsView";
 import ServicesView, { ServiceActionResult } from "./components/ServicesView";
 import ClientsView from "./components/ClientsView";
 import FinanceView from "./components/FinanceView";
+import SubscriptionView from "./components/SubscriptionView";
 import ReceiptsView, {
   ReceiptDraftItem,
   ReceiptPayload,
@@ -984,6 +991,93 @@ function buildOwnerPublicBookingUrl(slug: string): string {
   return `${origin}/${normalizedSlug}`;
 }
 
+
+type SupabaseOwnerSaasSubscriptionResponse = {
+  tenant_id: string;
+  subscription_id: string;
+  tenant_name: string;
+  subscription_status: string;
+  monthly_price: number;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  due_date: string | null;
+  paid_until: string | null;
+  billing_method: string | null;
+  external_provider: string | null;
+  external_subscription_id: string | null;
+  days_until_due: number | null;
+  is_due_soon: boolean | null;
+  is_overdue: boolean | null;
+  pix_key: string | null;
+  pix_key_type: string | null;
+  pix_beneficiary_name: string | null;
+  whatsapp_support: string | null;
+  asaas_enabled: boolean | null;
+};
+
+type SupabaseOwnerSaasInvoiceResponse = {
+  id: string;
+  reference_month: string;
+  amount: number;
+  due_date: string;
+  status: string;
+  payment_method: string | null;
+  paid_at: string | null;
+  paid_amount: number | null;
+  provider: string | null;
+  provider_invoice_url: string | null;
+  created_at: string;
+};
+
+function mapOwnerSaasSubscription(
+  row: SupabaseOwnerSaasSubscriptionResponse,
+): OwnerSaasSubscription {
+  return {
+    tenantId: row.tenant_id || "",
+    subscriptionId: row.subscription_id || "",
+    tenantName: row.tenant_name || "",
+    subscriptionStatus: row.subscription_status || "trial",
+    monthlyPrice: Number(row.monthly_price) || 0,
+    trialStartedAt: row.trial_started_at || "",
+    trialEndsAt: row.trial_ends_at || "",
+    currentPeriodStart: row.current_period_start || "",
+    currentPeriodEnd: row.current_period_end || "",
+    dueDate: row.due_date || "",
+    paidUntil: row.paid_until || "",
+    billingMethod: row.billing_method || "",
+    externalProvider: row.external_provider || "",
+    externalSubscriptionId: row.external_subscription_id || "",
+    daysUntilDue: Number(row.days_until_due) || 0,
+    isDueSoon: row.is_due_soon === true,
+    isOverdue: row.is_overdue === true,
+    pixKey: row.pix_key || "",
+    pixKeyType: row.pix_key_type || "",
+    pixBeneficiaryName: row.pix_beneficiary_name || "",
+    whatsappSupport: row.whatsapp_support || "",
+    asaasEnabled: row.asaas_enabled === true,
+  };
+}
+
+function mapOwnerSaasInvoice(
+  row: SupabaseOwnerSaasInvoiceResponse,
+): OwnerSaasInvoice {
+  return {
+    id: row.id,
+    referenceMonth: row.reference_month || "",
+    amount: Number(row.amount) || 0,
+    dueDate: row.due_date || "",
+    status: row.status || "pending",
+    paymentMethod: row.payment_method || "",
+    paidAt: row.paid_at || "",
+    paidAmount: Number(row.paid_amount) || 0,
+    provider: row.provider || "",
+    providerInvoiceUrl: row.provider_invoice_url || "",
+    createdAt: row.created_at || "",
+  };
+}
+
 export default function OwnerDashboard({
   state,
   onUpdateState,
@@ -1166,6 +1260,13 @@ export default function OwnerDashboard({
     useState(true);
   const [financialRecordsLoadError, setFinancialRecordsLoadError] =
     useState("");
+
+  const [saasSubscription, setSaasSubscription] =
+    useState<OwnerSaasSubscription | null>(null);
+  const [saasInvoices, setSaasInvoices] = useState<OwnerSaasInvoice[]>([]);
+  const [isLoadingSaasBilling, setIsLoadingSaasBilling] = useState(true);
+  const [isPreparingSaasInvoice, setIsPreparingSaasInvoice] = useState(false);
+  const [saasBillingError, setSaasBillingError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1731,6 +1832,94 @@ export default function OwnerDashboard({
     // Carrega caixa real quando o tenant é identificado. Supabase é a fonte oficial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
+
+
+  const loadSaasBilling = async () => {
+    setIsLoadingSaasBilling(true);
+    setSaasBillingError("");
+
+    const [subscriptionResult, invoicesResult] = await Promise.all([
+      supabase.rpc("get_my_saas_subscription"),
+      supabase.rpc("get_my_saas_invoices"),
+    ]);
+
+    if (subscriptionResult.error) {
+      console.error(
+        "Erro ao carregar a assinatura do AgendaSpeed:",
+        subscriptionResult.error.message,
+      );
+      setSaasSubscription(null);
+      setSaasBillingError(
+        subscriptionResult.error.message ||
+          "Não foi possível carregar a assinatura.",
+      );
+      setIsLoadingSaasBilling(false);
+      return;
+    }
+
+    const subscriptionRow = (
+      Array.isArray(subscriptionResult.data)
+        ? subscriptionResult.data[0]
+        : subscriptionResult.data
+    ) as SupabaseOwnerSaasSubscriptionResponse | null;
+
+    setSaasSubscription(
+      subscriptionRow ? mapOwnerSaasSubscription(subscriptionRow) : null,
+    );
+
+    if (invoicesResult.error) {
+      console.error(
+        "Erro ao carregar as mensalidades:",
+        invoicesResult.error.message,
+      );
+      setSaasInvoices([]);
+      setSaasBillingError(
+        invoicesResult.error.message ||
+          "Não foi possível carregar o histórico de mensalidades.",
+      );
+      setIsLoadingSaasBilling(false);
+      return;
+    }
+
+    const invoiceRows = (
+      Array.isArray(invoicesResult.data) ? invoicesResult.data : []
+    ) as SupabaseOwnerSaasInvoiceResponse[];
+
+    setSaasInvoices(invoiceRows.map(mapOwnerSaasInvoice));
+    setIsLoadingSaasBilling(false);
+  };
+
+  const handlePrepareCurrentSaasInvoice = async () => {
+    if (isPreparingSaasInvoice) return;
+
+    setIsPreparingSaasInvoice(true);
+
+    const { data, error } = await supabase.rpc(
+      "prepare_my_current_saas_invoice",
+    );
+
+    setIsPreparingSaasInvoice(false);
+
+    if (error) {
+      alert(error.message || "Não foi possível preparar a mensalidade.");
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (result?.success === false) {
+      alert(result.message || "Não foi possível preparar a mensalidade.");
+      return;
+    }
+
+    await loadSaasBilling();
+  };
+
+  useEffect(() => {
+    void loadSaasBilling();
+    // Carrega apenas dados oficiais da assinatura do usuário autenticado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const baseDateStr = new Date().toLocaleDateString("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -3916,6 +4105,7 @@ ${professionalAccessLink}`);
           activeTab={activeTab}
           onChangeTab={handleChangeOwnerTab}
           onOpenTodayAgenda={openTodayAgenda}
+          subscriptionStatus={saasSubscription?.subscriptionStatus || "trial"}
         />
 
         <main
@@ -3941,6 +4131,10 @@ ${professionalAccessLink}`);
               services={services}
               configWorkDays={config.workDays}
               financialSummary={financialSummary}
+              subscriptionStatus={saasSubscription?.subscriptionStatus || ""}
+              subscriptionDaysUntilDue={saasSubscription?.daysUntilDue || 0}
+              subscriptionIsDueSoon={saasSubscription?.isDueSoon === true}
+              subscriptionIsOverdue={saasSubscription?.isOverdue === true}
               onChangeTab={setActiveTab}
               onOpenTodayAgenda={openTodayAgenda}
               onUpdateAppointmentStatus={handleModifyStatus}
@@ -4071,6 +4265,18 @@ ${professionalAccessLink}`);
               companyName={configName}
               companyAddress={configAddress}
               companyPhone={configPhone}
+            />
+          )}
+
+          {activeTab === "mensalidade" && (
+            <SubscriptionView
+              subscription={saasSubscription}
+              invoices={saasInvoices}
+              loading={isLoadingSaasBilling}
+              preparingInvoice={isPreparingSaasInvoice}
+              errorMessage={saasBillingError}
+              onRefresh={loadSaasBilling}
+              onPrepareInvoice={handlePrepareCurrentSaasInvoice}
             />
           )}
 
