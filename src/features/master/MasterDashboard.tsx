@@ -767,6 +767,83 @@ function DeleteTenantModal({ tenant, confirmationName, setConfirmationName, isDe
 }
 
 
+function ConfirmPixModal({
+  invoice,
+  isLoading,
+  onClose,
+  onConfirm,
+}: {
+  invoice: MasterSaasInvoice | null;
+  isLoading: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  if (!invoice) return null;
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-slate-950">Confirmar pagamento Pix?</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Confirme somente após validar o recebimento do Pix.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Empresa</p>
+          <p className="mt-1 text-sm font-black text-emerald-900">{invoice.tenantName}</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">Valor</p>
+              <p className="mt-1 text-sm font-black text-emerald-900">{formatCurrency(invoice.amount)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">Vencimento</p>
+              <p className="mt-1 text-sm font-black text-emerald-900">{formatDate(invoice.dueDate)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isLoading}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void onConfirm()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirmando...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                Confirmar Pix
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function FinancialTable({
   tenants,
   loading,
@@ -1001,6 +1078,8 @@ export default function MasterDashboard({
   const [isLoadingSaasInvoices, setIsLoadingSaasInvoices] = useState(false);
   const [invoiceActionLoadingId, setInvoiceActionLoadingId] =
     useState<string | null>(null);
+  const [invoicePendingConfirmation, setInvoicePendingConfirmation] =
+    useState<MasterSaasInvoice | null>(null);
 
   const origin =
     typeof window !== "undefined"
@@ -1092,19 +1171,24 @@ export default function MasterDashboard({
   };
 
   const handleConfirmManualPix = async (invoice: MasterSaasInvoice) => {
-    const confirmed = window.confirm(
-      `Confirmar o pagamento Pix de ${formatCurrency(invoice.amount)} da empresa ${invoice.tenantName}?`,
-    );
+    setInvoicePendingConfirmation(invoice);
+  };
 
-    if (!confirmed) return;
+  const closeInvoiceConfirmationModal = () => {
+    if (invoiceActionLoadingId) return;
+    setInvoicePendingConfirmation(null);
+  };
 
-    setInvoiceActionLoadingId(invoice.invoiceId);
+  const handleConfirmManualPixSubmit = async () => {
+    if (!invoicePendingConfirmation) return;
+
+    setInvoiceActionLoadingId(invoicePendingConfirmation.invoiceId);
 
     const { data, error } = await supabase.rpc(
       "master_confirm_manual_saas_invoice",
       {
-        p_invoice_id: invoice.invoiceId,
-        p_paid_amount: invoice.amount,
+        p_invoice_id: invoicePendingConfirmation.invoiceId,
+        p_paid_amount: invoicePendingConfirmation.amount,
         p_notes: "Pagamento Pix confirmado manualmente pela Área Master.",
       },
     );
@@ -1129,6 +1213,7 @@ export default function MasterDashboard({
       return;
     }
 
+    setInvoicePendingConfirmation(null);
     await Promise.all([loadSaasInvoices(), loadTenants()]);
     showToast("success", "Pix confirmado e assinatura renovada.");
   };
@@ -1805,6 +1890,13 @@ export default function MasterDashboard({
         isDeleting={isDeletingTenant}
         onClose={closeDeleteTenantModal}
         onConfirm={handleDeleteTenant}
+      />
+
+      <ConfirmPixModal
+        invoice={invoicePendingConfirmation}
+        isLoading={invoiceActionLoadingId === invoicePendingConfirmation?.invoiceId}
+        onClose={closeInvoiceConfirmationModal}
+        onConfirm={handleConfirmManualPixSubmit}
       />
     </main>
   );
