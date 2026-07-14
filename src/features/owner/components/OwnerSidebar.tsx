@@ -19,6 +19,7 @@ import {
   DollarSign,
   CreditCard,
   Menu,
+  Package,
   Settings,
   TrendingUp,
   Users,
@@ -71,6 +72,11 @@ export default function OwnerSidebar({
       tab: 'servicos',
       label: 'Serviços',
       icon: BriefcaseBusiness
+    },
+    {
+      tab: 'produtos',
+      label: 'Produtos',
+      icon: Package
     },
     {
       tab: 'clientes',

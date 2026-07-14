@@ -31,6 +31,7 @@ export type OwnerTab =
   | 'agenda'
   | 'profissionais'
   | 'servicos'
+  | 'produtos'
   | 'clientes'
   | 'recebimentos'
   | 'financeiro'

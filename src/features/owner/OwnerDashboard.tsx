@@ -28,6 +28,7 @@ import {
   ReceiptItem,
   ReceiptPayment,
   CashExpense,
+  Product,
 } from "../../types";
 
 import {
@@ -53,6 +54,7 @@ import DashboardHomeView from "./components/DashboardHomeView";
 import AgendaView from "./components/AgendaView";
 import ProfessionalsView from "./components/ProfessionalsView";
 import ServicesView, { ServiceActionResult } from "./components/ServicesView";
+import ProductsView from "./components/ProductsView";
 import ClientsView from "./components/ClientsView";
 import FinanceView from "./components/FinanceView";
 import SubscriptionView from "./components/SubscriptionView";
@@ -67,6 +69,7 @@ import { prepareImageForStorage } from "../../lib/imageUpload";
 import AppointmentModal from "./modals/AppointmentModal";
 import ProfessionalModal from "./modals/ProfessionalModal";
 import ServiceModal from "./modals/ServiceModal";
+import ProductModal from "./modals/ProductModal";
 import PermissionsModal from "./modals/PermissionsModal";
 
 function onlyDigits(value: string): string {
@@ -85,6 +88,39 @@ function normalizeClientPhone(value: string): string {
 
 function isValidUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+const SUPABASE_PRODUCTS_SELECT =
+  "id,tenant_id,code,description,quantity,cost_price,sale_price,active,created_at,updated_at";
+
+type SupabaseProductResponse = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  description: string;
+  quantity: number;
+  cost_price: number;
+  sale_price: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapSupabaseProductToAppProduct(
+  product: SupabaseProductResponse,
+): Product {
+  return {
+    id: product.id,
+    tenantId: product.tenant_id,
+    code: product.code || "",
+    description: product.description || "",
+    quantity: Number(product.quantity) || 0,
+    costPrice: Number(product.cost_price) || 0,
+    salePrice: Number(product.sale_price) || 0,
+    active: product.active !== false,
+    createdAt: product.created_at,
+    updatedAt: product.updated_at,
+  };
 }
 
 type TenantSettingsResponse = {
@@ -1185,6 +1221,19 @@ export default function OwnerDashboard({
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productsLoadError, setProductsLoadError] = useState("");
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [productCode, setProductCode] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [productQuantity, setProductQuantity] = useState(0);
+  const [productCostPrice, setProductCostPrice] = useState(0);
+  const [productSalePrice, setProductSalePrice] = useState(0);
+  const [productActive, setProductActive] = useState(true);
+
   const [clientSearch, setClientSearch] = useState("");
   const [professionalFilter, setProfessionalFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -1746,6 +1795,42 @@ export default function OwnerDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const loadProductsFromSupabase = async (showLoading = true) => {
+    if (!tenantId) {
+      setProducts([]);
+      setProductsLoadError("");
+      return [];
+    }
+
+    if (showLoading) {
+      setIsLoadingProducts(true);
+    }
+
+    setProductsLoadError("");
+
+    const { data, error } = await supabase
+      .from("products")
+      .select(SUPABASE_PRODUCTS_SELECT)
+      .eq("tenant_id", tenantId)
+      .order("code", { ascending: true })
+      .order("description", { ascending: true });
+
+    if (error) {
+      console.error("Erro ao carregar produtos:", error.message);
+      setProductsLoadError(error.message || "Erro ao carregar produtos.");
+      setIsLoadingProducts(false);
+      return [];
+    }
+
+    const nextProducts = (Array.isArray(data) ? data : []).map((row) =>
+      mapSupabaseProductToAppProduct(row as SupabaseProductResponse),
+    );
+
+    setProducts(nextProducts);
+    setIsLoadingProducts(false);
+    return nextProducts;
+  };
+
   const loadFinancialRecordsFromSupabase = async (
     showLoading = true,
   ): Promise<{
@@ -1911,6 +1996,19 @@ export default function OwnerDashboard({
       cashExpenses: nextCashExpenses,
     };
   };
+
+  useEffect(() => {
+    if (!tenantId) {
+      setProducts([]);
+      setProductsLoadError("");
+      setIsLoadingProducts(false);
+      return;
+    }
+
+    void loadProductsFromSupabase(true);
+    // Carrega produtos reais quando o tenant é identificado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2095,6 +2193,179 @@ export default function OwnerDashboard({
     clearQuickProfessionalAgenda();
     setActiveTab("agenda");
     setCalendarView("today");
+  };
+
+  const resetProductForm = () => {
+    setProductCode("");
+    setProductDescription("");
+    setProductQuantity(0);
+    setProductCostPrice(0);
+    setProductSalePrice(0);
+    setProductActive(true);
+  };
+
+  const handleOpenCreateProduct = () => {
+    setEditingProduct(null);
+    resetProductForm();
+    setShowProductModal(true);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setProductCode(product.code);
+    setProductDescription(product.description);
+    setProductQuantity(Number(product.quantity) || 0);
+    setProductCostPrice(Number(product.costPrice) || 0);
+    setProductSalePrice(Number(product.salePrice) || 0);
+    setProductActive(product.active !== false);
+    setShowProductModal(true);
+  };
+
+  const handleCloseProductModal = () => {
+    if (isSavingProduct) return;
+
+    setShowProductModal(false);
+    setEditingProduct(null);
+    resetProductForm();
+  };
+
+  const handleSaveProduct = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!tenantId) {
+      alert("Não foi possível identificar a empresa ativa.");
+      return;
+    }
+
+    const normalizedCode = productCode.trim().toUpperCase();
+    const normalizedDescription = productDescription.trim();
+
+    if (!normalizedCode || !normalizedDescription) {
+      alert("Informe o código e a descrição do produto.");
+      return;
+    }
+
+    setIsSavingProduct(true);
+
+    const productPayload = {
+      tenant_id: tenantId,
+      code: normalizedCode,
+      description: normalizedDescription,
+      quantity: Math.max(0, Number(productQuantity) || 0),
+      cost_price: Math.max(0, Number(productCostPrice) || 0),
+      sale_price: Math.max(0, Number(productSalePrice) || 0),
+      active: productActive,
+    };
+
+    const productQuery = editingProduct
+      ? supabase
+          .from("products")
+          .update(productPayload)
+          .eq("tenant_id", tenantId)
+          .eq("id", editingProduct.id)
+      : supabase.from("products").insert(productPayload);
+
+    const { data, error } = await productQuery
+      .select(SUPABASE_PRODUCTS_SELECT)
+      .single();
+
+    if (error) {
+      setIsSavingProduct(false);
+
+      if (error.code === "23505") {
+        alert("Já existe um produto com esse código nesta empresa.");
+        return;
+      }
+
+      alert(error.message || "Não foi possível salvar o produto.");
+      return;
+    }
+
+    const savedProduct = mapSupabaseProductToAppProduct(
+      data as SupabaseProductResponse,
+    );
+
+    setProducts((currentProducts) => {
+      const productExists = currentProducts.some(
+        (product) => product.id === savedProduct.id,
+      );
+
+      const nextProducts = productExists
+        ? currentProducts.map((product) =>
+            product.id === savedProduct.id ? savedProduct : product,
+          )
+        : [...currentProducts, savedProduct];
+
+      return nextProducts.sort((firstProduct, secondProduct) =>
+        firstProduct.code.localeCompare(secondProduct.code, "pt-BR", {
+          numeric: true,
+        }),
+      );
+    });
+
+    setIsSavingProduct(false);
+    setShowProductModal(false);
+    setEditingProduct(null);
+    resetProductForm();
+  };
+
+  const handleToggleProductActive = async (product: Product) => {
+    if (!tenantId) return;
+
+    const { data, error } = await supabase
+      .from("products")
+      .update({ active: !product.active })
+      .eq("tenant_id", tenantId)
+      .eq("id", product.id)
+      .select(SUPABASE_PRODUCTS_SELECT)
+      .single();
+
+    if (error) {
+      alert(error.message || "Não foi possível alterar o status do produto.");
+      return;
+    }
+
+    const savedProduct = mapSupabaseProductToAppProduct(
+      data as SupabaseProductResponse,
+    );
+
+    setProducts((currentProducts) =>
+      currentProducts.map((currentProduct) =>
+        currentProduct.id === savedProduct.id
+          ? savedProduct
+          : currentProduct,
+      ),
+    );
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!tenantId) return;
+
+    const confirmed = window.confirm(
+      `Deseja excluir definitivamente o produto "${product.description}"?`,
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("id", product.id);
+
+    if (error) {
+      alert(
+        error.message ||
+          "Não foi possível excluir o produto. Ele pode estar vinculado a um recebimento.",
+      );
+      return;
+    }
+
+    setProducts((currentProducts) =>
+      currentProducts.filter(
+        (currentProduct) => currentProduct.id !== product.id,
+      ),
+    );
   };
 
   const resetAppointmentForm = () => {
@@ -4355,6 +4626,28 @@ ${professionalAccessLink}`);
             />
           )}
 
+          {activeTab === "produtos" && productsLoadError && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+              Não foi possível carregar os produtos reais do Supabase: {productsLoadError}
+            </div>
+          )}
+
+          {activeTab === "produtos" && isLoadingProducts && (
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+              Carregando produtos reais do Supabase...
+            </div>
+          )}
+
+          {activeTab === "produtos" && (
+            <ProductsView
+              products={products}
+              onOpenCreateProduct={handleOpenCreateProduct}
+              onEditProduct={handleEditProduct}
+              onToggleProductActive={handleToggleProductActive}
+              onDeleteProduct={handleDeleteProduct}
+            />
+          )}
+
           {activeTab === "clientes" && clientsLoadError && (
             <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
               Não foi possível carregar clientes reais do Supabase: {clientsLoadError}
@@ -4631,6 +4924,26 @@ ${professionalAccessLink}`);
           setEditingService(null);
         }}
         onSubmit={handleAddNewService}
+      />
+
+      <ProductModal
+        isOpen={showProductModal}
+        editingProduct={editingProduct}
+        code={productCode}
+        description={productDescription}
+        quantity={productQuantity}
+        costPrice={productCostPrice}
+        salePrice={productSalePrice}
+        active={productActive}
+        isSaving={isSavingProduct}
+        onChangeCode={setProductCode}
+        onChangeDescription={setProductDescription}
+        onChangeQuantity={setProductQuantity}
+        onChangeCostPrice={setProductCostPrice}
+        onChangeSalePrice={setProductSalePrice}
+        onChangeActive={setProductActive}
+        onClose={handleCloseProductModal}
+        onSubmit={handleSaveProduct}
       />
 
       <PermissionsModal
