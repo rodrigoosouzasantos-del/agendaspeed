@@ -26,6 +26,7 @@ import {
   Client,
   Receipt,
   ReceiptItem,
+  ReceiptPayment,
   CashExpense,
 } from "../../types";
 
@@ -524,10 +525,13 @@ function mapSupabaseClientToAppClient(client: SupabaseClientResponse): Client {
 }
 
 const SUPABASE_RECEIPTS_SELECT =
-  "id,tenant_id,client_id,appointment_id,client_name,client_phone,payment_type,status,subtotal,discount_value,total_amount,notes,paid_at,created_at,updated_at";
+  "id,tenant_id,client_id,appointment_id,client_name,client_phone,payment_type,status,subtotal,discount_value,total_amount,amount_paid,amount_pending,notes,paid_at,created_at,updated_at";
 
 const SUPABASE_RECEIPT_ITEMS_SELECT =
-  "id,tenant_id,receipt_id,appointment_id,service_id,service_name,professional_id,professional_name,price,commission_value,item_type,created_at";
+  "id,tenant_id,receipt_id,appointment_id,service_id,service_name,professional_id,professional_name,price,commission_value,item_type,product_id,item_description,quantity,unit_price,created_at";
+
+const SUPABASE_RECEIPT_PAYMENTS_SELECT =
+  "id,tenant_id,receipt_id,payment_type,amount,created_at";
 
 const SUPABASE_CASH_EXPENSES_SELECT =
   "id,tenant_id,description,amount,payment_type,expense_date,notes,created_at,updated_at";
@@ -544,6 +548,8 @@ type SupabaseReceiptResponse = {
   subtotal: number;
   discount_value: number;
   total_amount: number;
+  amount_paid: number;
+  amount_pending: number;
   notes: string | null;
   paid_at: string;
   created_at: string;
@@ -562,6 +568,19 @@ type SupabaseReceiptItemResponse = {
   price: number;
   commission_value: number;
   item_type: ReceiptItem["itemType"] | string;
+  product_id: string | null;
+  item_description: string | null;
+  quantity: number;
+  unit_price: number;
+  created_at: string;
+};
+
+type SupabaseReceiptPaymentResponse = {
+  id: string;
+  tenant_id: string;
+  receipt_id: string;
+  payment_type: PaymentType | string;
+  amount: number;
   created_at: string;
 };
 
@@ -599,11 +618,13 @@ function normalizeReceiptPaymentType(value: unknown): PaymentType {
 }
 
 function normalizeReceiptStatus(value: unknown): Receipt["status"] {
-  return String(value) === "cancelled" ? "cancelled" : "paid";
+  if (String(value) === "cancelled") return "cancelled";
+  if (String(value) === "pending") return "pending";
+  return "paid";
 }
 
 function normalizeReceiptItemType(value: unknown): ReceiptItem["itemType"] {
-  return ["appointment", "extra", "manual"].includes(String(value))
+  return ["appointment", "extra", "manual", "product"].includes(String(value))
     ? (value as ReceiptItem["itemType"])
     : "appointment";
 }
@@ -619,17 +640,35 @@ function mapSupabaseReceiptItemToAppReceiptItem(
     serviceName: item.service_name || "Serviço personalizado",
     professionalId: item.professional_id || "",
     professionalName: item.professional_name || "Profissional",
+    productId: item.product_id || undefined,
+    itemDescription:
+      item.item_description || item.service_name || "Item do recebimento",
+    quantity: Number(item.quantity) || 1,
+    unitPrice: Number(item.unit_price) || Number(item.price) || 0,
     price: Number(item.price) || 0,
     commissionValue: Number(item.commission_value) || 0,
     itemType: normalizeReceiptItemType(item.item_type),
   };
 }
 
+function mapSupabaseReceiptPaymentToAppReceiptPayment(
+  payment: SupabaseReceiptPaymentResponse,
+): ReceiptPayment {
+  return {
+    id: payment.id,
+    receiptId: payment.receipt_id,
+    paymentType: normalizeReceiptPaymentType(payment.payment_type),
+    amount: Number(payment.amount) || 0,
+    createdAt: String(payment.created_at || "").slice(0, 16),
+  };
+}
+
 function mapSupabaseReceiptToAppReceipt(params: {
   receipt: SupabaseReceiptResponse;
   items: SupabaseReceiptItemResponse[];
+  payments?: SupabaseReceiptPaymentResponse[];
 }): Receipt {
-  const { receipt, items } = params;
+  const { receipt, items, payments = [] } = params;
 
   return {
     id: receipt.id,
@@ -638,11 +677,14 @@ function mapSupabaseReceiptToAppReceipt(params: {
     clientPhone: receipt.client_phone || "",
     appointmentId: receipt.appointment_id || undefined,
     items: items.map(mapSupabaseReceiptItemToAppReceiptItem),
+    payments: payments.map(mapSupabaseReceiptPaymentToAppReceiptPayment),
     paymentType: normalizeReceiptPaymentType(receipt.payment_type),
     status: normalizeReceiptStatus(receipt.status),
     subtotal: Number(receipt.subtotal) || 0,
     discountValue: Number(receipt.discount_value) || 0,
     totalAmount: Number(receipt.total_amount) || 0,
+    amountPaid: Number(receipt.amount_paid) || 0,
+    amountPending: Number(receipt.amount_pending) || 0,
     notes: receipt.notes || "",
     paidAt: String(receipt.paid_at || receipt.created_at || "").slice(0, 16),
     createdAt: String(receipt.created_at || receipt.paid_at || "").slice(0, 16),
@@ -687,6 +729,8 @@ function buildReceiptInsertPayload(params: {
     subtotal,
     discount_value: discountValue,
     total_amount: totalAmount,
+    amount_paid: totalAmount,
+    amount_pending: 0,
     notes: payload.notes || null,
   };
 }
@@ -708,6 +752,12 @@ function buildReceiptItemInsertPayload(params: {
     price: Number(receiptItem.price) || 0,
     commission_value: Number(receiptItem.commissionValue) || 0,
     item_type: normalizeReceiptItemType(receiptItem.itemType),
+    product_id: toNullableUuid(receiptItem.productId),
+    item_description:
+      receiptItem.itemDescription || receiptItem.serviceName || "Item",
+    quantity: Math.max(1, Number(receiptItem.quantity) || 1),
+    unit_price:
+      Number(receiptItem.unitPrice) || Number(receiptItem.price) || 0,
   };
 }
 
@@ -736,7 +786,9 @@ function buildReceiptFinancialAppointments(receipts: Receipt[]): Appointment[] {
   return receipts
     .filter((receipt) => receipt.status === "paid")
     .flatMap((receipt) => {
-      return receipt.items.map((item) => ({
+      return receipt.items
+        .filter((item) => item.itemType !== "product")
+        .map((item) => ({
         id: `${receipt.id}-${item.id}`,
         dateTime: receipt.paidAt.slice(0, 16),
         clientName: receipt.clientName,
@@ -763,11 +815,11 @@ function calculateReceiptTotals(receipts: Receipt[], baseDateStr: string) {
 
   return {
     totalReceivedToday: todayReceipts.reduce(
-      (sum, receipt) => sum + receipt.totalAmount,
+      (sum, receipt) => sum + (receipt.amountPaid ?? receipt.totalAmount),
       0,
     ),
     totalReceivedMonth: paidReceipts.reduce(
-      (sum, receipt) => sum + receipt.totalAmount,
+      (sum, receipt) => sum + (receipt.amountPaid ?? receipt.totalAmount),
       0,
     ),
     totalCommissionsMonth: paidReceipts.reduce((sum, receipt) => {
@@ -815,6 +867,9 @@ function buildReceiptItems(params: {
       serviceName: service?.name || "Serviço personalizado",
       professionalId: draftItem.professionalId,
       professionalName: professional?.name || "Profissional",
+      itemDescription: service?.name || "Serviço personalizado",
+      quantity: 1,
+      unitPrice: Number(draftItem.price) || 0,
       price: Number(draftItem.price) || 0,
       commissionValue,
       itemType: draftItem.itemType,
@@ -1725,6 +1780,7 @@ export default function OwnerDashboard({
     const receiptIds = receiptRows.map((receipt) => receipt.id).filter(Boolean);
 
     let receiptItemRows: SupabaseReceiptItemResponse[] = [];
+    let receiptPaymentRows: SupabaseReceiptPaymentResponse[] = [];
 
     if (receiptIds.length > 0) {
       const receiptItemsResult = await supabase
@@ -1752,6 +1808,32 @@ export default function OwnerDashboard({
       receiptItemRows = (Array.isArray(receiptItemsResult.data)
         ? receiptItemsResult.data
         : []) as SupabaseReceiptItemResponse[];
+
+      const receiptPaymentsResult = await supabase
+        .from("receipt_payments")
+        .select(SUPABASE_RECEIPT_PAYMENTS_SELECT)
+        .eq("tenant_id", tenantId)
+        .in("receipt_id", receiptIds);
+
+      if (receiptPaymentsResult.error) {
+        console.error(
+          "Erro ao carregar pagamentos dos recebimentos:",
+          receiptPaymentsResult.error.message,
+        );
+        setFinancialRecordsLoadError(
+          receiptPaymentsResult.error.message ||
+            "Erro ao carregar pagamentos dos recebimentos.",
+        );
+        setIsLoadingFinancialRecords(false);
+        return {
+          receipts,
+          cashExpenses,
+        };
+      }
+
+      receiptPaymentRows = (Array.isArray(receiptPaymentsResult.data)
+        ? receiptPaymentsResult.data
+        : []) as SupabaseReceiptPaymentResponse[];
     }
 
     const expensesResult = await supabase
@@ -1784,10 +1866,22 @@ export default function OwnerDashboard({
       return accumulator;
     }, {});
 
+    const receiptPaymentsByReceiptId = receiptPaymentRows.reduce<
+      Record<string, SupabaseReceiptPaymentResponse[]>
+    >((accumulator, receiptPayment) => {
+      if (!accumulator[receiptPayment.receipt_id]) {
+        accumulator[receiptPayment.receipt_id] = [];
+      }
+
+      accumulator[receiptPayment.receipt_id].push(receiptPayment);
+      return accumulator;
+    }, {});
+
     const nextReceipts = receiptRows.map((receipt) => {
       return mapSupabaseReceiptToAppReceipt({
         receipt,
         items: receiptItemsByReceiptId[receipt.id] || [],
+        payments: receiptPaymentsByReceiptId[receipt.id] || [],
       });
     });
 
@@ -3985,6 +4079,27 @@ ${professionalAccessLink}`);
         : []) as SupabaseReceiptItemResponse[];
     }
 
+    if (totalAmount > 0) {
+      const { error: receiptPaymentError } = await supabase
+        .from("receipt_payments")
+        .insert({
+          tenant_id: tenantId,
+          receipt_id: savedReceiptRow.id,
+          payment_type: payload.paymentType,
+          amount: totalAmount,
+        });
+
+      if (receiptPaymentError) {
+        await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
+        alert(
+          receiptPaymentError.message ||
+            "Não foi possível salvar a forma de pagamento do recebimento.",
+        );
+        void loadFinancialRecordsFromSupabase(false);
+        return;
+      }
+    }
+
     if (toNullableUuid(payload.appointmentId)) {
       const { error: appointmentStatusError } = await supabase.rpc(
         "update_my_appointment_status",
@@ -4005,6 +4120,19 @@ ${professionalAccessLink}`);
     const savedReceipt = mapSupabaseReceiptToAppReceipt({
       receipt: savedReceiptRow,
       items: savedReceiptItemRows,
+      payments:
+        totalAmount > 0
+          ? [
+              {
+                id: `local-payment-${savedReceiptRow.id}`,
+                tenant_id: tenantId,
+                receipt_id: savedReceiptRow.id,
+                payment_type: payload.paymentType,
+                amount: totalAmount,
+                created_at: savedReceiptRow.created_at,
+              },
+            ]
+          : [],
     });
     const updatedReceipts = [savedReceipt, ...receipts];
 
