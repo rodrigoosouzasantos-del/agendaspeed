@@ -65,13 +65,22 @@ interface ExpensePayload {
   notes?: string;
 }
 
+interface ReceiptPaymentDraft {
+  paymentType: PaymentType;
+  amount: number;
+}
+
 interface ReceiptPayload {
   clientId?: string;
   clientName: string;
   clientPhone: string;
   appointmentId?: string;
   items: ReceiptDraftItem[];
+  payments: ReceiptPaymentDraft[];
   paymentType: PaymentType;
+  status: 'paid' | 'pending';
+  amountPaid: number;
+  amountPending: number;
   discountValue: number;
   notes?: string;
 }
@@ -529,6 +538,52 @@ export default function ReceiptsView({
   const splitChange = useSplitPayment ? Math.max(0, splitTotal - total) : 0;
   const splitRemaining = useSplitPayment ? Math.max(0, total - splitTotal) : 0;
 
+  const structuredPayments = useMemo<ReceiptPaymentDraft[]>(() => {
+    if (useSplitPayment) {
+      return [
+        { paymentType: 'dinheiro' as PaymentType, amount: Math.max(0, Number(splitCashAmount) || 0) },
+        { paymentType: 'pix' as PaymentType, amount: Math.max(0, Number(splitPixAmount) || 0) },
+        { paymentType: 'debito' as PaymentType, amount: Math.max(0, Number(splitDebitAmount) || 0) },
+        { paymentType: 'credito' as PaymentType, amount: Math.max(0, Number(splitCreditAmount) || 0) }
+      ].filter((payment) => payment.amount > 0);
+    }
+
+    if (paymentType === 'pendente') {
+      return [];
+    }
+
+    if (paymentType === 'dinheiro' && normalizedCashAmountPaid > 0) {
+      return [{
+        paymentType: 'dinheiro',
+        amount: Math.min(normalizedCashAmountPaid, total)
+      }];
+    }
+
+    return total > 0
+      ? [{
+          paymentType,
+          amount: total
+        }]
+      : [];
+  }, [
+    normalizedCashAmountPaid,
+    paymentType,
+    splitCashAmount,
+    splitCreditAmount,
+    splitDebitAmount,
+    splitPixAmount,
+    total,
+    useSplitPayment
+  ]);
+
+  const structuredAmountPaid = Math.min(
+    total,
+    structuredPayments.reduce((sum, payment) => sum + payment.amount, 0)
+  );
+  const structuredAmountPending = Math.max(0, total - structuredAmountPaid);
+  const structuredReceiptStatus: 'paid' | 'pending' =
+    structuredAmountPending > 0 ? 'pending' : 'paid';
+
   const todayReceipts = useMemo(() => {
     return receipts
       .filter((receipt) => receipt.status === 'paid' && receipt.paidAt.slice(0, 10) === currentDayKey)
@@ -744,21 +799,21 @@ export default function ReceiptsView({
     const clientName = selectedAppointment?.clientName || selectedClient?.name || manualClientName || 'Cliente';
     const clientPhone = selectedAppointment?.clientPhone || selectedClient?.phone || manualClientPhone || '';
     const appointmentDate = selectedAppointment ? getAppointmentLabel(selectedAppointment) : '';
-    const paymentDetails = useSplitPayment
-      ? [
-          'Pagamento dividido:',
-          splitCashAmount > 0 ? `Dinheiro ${formatCurrency(splitCashAmount)}` : '',
-          splitPixAmount > 0 ? `Pix ${formatCurrency(splitPixAmount)}` : '',
-          splitDebitAmount > 0 ? `Débito ${formatCurrency(splitDebitAmount)}` : '',
-          splitCreditAmount > 0 ? `Crédito ${formatCurrency(splitCreditAmount)}` : '',
-          splitChange > 0 ? `Troco ${formatCurrency(splitChange)}` : ''
-        ].filter(Boolean).join(' ')
-      : paymentType === 'dinheiro' && normalizedCashAmountPaid > 0
-        ? [
-            `Dinheiro recebido ${formatCurrency(normalizedCashAmountPaid)}.`,
-            cashChange > 0 ? `Troco ${formatCurrency(cashChange)}.` : ''
-          ].filter(Boolean).join(' ')
-        : '';
+    const paymentDetails = [
+      structuredPayments.length > 1 ? 'Pagamento dividido:' : '',
+      ...structuredPayments.map((payment) => {
+        return `${getPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
+      }),
+      structuredAmountPending > 0
+        ? `Pendente ${formatCurrency(structuredAmountPending)}`
+        : '',
+      useSplitPayment && splitChange > 0
+        ? `Troco ${formatCurrency(splitChange)}`
+        : '',
+      !useSplitPayment && paymentType === 'dinheiro' && cashChange > 0
+        ? `Troco ${formatCurrency(cashChange)}`
+        : ''
+    ].filter(Boolean).join(' ');
     const printNotes = [
       notes.trim(),
       paymentDetails
@@ -932,31 +987,22 @@ export default function ReceiptsView({
       return;
     }
 
-    if (paymentType === 'dinheiro' && normalizedCashAmountPaid > 0 && normalizedCashAmountPaid < total) {
-      alert('O valor recebido em dinheiro é menor que o total da baixa.');
-      return;
-    }
 
-    if (useSplitPayment && splitTotal < total) {
-      alert('O pagamento dividido ainda não cobre o total da baixa.');
-      return;
-    }
-
-    const paymentDetails = useSplitPayment
-      ? [
-          'Pagamento dividido:',
-          splitCashAmount > 0 ? `Dinheiro ${formatCurrency(splitCashAmount)}` : '',
-          splitPixAmount > 0 ? `Pix ${formatCurrency(splitPixAmount)}` : '',
-          splitDebitAmount > 0 ? `Débito ${formatCurrency(splitDebitAmount)}` : '',
-          splitCreditAmount > 0 ? `Crédito ${formatCurrency(splitCreditAmount)}` : '',
-          splitChange > 0 ? `Troco ${formatCurrency(splitChange)}` : ''
-        ].filter(Boolean).join(' ')
-      : paymentType === 'dinheiro' && normalizedCashAmountPaid > 0
-        ? [
-            `Dinheiro recebido ${formatCurrency(normalizedCashAmountPaid)}.`,
-            cashChange > 0 ? `Troco ${formatCurrency(cashChange)}.` : ''
-          ].filter(Boolean).join(' ')
-        : '';
+    const paymentDetails = [
+      structuredPayments.length > 1 ? 'Pagamento dividido:' : '',
+      ...structuredPayments.map((payment) => {
+        return `${getPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
+      }),
+      structuredAmountPending > 0
+        ? `Pendente ${formatCurrency(structuredAmountPending)}`
+        : '',
+      useSplitPayment && splitChange > 0
+        ? `Troco ${formatCurrency(splitChange)}`
+        : '',
+      !useSplitPayment && paymentType === 'dinheiro' && cashChange > 0
+        ? `Troco ${formatCurrency(cashChange)}`
+        : ''
+    ].filter(Boolean).join(' ');
 
     const receiptNotes = [
       notes.trim(),
@@ -971,7 +1017,16 @@ export default function ReceiptsView({
       clientPhone,
       appointmentId: selectedAppointment?.id,
       items: receiptItems,
-      paymentType: useSplitPayment ? 'dinheiro' : paymentType,
+      payments: structuredPayments,
+      paymentType:
+        structuredPayments.length === 1
+          ? structuredPayments[0].paymentType
+          : structuredPayments.length > 1
+            ? structuredPayments[0].paymentType
+            : 'pendente',
+      status: structuredReceiptStatus,
+      amountPaid: structuredAmountPaid,
+      amountPending: structuredAmountPending,
       discountValue: normalizedDiscount,
       notes: receiptNotes
     });
@@ -1765,6 +1820,18 @@ export default function ReceiptsView({
                     <span className="text-sm font-black text-slate-950">Total</span>
                     <span className="text-2xl font-black text-[#0f4c5c]">{formatCurrency(total)}</span>
                   </div>
+
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
+                    <span>Recebido</span>
+                    <span className="text-emerald-700">{formatCurrency(structuredAmountPaid)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
+                    <span>Pendente</span>
+                    <span className={structuredAmountPending > 0 ? 'text-amber-700' : 'text-slate-500'}>
+                      {formatCurrency(structuredAmountPending)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -1784,7 +1851,7 @@ export default function ReceiptsView({
                     className="rounded-xl bg-[#0f4c5c] px-4 py-3 text-sm font-black text-white hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400 transition flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    Baixar
+                    {structuredAmountPending > 0 ? 'Salvar pendente' : 'Baixar'}
                   </button>
                 </div>
               </div>
@@ -1952,5 +2019,6 @@ export default function ReceiptsView({
 
 export type {
   ReceiptDraftItem,
+  ReceiptPaymentDraft,
   ReceiptPayload
 };
