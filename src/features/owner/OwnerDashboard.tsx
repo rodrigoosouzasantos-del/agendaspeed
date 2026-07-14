@@ -718,6 +718,16 @@ function buildReceiptInsertPayload(params: {
 }) {
   const { tenantId, payload, subtotal, discountValue, totalAmount } = params;
 
+  const normalizedAmountPaid = Math.max(
+    0,
+    Math.min(Number(payload.amountPaid) || 0, totalAmount),
+  );
+
+  const normalizedAmountPending = Math.max(
+    0,
+    totalAmount - normalizedAmountPaid,
+  );
+
   return {
     tenant_id: tenantId,
     client_id: toNullableUuid(payload.clientId),
@@ -725,12 +735,12 @@ function buildReceiptInsertPayload(params: {
     client_name: payload.clientName,
     client_phone: payload.clientPhone,
     payment_type: payload.paymentType,
-    status: "paid",
+    status: payload.status === "pending" ? "pending" : "paid",
     subtotal,
     discount_value: discountValue,
     total_amount: totalAmount,
-    amount_paid: totalAmount,
-    amount_pending: 0,
+    amount_paid: normalizedAmountPaid,
+    amount_pending: normalizedAmountPending,
     notes: payload.notes || null,
   };
 }
@@ -807,9 +817,11 @@ function buildReceiptFinancialAppointments(receipts: Receipt[]): Appointment[] {
 }
 
 function calculateReceiptTotals(receipts: Receipt[], baseDateStr: string) {
-  const paidReceipts = receipts.filter((receipt) => receipt.status === "paid");
+  const activeReceipts = receipts.filter(
+    (receipt) => receipt.status !== "cancelled",
+  );
 
-  const todayReceipts = paidReceipts.filter((receipt) => {
+  const todayReceipts = activeReceipts.filter((receipt) => {
     return receipt.paidAt.slice(0, 10) === baseDateStr;
   });
 
@@ -818,11 +830,11 @@ function calculateReceiptTotals(receipts: Receipt[], baseDateStr: string) {
       (sum, receipt) => sum + (receipt.amountPaid ?? receipt.totalAmount),
       0,
     ),
-    totalReceivedMonth: paidReceipts.reduce(
+    totalReceivedMonth: activeReceipts.reduce(
       (sum, receipt) => sum + (receipt.amountPaid ?? receipt.totalAmount),
       0,
     ),
-    totalCommissionsMonth: paidReceipts.reduce((sum, receipt) => {
+    totalCommissionsMonth: activeReceipts.reduce((sum, receipt) => {
       return (
         sum +
         receipt.items.reduce(
@@ -4079,25 +4091,37 @@ ${professionalAccessLink}`);
         : []) as SupabaseReceiptItemResponse[];
     }
 
-    if (totalAmount > 0) {
-      const { error: receiptPaymentError } = await supabase
-        .from("receipt_payments")
-        .insert({
-          tenant_id: tenantId,
-          receipt_id: savedReceiptRow.id,
-          payment_type: payload.paymentType,
-          amount: totalAmount,
-        });
+    const receiptPaymentsPayload = payload.payments
+      .filter((payment) => Number(payment.amount) > 0)
+      .map((payment) => ({
+        tenant_id: tenantId,
+        receipt_id: savedReceiptRow.id,
+        payment_type: payment.paymentType,
+        amount: Number(payment.amount) || 0,
+      }));
+
+    let savedReceiptPaymentRows: SupabaseReceiptPaymentResponse[] = [];
+
+    if (receiptPaymentsPayload.length > 0) {
+      const { data: receiptPaymentsData, error: receiptPaymentError } =
+        await supabase
+          .from("receipt_payments")
+          .insert(receiptPaymentsPayload)
+          .select(SUPABASE_RECEIPT_PAYMENTS_SELECT);
 
       if (receiptPaymentError) {
         await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
         alert(
           receiptPaymentError.message ||
-            "Não foi possível salvar a forma de pagamento do recebimento.",
+            "Não foi possível salvar as formas de pagamento do recebimento.",
         );
         void loadFinancialRecordsFromSupabase(false);
         return;
       }
+
+      savedReceiptPaymentRows = (Array.isArray(receiptPaymentsData)
+        ? receiptPaymentsData
+        : []) as SupabaseReceiptPaymentResponse[];
     }
 
     if (toNullableUuid(payload.appointmentId)) {
@@ -4120,19 +4144,7 @@ ${professionalAccessLink}`);
     const savedReceipt = mapSupabaseReceiptToAppReceipt({
       receipt: savedReceiptRow,
       items: savedReceiptItemRows,
-      payments:
-        totalAmount > 0
-          ? [
-              {
-                id: `local-payment-${savedReceiptRow.id}`,
-                tenant_id: tenantId,
-                receipt_id: savedReceiptRow.id,
-                payment_type: payload.paymentType,
-                amount: totalAmount,
-                created_at: savedReceiptRow.created_at,
-              },
-            ]
-          : [],
+      payments: savedReceiptPaymentRows,
     });
     const updatedReceipts = [savedReceipt, ...receipts];
 
@@ -4144,7 +4156,10 @@ ${professionalAccessLink}`);
       return {
         ...appointment,
         status: "completed" as AppointmentStatus,
-        paymentType: payload.paymentType,
+        paymentType:
+          payload.status === "pending"
+            ? "pendente"
+            : payload.paymentType,
         price:
           receiptItems.find((item) => item.appointmentId === appointment.id)
             ?.price || appointment.price,
