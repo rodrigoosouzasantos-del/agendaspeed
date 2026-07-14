@@ -27,10 +27,8 @@ interface SubscriptionViewProps {
   subscription: OwnerSaasSubscription | null;
   invoices: OwnerSaasInvoice[];
   loading: boolean;
-  preparingInvoice: boolean;
   errorMessage: string;
   onRefresh: () => Promise<void>;
-  onPrepareInvoice: () => Promise<void>;
 }
 
 function formatCurrency(value: number): string {
@@ -119,12 +117,11 @@ export default function SubscriptionView({
   subscription,
   invoices,
   loading,
-  preparingInvoice,
   errorMessage,
   onRefresh,
-  onPrepareInvoice,
 }: SubscriptionViewProps) {
   const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const currentInvoice = useMemo(() => {
     return invoices.find((invoice) =>
@@ -321,23 +318,13 @@ export default function SubscriptionView({
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400">
-                  Favorecido
-                </p>
-                <p className="mt-1 text-sm font-black text-slate-900">
-                  {subscription.pixBeneficiaryName || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400">
-                  Valor
-                </p>
-                <p className="mt-1 text-sm font-black text-[#0f4c5c]">
-                  {formatCurrency(currentInvoice?.amount || subscription.monthlyPrice)}
-                </p>
-              </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-slate-400">
+                Valor
+              </p>
+              <p className="mt-1 text-sm font-black text-[#0f4c5c]">
+                {formatCurrency(currentInvoice?.amount || subscription.monthlyPrice)}
+              </p>
             </div>
 
             <div className="mt-3">
@@ -371,22 +358,6 @@ export default function SubscriptionView({
             </div>
           </div>
 
-          {!currentInvoice && (
-            <button
-              type="button"
-              onClick={() => void onPrepareInvoice()}
-              disabled={preparingInvoice}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 py-3 text-xs font-black text-[#0f4c5c] transition hover:bg-[#0f4c5c]/10 disabled:opacity-50"
-            >
-              {preparingInvoice ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CalendarDays className="h-4 w-4" />
-              )}
-              Preparar mensalidade atual
-            </button>
-          )}
-
           <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-slate-400" />
@@ -411,6 +382,21 @@ export default function SubscriptionView({
         </section>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setShowHistory((current) => !current)}
+        className="inline-flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-[#0f4c5c]/30 hover:bg-slate-50"
+      >
+        <span className="flex items-center gap-2 text-sm font-black text-neutral-950">
+          <History className="h-5 w-5 text-[#0f4c5c]" />
+          Histórico de mensalidades
+        </span>
+        <span className="text-xs font-black text-[#0f4c5c]">
+          {showHistory ? 'Ocultar' : 'Consultar'}
+        </span>
+      </button>
+
+      {showHistory && (
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
           <History className="h-5 w-5 text-[#0f4c5c]" />
@@ -472,6 +458,7 @@ export default function SubscriptionView({
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }

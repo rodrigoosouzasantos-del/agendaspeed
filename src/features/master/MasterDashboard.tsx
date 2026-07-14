@@ -301,10 +301,10 @@ function normalizeTenantRow(row: MasterTenantRow): TenantCard {
   const subscription = (row.subscription || {}) as Record<string, unknown>;
 
   const status = textValue(
-    tenant.status ??
-      tenant.tenant_status ??
-      subscription.status ??
-      subscription.subscription_status,
+    subscription.status ??
+      subscription.subscription_status ??
+      tenant.status ??
+      tenant.tenant_status,
     "trial",
   );
 
@@ -347,7 +347,7 @@ function normalizeTenantRow(row: MasterTenantRow): TenantCard {
     trialEndsAt: textValue(
       tenant.trial_ends_at ?? subscription.trial_ends_at,
     ),
-    dueDate: textValue(tenant.due_date ?? subscription.due_date),
+    dueDate: textValue(subscription.due_date ?? tenant.due_date),
     blockedAt: textValue(tenant.blocked_at),
     cancelledAt: textValue(tenant.cancelled_at),
     zipcode: textValue(tenant.address_zipcode),
@@ -372,6 +372,36 @@ function getTenantDisplayDueDate(tenant: TenantCard): string {
 
 function getTenantDisplayValue(tenant: TenantCard): number {
   return tenant.status === "trial" ? 0 : tenant.monthlyPrice;
+}
+
+function getCurrentDateStr(): string {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+function getEffectiveTenantStatus(tenant: TenantCard): TenantStatus {
+  if (tenant.status === "trial") {
+    const trialDate = toInputDate(tenant.trialEndsAt);
+
+    if (trialDate && trialDate < getCurrentDateStr()) {
+      return "past_due";
+    }
+
+    return "trial";
+  }
+
+  if (tenant.status === "cancelled" || tenant.status === "blocked") {
+    return tenant.status;
+  }
+
+  const dueDate = toInputDate(tenant.dueDate);
+
+  if (dueDate && dueDate < getCurrentDateStr()) {
+    return "past_due";
+  }
+
+  return tenant.status;
 }
 
 function getTrialCountdownLabel(tenant: TenantCard): string {
@@ -614,6 +644,7 @@ function TenantTable({
         <tbody>
           {tenants.map((tenant) => {
             const countdownLabel = getTrialCountdownLabel(tenant);
+            const effectiveStatus = getEffectiveTenantStatus(tenant);
             return (
               <tr key={tenant.id} className="border-b border-slate-100 align-middle hover:bg-slate-50/80">
                 <td className="px-4 py-3 font-mono text-sm font-black text-[#10232A]">{formatCompanyCode(tenant.companyCode)}</td>
@@ -632,9 +663,9 @@ function TenantTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3"><StatusBadge status={tenant.status} />{countdownLabel && <p className="mt-1 text-[11px] font-black text-amber-700">{countdownLabel}</p>}</td>
+                <td className="px-4 py-3"><StatusBadge status={effectiveStatus} />{countdownLabel && <p className="mt-1 text-[11px] font-black text-amber-700">{countdownLabel}</p>}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatDate(getTenantDisplayDueDate(tenant))}</td>
-                <td className={`px-4 py-3 font-black ${tenant.status === "past_due" ? "text-red-700" : "text-slate-950"}`}>{formatCurrency(getTenantDisplayValue(tenant))}</td>
+                <td className={`px-4 py-3 font-black ${effectiveStatus === "past_due" ? "text-red-700" : "text-slate-950"}`}>{formatCurrency(getTenantDisplayValue(tenant))}</td>
                 <td className="px-4 py-3">
                   <TenantActions tenant={tenant} origin={origin} actionLoadingId={actionLoadingId} copyText={copyText} handleGenerateFirstAccess={handleGenerateFirstAccess} handleOpenWhatsApp={handleOpenWhatsApp} handleUpdateStatus={handleUpdateStatus} onEdit={onEdit} onDelete={onDelete} />
                 </td>
@@ -764,7 +795,10 @@ function FinancialTable({
           </tr>
         </thead>
         <tbody>
-          {tenants.map((tenant) => (
+          {tenants.map((tenant) => {
+            const effectiveStatus = getEffectiveTenantStatus(tenant);
+
+            return (
             <tr
               key={tenant.id}
               className="border-b border-slate-100 hover:bg-slate-50/80"
@@ -774,21 +808,21 @@ function FinancialTable({
               </td>
               <td className="px-4 py-3 font-black text-slate-950">
                 <span className="inline-flex items-center gap-2">
-                  {tenant.status === "past_due" && (
+                  {effectiveStatus === "past_due" && (
                     <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
                   )}
                   {tenant.name}
                 </span>
               </td>
               <td className="px-4 py-3">
-                <StatusBadge status={tenant.status} />
+                <StatusBadge status={effectiveStatus} />
               </td>
               <td className="px-4 py-3 text-sm font-bold text-slate-700">
                 {formatDate(getTenantDisplayDueDate(tenant))}
               </td>
               <td
                 className={`px-4 py-3 font-black ${
-                  tenant.status === "past_due"
+                  effectiveStatus === "past_due"
                     ? "text-red-700"
                     : "text-slate-950"
                 }`}
@@ -796,7 +830,8 @@ function FinancialTable({
                 {formatCurrency(getTenantDisplayValue(tenant))}
               </td>
             </tr>
-          ))}
+            );
+          })}
 
           {tenants.length === 0 && (
             <tr>
@@ -1109,8 +1144,9 @@ export default function MasterDashboard({
 
     return tenants
       .filter((tenant) => {
+        const effectiveStatus = getEffectiveTenantStatus(tenant);
         const matchesStatus =
-          statusFilter === "all" || tenant.status === statusFilter;
+          statusFilter === "all" || effectiveStatus === statusFilter;
 
         const searchable = [
           formatCompanyCode(tenant.companyCode),

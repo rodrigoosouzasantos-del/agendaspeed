@@ -1265,7 +1265,6 @@ export default function OwnerDashboard({
     useState<OwnerSaasSubscription | null>(null);
   const [saasInvoices, setSaasInvoices] = useState<OwnerSaasInvoice[]>([]);
   const [isLoadingSaasBilling, setIsLoadingSaasBilling] = useState(true);
-  const [isPreparingSaasInvoice, setIsPreparingSaasInvoice] = useState(false);
   const [saasBillingError, setSaasBillingError] = useState("");
 
   useEffect(() => {
@@ -1838,10 +1837,7 @@ export default function OwnerDashboard({
     setIsLoadingSaasBilling(true);
     setSaasBillingError("");
 
-    const [subscriptionResult, invoicesResult] = await Promise.all([
-      supabase.rpc("get_my_saas_subscription"),
-      supabase.rpc("get_my_saas_invoices"),
-    ]);
+    const subscriptionResult = await supabase.rpc("get_my_saas_subscription");
 
     if (subscriptionResult.error) {
       console.error(
@@ -1849,6 +1845,7 @@ export default function OwnerDashboard({
         subscriptionResult.error.message,
       );
       setSaasSubscription(null);
+      setSaasInvoices([]);
       setSaasBillingError(
         subscriptionResult.error.message ||
           "Não foi possível carregar a assinatura.",
@@ -1863,9 +1860,13 @@ export default function OwnerDashboard({
         : subscriptionResult.data
     ) as SupabaseOwnerSaasSubscriptionResponse | null;
 
-    setSaasSubscription(
-      subscriptionRow ? mapOwnerSaasSubscription(subscriptionRow) : null,
-    );
+    const nextSubscription = subscriptionRow
+      ? mapOwnerSaasSubscription(subscriptionRow)
+      : null;
+
+    setSaasSubscription(nextSubscription);
+
+    let invoicesResult = await supabase.rpc("get_my_saas_invoices");
 
     if (invoicesResult.error) {
       console.error(
@@ -1881,38 +1882,47 @@ export default function OwnerDashboard({
       return;
     }
 
-    const invoiceRows = (
+    let invoiceRows = (
       Array.isArray(invoicesResult.data) ? invoicesResult.data : []
     ) as SupabaseOwnerSaasInvoiceResponse[];
 
-    setSaasInvoices(invoiceRows.map(mapOwnerSaasInvoice));
-    setIsLoadingSaasBilling(false);
-  };
-
-  const handlePrepareCurrentSaasInvoice = async () => {
-    if (isPreparingSaasInvoice) return;
-
-    setIsPreparingSaasInvoice(true);
-
-    const { data, error } = await supabase.rpc(
-      "prepare_my_current_saas_invoice",
+    const hasOpenInvoice = invoiceRows.some((invoice) =>
+      ["pending", "waiting_payment", "manual_review", "overdue"].includes(
+        invoice.status,
+      ),
     );
 
-    setIsPreparingSaasInvoice(false);
+    if (
+      nextSubscription &&
+      (nextSubscription.isDueSoon || nextSubscription.isOverdue) &&
+      !hasOpenInvoice
+    ) {
+      const prepareResult = await supabase.rpc(
+        "prepare_my_current_saas_invoice",
+      );
 
-    if (error) {
-      alert(error.message || "Não foi possível preparar a mensalidade.");
-      return;
+      if (prepareResult.error) {
+        console.error(
+          "Erro ao gerar automaticamente a mensalidade:",
+          prepareResult.error.message,
+        );
+        setSaasBillingError(
+          prepareResult.error.message ||
+            "Não foi possível preparar a mensalidade atual.",
+        );
+      } else {
+        invoicesResult = await supabase.rpc("get_my_saas_invoices");
+
+        if (!invoicesResult.error) {
+          invoiceRows = (
+            Array.isArray(invoicesResult.data) ? invoicesResult.data : []
+          ) as SupabaseOwnerSaasInvoiceResponse[];
+        }
+      }
     }
 
-    const result = Array.isArray(data) ? data[0] : data;
-
-    if (result?.success === false) {
-      alert(result.message || "Não foi possível preparar a mensalidade.");
-      return;
-    }
-
-    await loadSaasBilling();
+    setSaasInvoices(invoiceRows.map(mapOwnerSaasInvoice));
+    setIsLoadingSaasBilling(false);
   };
 
   useEffect(() => {
@@ -4105,7 +4115,11 @@ ${professionalAccessLink}`);
           activeTab={activeTab}
           onChangeTab={handleChangeOwnerTab}
           onOpenTodayAgenda={openTodayAgenda}
-          subscriptionStatus={saasSubscription?.subscriptionStatus || "trial"}
+          subscriptionStatus={
+            saasSubscription?.isOverdue
+              ? "past_due"
+              : saasSubscription?.subscriptionStatus || "trial"
+          }
         />
 
         <main
@@ -4273,10 +4287,8 @@ ${professionalAccessLink}`);
               subscription={saasSubscription}
               invoices={saasInvoices}
               loading={isLoadingSaasBilling}
-              preparingInvoice={isPreparingSaasInvoice}
               errorMessage={saasBillingError}
               onRefresh={loadSaasBilling}
-              onPrepareInvoice={handlePrepareCurrentSaasInvoice}
             />
           )}
 
