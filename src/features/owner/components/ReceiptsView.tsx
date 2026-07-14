@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronRight,
   MinusCircle,
+  Package,
   Plus,
   Printer,
   Search,
@@ -35,6 +36,7 @@ import {
   CashExpense,
   Client,
   PaymentType,
+  Product,
   Professional,
   Receipt,
   Service
@@ -54,8 +56,12 @@ interface ReceiptDraftItem {
   appointmentId?: string;
   serviceId: string;
   professionalId: string;
+  productId?: string;
+  itemDescription?: string;
+  quantity?: number;
+  unitPrice?: number;
   price: number;
-  itemType: 'appointment' | 'extra' | 'manual';
+  itemType: 'appointment' | 'extra' | 'manual' | 'product';
 }
 
 interface ExpensePayload {
@@ -89,6 +95,7 @@ interface ReceiptsViewProps {
   clients: Client[];
   appointments: Appointment[];
   services: Service[];
+  products: Product[];
   professionals: Professional[];
   receipts: Receipt[];
   cashExpenses: CashExpense[];
@@ -182,6 +189,13 @@ function getProfessionalById(
   professionalId: string
 ): Professional | undefined {
   return professionals.find((professional) => professional.id === professionalId);
+}
+
+function getProductById(
+  products: Product[],
+  productId: string
+): Product | undefined {
+  return products.find((product) => product.id === productId);
 }
 
 function getAppointmentRecordText(
@@ -347,6 +361,7 @@ export default function ReceiptsView({
   clients,
   appointments,
   services,
+  products,
   professionals,
   receipts,
   cashExpenses,
@@ -727,6 +742,73 @@ export default function ReceiptsView({
     ]);
   };
 
+  const handleAddProductItem = () => {
+    const firstActiveProduct = products.find((product) => product.active);
+
+    if (!firstActiveProduct) {
+      alert('Cadastre pelo menos um produto ativo para adicioná-lo ao recebimento.');
+      return;
+    }
+
+    setExtraItems((currentItems) => [
+      ...currentItems,
+      {
+        id: `product-${Date.now()}`,
+        serviceId: '',
+        professionalId: '',
+        productId: firstActiveProduct.id,
+        itemDescription: firstActiveProduct.description,
+        quantity: 1,
+        unitPrice: firstActiveProduct.salePrice,
+        price: firstActiveProduct.salePrice,
+        itemType: 'product'
+      }
+    ]);
+  };
+
+  const handleChangeProduct = (itemId: string, productId: string) => {
+    const selectedProduct = getProductById(products, productId);
+
+    if (!selectedProduct) {
+      return;
+    }
+
+    setExtraItems((currentItems) => currentItems.map((item) => {
+      if (item.id !== itemId) {
+        return item;
+      }
+
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const unitPrice = Number(selectedProduct.salePrice) || 0;
+
+      return {
+        ...item,
+        productId,
+        itemDescription: selectedProduct.description,
+        quantity,
+        unitPrice,
+        price: quantity * unitPrice
+      };
+    }));
+  };
+
+  const handleChangeProductQuantity = (itemId: string, quantity: number) => {
+    setExtraItems((currentItems) => currentItems.map((item) => {
+      if (item.id !== itemId) {
+        return item;
+      }
+
+      const normalizedQuantity = Math.max(1, Number(quantity) || 1);
+      const unitPrice = Number(item.unitPrice) || 0;
+
+      return {
+        ...item,
+        quantity: normalizedQuantity,
+        price: normalizedQuantity * unitPrice
+      };
+    }));
+  };
+
   const handleChangeExtraService = (itemId: string, serviceId: string) => {
     const selectedService = getServiceById(services, serviceId);
 
@@ -819,6 +901,25 @@ export default function ReceiptsView({
       paymentDetails
     ].filter(Boolean).join(' | ');
     const itemsHtml = receiptItems.map((item) => {
+      if (item.itemType === 'product') {
+        const product = item.productId
+          ? getProductById(products, item.productId)
+          : undefined;
+        const quantity = Math.max(1, Number(item.quantity) || 1);
+        const description =
+          item.itemDescription ||
+          product?.description ||
+          'Produto não localizado';
+
+        return `
+          <div class="item">
+            <div class="strong">${escapeHtml(description)}</div>
+            <div class="small">Produto${product?.code ? ` • Cód. ${escapeHtml(product.code)}` : ''}</div>
+            <div class="row"><span>${quantity} un.</span><span>${formatCurrency(item.price)}</span></div>
+          </div>
+        `;
+      }
+
       const service = getServiceById(services, item.serviceId);
       const professional = getProfessionalById(professionals, item.professionalId);
       const linkedAppointment =
@@ -848,7 +949,7 @@ export default function ReceiptsView({
     return `
       ${buildBusinessPrintHeader()}
       <div class="center">
-        <div class="title">COMPROVANTE DE SERVIÇOS</div>
+        <div class="title">COMPROVANTE DE RECEBIMENTO</div>
         <div class="muted">AgendaZap</div>
       </div>
       <div class="line"></div>
@@ -870,7 +971,7 @@ export default function ReceiptsView({
 
   const handlePrintDraftReceipt = () => {
     if (receiptItems.length === 0) {
-      alert('Inclua pelo menos um serviço para imprimir.');
+      alert('Inclua pelo menos um serviço ou produto para imprimir.');
       return;
     }
 
@@ -878,13 +979,31 @@ export default function ReceiptsView({
   };
 
   const handlePrintReceipt = (receipt: Receipt) => {
-    const itemsHtml = receipt.items.map((item) => `
-      <div class="item">
-        <div class="strong">${escapeHtml(item.serviceName)}</div>
-        <div class="small">Prof.: ${escapeHtml(item.professionalName)}</div>
-        <div class="row"><span>${item.itemType === 'appointment' ? 'Agendado' : item.itemType === 'manual' ? 'Manual' : 'Extra'}</span><span>${formatCurrency(item.price)}</span></div>
-      </div>
-    `).join('');
+    const itemsHtml = receipt.items.map((item) => {
+      if (item.itemType === 'product') {
+        const quantity = Math.max(1, Number(item.quantity) || 1);
+        const description =
+          item.itemDescription ||
+          item.serviceName ||
+          'Produto';
+
+        return `
+          <div class="item">
+            <div class="strong">${escapeHtml(description)}</div>
+            <div class="small">Produto</div>
+            <div class="row"><span>${quantity} un.</span><span>${formatCurrency(item.price)}</span></div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="item">
+          <div class="strong">${escapeHtml(item.serviceName)}</div>
+          <div class="small">Prof.: ${escapeHtml(item.professionalName)}</div>
+          <div class="row"><span>${item.itemType === 'appointment' ? 'Agendado' : item.itemType === 'manual' ? 'Manual' : 'Extra'}</span><span>${formatCurrency(item.price)}</span></div>
+        </div>
+      `;
+    }).join('');
 
     const body = `
       ${buildBusinessPrintHeader()}
@@ -971,7 +1090,7 @@ export default function ReceiptsView({
     }
 
     if (receiptItems.length === 0) {
-      alert('Inclua pelo menos um serviço no recebimento.');
+      alert('Inclua pelo menos um serviço ou produto no recebimento.');
       return;
     }
 
@@ -1083,6 +1202,86 @@ export default function ReceiptsView({
   };
 
   const renderDraftItem = (item: ReceiptDraftItem) => {
+    if (item.itemType === 'product') {
+      const product = item.productId
+        ? getProductById(products, item.productId)
+        : undefined;
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const unitPrice = Number(item.unitPrice) || 0;
+
+      return (
+        <div
+          key={item.id}
+          className="rounded-2xl border border-orange-200 bg-orange-50/40 p-3"
+        >
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.5fr_100px_120px_120px_auto] lg:items-end">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-600">
+                Produto
+              </p>
+
+              <select
+                value={item.productId || ''}
+                onChange={(event) => handleChangeProduct(item.id, event.target.value)}
+                className="mt-1 w-full rounded-xl border border-orange-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+              >
+                {products
+                  .filter((productOption) => productOption.active)
+                  .map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.code} • {option.description}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Quantidade
+              </p>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={quantity}
+                onChange={(event) =>
+                  handleChangeProductQuantity(item.id, Number(event.target.value))
+                }
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-black outline-none focus:border-orange-500"
+              />
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Unitário
+              </p>
+              <p className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-800">
+                {formatCurrency(unitPrice)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Total
+              </p>
+              <p className="mt-1 rounded-xl border border-orange-200 bg-white px-3 py-2 text-sm font-black text-orange-700">
+                {formatCurrency(item.price)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleRemoveExtra(item.id)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50"
+              title={`Remover ${product?.description || 'produto'}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     const service = getServiceById(services, item.serviceId);
     const professional = getProfessionalById(professionals, item.professionalId);
     const isEditableItem = item.itemType !== 'appointment';
@@ -1375,7 +1574,7 @@ export default function ReceiptsView({
                   </p>
                   <p className="text-xs font-bold text-neutral-500">
                     {new Date(receipt.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {' '}• {getPaymentLabel(receipt.paymentType)} • {receipt.items.length} serviço(s)
+                    {' '}• {getPaymentLabel(receipt.paymentType)} • {receipt.items.length} item(ns)
                   </p>
                 </div>
 
@@ -1614,14 +1813,26 @@ export default function ReceiptsView({
 
                 {receiptItems.map(renderDraftItem)}
 
-                <button
-                  type="button"
-                  onClick={handleAddExtraItem}
-                  className="w-full rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 py-2.5 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/10 transition flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
-                </button>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleAddExtraItem}
+                    className="w-full rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 py-2.5 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/10 transition flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddProductItem}
+                    disabled={!products.some((product) => product.active)}
+                    className="w-full rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 flex items-center justify-center gap-2"
+                  >
+                    <Package className="w-4 h-4" />
+                    Adicionar produto
+                  </button>
+                </div>
               </div>
             </div>
 

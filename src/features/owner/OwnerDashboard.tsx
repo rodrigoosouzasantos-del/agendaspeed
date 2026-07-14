@@ -886,11 +886,44 @@ function buildReceiptItems(params: {
   draftItems: ReceiptDraftItem[];
   receiptId: string;
   services: Service[];
+  products: Product[];
   professionals: Professional[];
 }): ReceiptItem[] {
-  const { draftItems, receiptId, services, professionals } = params;
+  const { draftItems, receiptId, services, products, professionals } = params;
 
   return draftItems.map((draftItem) => {
+    if (draftItem.itemType === "product") {
+      const product = products.find(
+        (item) => item.id === draftItem.productId,
+      );
+      const quantity = Math.max(1, Number(draftItem.quantity) || 1);
+      const unitPrice =
+        Number(draftItem.unitPrice) ||
+        Number(product?.salePrice) ||
+        0;
+      const description =
+        draftItem.itemDescription ||
+        product?.description ||
+        "Produto";
+
+      return {
+        id: `${receiptId}-${draftItem.id}`,
+        receiptId,
+        appointmentId: undefined,
+        serviceId: "",
+        serviceName: description,
+        professionalId: "",
+        professionalName: "Venda de produto",
+        productId: draftItem.productId,
+        itemDescription: description,
+        quantity,
+        unitPrice,
+        price: Number(draftItem.price) || quantity * unitPrice,
+        commissionValue: 0,
+        itemType: "product",
+      };
+    }
+
     const service = services.find((item) => item.id === draftItem.serviceId);
     const professional = professionals.find(
       (item) => item.id === draftItem.professionalId,
@@ -915,6 +948,7 @@ function buildReceiptItems(params: {
       serviceName: service?.name || "Serviço personalizado",
       professionalId: draftItem.professionalId,
       professionalName: professional?.name || "Profissional",
+      productId: undefined,
       itemDescription: service?.name || "Serviço personalizado",
       quantity: 1,
       unitPrice: Number(draftItem.price) || 0,
@@ -4286,6 +4320,7 @@ ${professionalAccessLink}`);
       draftItems: payload.items,
       receiptId: "pending-receipt",
       services,
+      products,
       professionals,
     });
 
@@ -4329,6 +4364,7 @@ ${professionalAccessLink}`);
       draftItems: payload.items,
       receiptId: savedReceiptRow.id,
       services,
+      products,
       professionals,
     });
 
@@ -4665,6 +4701,7 @@ ${professionalAccessLink}`);
               clients={filteredClients}
               appointments={appointments}
               services={services}
+              products={products}
               professionals={professionals}
               clientSearch={clientSearch}
               onChangeClientSearch={setClientSearch}
@@ -4691,6 +4728,7 @@ ${professionalAccessLink}`);
               clients={clients}
               appointments={appointments}
               services={services}
+              products={products}
               professionals={professionals}
               receipts={receipts}
               cashExpenses={cashExpenses}
