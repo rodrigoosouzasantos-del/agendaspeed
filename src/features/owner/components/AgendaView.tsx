@@ -91,7 +91,7 @@ type AgendaStep =
   | "professionalAgenda"
   | "success";
 
-type OutsideScaleConfirmRequest = "singleOpen" | "bulkOpen" | null;
+type OutsideScaleConfirmRequest = "singleOpen" | null;
 
 
 interface AgendaBlockedInterval {
@@ -2140,106 +2140,9 @@ export default function AgendaView({
       await submitScheduleDayUpdate(status);
     };
 
-    const submitOpenVisibleScheduleDays = async () => {
-      if (scheduleDayActionLoading) {
-        return;
-      }
-
-      setScheduleDayActionLoading(true);
-
-      if (!isValidUuid(selectedProfessional.id)) {
-        dateOptions.forEach((dateOption) => {
-          const isOutsideRegularSchedule = isDateOutsideProfessionalRegularSchedule({
-            professional: selectedProfessional,
-            date: dateOption,
-          });
-
-          updateLocalScheduleDay({
-            id: `local-${selectedProfessional.id}-${dateOption}`,
-            professionalId: selectedProfessional.id,
-            date: dateOption,
-            status: "open",
-            isOutOfRegularSchedule: isOutsideRegularSchedule,
-          });
-        });
-
-        setScheduleDayActionLoading(false);
-        return;
-      }
-
-      const results: AgendaScheduleDay[] = [];
-
-      for (const dateOption of dateOptions) {
-        const isOutsideRegularSchedule = isDateOutsideProfessionalRegularSchedule({
-          professional: selectedProfessional,
-          date: dateOption,
-        });
-
-        const { data, error } = await supabase.rpc("upsert_my_professional_schedule_day", {
-          p_professional_id: selectedProfessional.id,
-          p_date: dateOption,
-          p_status: "open",
-          p_is_out_of_regular_schedule: isOutsideRegularSchedule,
-        });
-
-        if (error) {
-          setScheduleDayActionLoading(false);
-          alert(error.message || "Não foi possível abrir os dias selecionados.");
-          return;
-        }
-
-        const firstRow = Array.isArray(data) ? data[0] : data;
-
-        results.push(
-          normalizeAgendaScheduleDay({
-            ...(firstRow || {}),
-            professional_id: selectedProfessional.id,
-            date: dateOption,
-            status: "open",
-            is_out_of_regular_schedule: isOutsideRegularSchedule,
-          } as Record<string, unknown>),
-        );
-      }
-
-      setScheduleDayActionLoading(false);
-
-      results.forEach((scheduleDay) => {
-        updateLocalScheduleDay(scheduleDay);
-      });
-    };
-
-    const handleOpenVisibleScheduleDays = async () => {
-      if (scheduleDayActionLoading) {
-        return;
-      }
-
-      const outsideRegularDates = dateOptions.filter((dateOption) =>
-        isDateOutsideProfessionalRegularSchedule({
-          professional: selectedProfessional,
-          date: dateOption,
-        }),
-      );
-
-      if (outsideRegularDates.length > 0) {
-        setOutsideScaleConfirmRequest("bulkOpen");
-        return;
-      }
-
-      await submitOpenVisibleScheduleDays();
-    };
-
     const handleConfirmOutsideScale = async () => {
-      const action = outsideScaleConfirmRequest;
       setOutsideScaleConfirmRequest(null);
-
-      if (action === "singleOpen") {
-        await submitScheduleDayUpdate("open");
-        return;
-      }
-
-      if (action === "bulkOpen") {
-        await submitOpenVisibleScheduleDays();
-      }
+      await submitScheduleDayUpdate("open");
     };
 
     const professionalRecord = selectedProfessional as Professional & {
@@ -2652,89 +2555,116 @@ export default function AgendaView({
 
     return (
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="border-b p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-base font-extrabold tracking-tight text-neutral-950">
-                Agenda de {selectedProfessional.name}
-              </h3>
+        <div className="border-b bg-gradient-to-r from-white via-white to-slate-50 p-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
+                  {selectedProfessional.avatar ? (
+                    <img
+                      src={selectedProfessional.avatar}
+                      alt={selectedProfessional.name}
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xl font-black text-slate-600">
+                      {selectedProfessional.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
 
-              <p className="mt-1 text-xs font-medium text-neutral-500">
-                Visualize horários livres, horários marcados e ações rápidas do dia.
-              </p>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0f4c5c]">
+                    Agenda profissional
+                  </p>
 
-              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
-                selectedScheduleDayOpen
-                  ? "border-emerald-200 bg-emerald-100 text-emerald-800"
-                  : "border-red-200 bg-red-100 text-red-800"
-              }`}>
-                {selectedScheduleDayOpen ? "Agenda aberta" : "Agenda fechada"}
-                {selectedScheduleDayOpen && selectedDateOutsideRegularSchedule ? " · fora da escala" : ""}
-              </p>
-            </div>
+                  <h3 className="mt-1 truncate text-xl font-extrabold tracking-tight text-neutral-950">
+                    {selectedProfessional.name}
+                  </h3>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={scheduleDayActionLoading || selectedScheduleDayOpen}
-                onClick={() => handleUpdateScheduleDay("open")}
-                className={`rounded-xl px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] transition ${
-                  selectedScheduleDayOpen
-                    ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
-                }`}
-              >
-                Abrir dia
-              </button>
+                  <p className="mt-1 text-xs font-semibold text-neutral-500">
+                    {selectedProfessional.role || "Especialidade não informada"}
+                  </p>
 
-              <button
-                type="button"
-                disabled={scheduleDayActionLoading || !selectedScheduleDayOpen}
-                onClick={() => handleUpdateScheduleDay("closed")}
-                className={`rounded-xl px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] transition ${
-                  !selectedScheduleDayOpen
-                    ? "cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-400"
-                    : "bg-neutral-900 text-white shadow-sm hover:bg-black"
-                }`}
-              >
-                Fechar dia
-              </button>
-
-              <button
-                type="button"
-                disabled={scheduleDayActionLoading}
-                onClick={handleOpenVisibleScheduleDays}
-                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 font-mono text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-900 transition hover:border-blue-300 hover:bg-blue-100"
-              >
-                Abrir dias visíveis
-              </button>
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {dateOptions.map((dateOption) => {
-                const isSelected = selectedDateSafe === dateOption;
-
-                return (
-                  <button
-                    key={dateOption}
-                    type="button"
-                    onClick={() => setSelectedDate(dateOption)}
-                    className={`min-w-[78px] rounded-xl border px-3 py-2 text-center transition ${
-                      isSelected
-                        ? "border-[#0f4c5c] bg-orange-600 text-white shadow-sm"
-                        : "border-neutral-200 bg-white text-neutral-600 hover:border-[#0f4c5c]/40"
-                    }`}
-                  >
-                    <span className="block text-[10px] font-extrabold uppercase tracking-wider">
-                      {dateOption === todayStr ? "Hoje" : getWeekDayShortLabel(dateOption)}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                      selectedScheduleDayOpen
+                        ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                        : "border-red-200 bg-red-100 text-red-800"
+                    }`}>
+                      {selectedScheduleDayOpen ? "Agenda aberta" : "Agenda fechada"}
                     </span>
 
-                    <strong className="mt-0.5 block text-xs font-extrabold">
-                      {formatDateBr(dateOption).slice(0, 5)}
-                    </strong>
-                  </button>
-                );
-              })}
+                    {selectedScheduleDayOpen && selectedDateOutsideRegularSchedule && (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">
+                        Fora da escala
+                      </span>
+                    )}
+
+                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
+                      {selectedProfessional.workHoursStart} às {selectedProfessional.workHoursEnd}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <button
+                  type="button"
+                  disabled={scheduleDayActionLoading || selectedScheduleDayOpen}
+                  onClick={() => handleUpdateScheduleDay("open")}
+                  className={`min-w-[130px] rounded-xl px-4 py-2.5 text-xs font-extrabold transition ${
+                    selectedScheduleDayOpen
+                      ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
+                  }`}
+                >
+                  {scheduleDayActionLoading ? "Processando..." : "Abrir dia"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={scheduleDayActionLoading || !selectedScheduleDayOpen}
+                  onClick={() => handleUpdateScheduleDay("closed")}
+                  className={`min-w-[130px] rounded-xl px-4 py-2.5 text-xs font-extrabold transition ${
+                    !selectedScheduleDayOpen
+                      ? "cursor-not-allowed border border-neutral-200 bg-neutral-100 text-neutral-400"
+                      : "bg-neutral-900 text-white shadow-sm hover:bg-black"
+                  }`}
+                >
+                  {scheduleDayActionLoading ? "Processando..." : "Fechar dia"}
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-3">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {dateOptions.map((dateOption) => {
+                  const isSelected = selectedDateSafe === dateOption;
+
+                  return (
+                    <button
+                      key={dateOption}
+                      type="button"
+                      onClick={() => setSelectedDate(dateOption)}
+                      className={`min-w-[82px] rounded-xl border px-3 py-2 text-center transition ${
+                        isSelected
+                          ? "border-orange-600 bg-orange-600 text-white shadow-sm"
+                          : "border-neutral-200 bg-white text-neutral-600 hover:border-[#0f4c5c]/40 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider">
+                        {dateOption === todayStr ? "Hoje" : getWeekDayShortLabel(dateOption)}
+                      </span>
+
+                      <strong className="mt-0.5 block text-xs font-extrabold">
+                        {formatDateBr(dateOption).slice(0, 5)}
+                      </strong>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
