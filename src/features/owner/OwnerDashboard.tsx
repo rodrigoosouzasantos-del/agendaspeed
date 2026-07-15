@@ -4701,7 +4701,6 @@ ${professionalAccessLink}`);
               clients={filteredClients}
               appointments={appointments}
               services={services}
-              products={products}
               professionals={professionals}
               clientSearch={clientSearch}
               onChangeClientSearch={setClientSearch}
