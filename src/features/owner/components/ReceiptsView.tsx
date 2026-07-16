@@ -1772,7 +1772,7 @@ export default function ReceiptsView({
         )}
 
         {canShowCheckout && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-[#0f4c5c] px-4 py-3 text-white">
                 <h2 className="text-sm font-black uppercase tracking-tight">
@@ -1836,17 +1836,25 @@ export default function ReceiptsView({
               </div>
             </div>
 
-            <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit">
+            <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-[#0f4c5c] px-4 py-3 text-white">
                 <h2 className="text-sm font-black uppercase tracking-tight">
-                  Baixa rápida
+                  Informações de pagamento
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                  Forma de pagamento, desconto e confirmação.
+                  Escolha a forma de pagamento, aplique desconto e confirme a baixa.
                 </p>
               </div>
 
               <div className="p-4 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                    Fechamento financeiro
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    Confira os valores e finalize o recebimento.
+                  </p>
+                </div>
                 {checkoutMode === 'manual' && (
                   <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
