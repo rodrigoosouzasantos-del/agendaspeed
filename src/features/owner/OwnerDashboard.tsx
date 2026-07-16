@@ -1740,7 +1740,7 @@ export default function OwnerDashboard({
       if (document.visibilityState === "visible" && isOperationalTab) {
         void loadAppointmentsFromSupabase(false);
       }
-    }, 180000);
+    }, 40000);
 
     const appointmentsChannel = supabase
       .channel("owner-appointments-changes")
