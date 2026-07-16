@@ -50,6 +50,7 @@ interface ClientsViewProps {
   onAddClient: (client: {
     name: string;
     phone: string;
+    cpf?: string;
     birthDate?: string;
   }) => void;
   onUpdateClient: (
@@ -57,6 +58,7 @@ interface ClientsViewProps {
     updates: {
       name: string;
       phone: string;
+      cpf?: string;
       birthDate?: string;
     }
   ) => boolean;
@@ -66,12 +68,14 @@ interface ClientsViewProps {
 interface ManualClientFormState {
   name: string;
   phone: string;
+  cpf: string;
   birthDate: string;
 }
 
 interface ClientEditFormState {
   name: string;
   phone: string;
+  cpf: string;
   birthDate: string;
 }
 
@@ -125,6 +129,24 @@ function formatPhoneMask(value: string): string {
   }
 
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatCpfMask(value: string): string {
+  const digits = onlyDigits(value).slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  }
+
+  if (digits.length <= 9) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  }
+
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
 function formatDateBr(dateStr: string): string {
@@ -309,6 +331,7 @@ function buildReportHtml(params: {
       <tr>
         <td>${escapeHtml(client.name)}</td>
         <td>${escapeHtml(formatPhoneMask(client.phone))}</td>
+        <td>${escapeHtml(client.cpf ? formatCpfMask(client.cpf) : 'Não informado')}</td>
         <td>${escapeHtml(client.birthDate ? formatDateBr(client.birthDate) : 'Não informado')}</td>
         <td>${stats.presences}</td>
         <td>${stats.reschedules}</td>
@@ -345,6 +368,7 @@ function buildReportHtml(params: {
             <tr>
               <th>Cliente</th>
               <th>WhatsApp</th>
+              <th>CPF</th>
               <th>Aniversário</th>
               <th>Presenças</th>
               <th>Reagend.</th>
@@ -395,6 +419,7 @@ export default function ClientsView({
     useState<ClientEditFormState>({
       name: '',
       phone: '',
+      cpf: '',
       birthDate: ''
     });
   const [period, setPeriod] = useState<PeriodState>(getDefaultPeriod());
@@ -402,6 +427,7 @@ export default function ClientsView({
     useState<ManualClientFormState>({
       name: '',
       phone: '',
+      cpf: '',
       birthDate: ''
     });
   const [currentPage, setCurrentPage] = useState(1);
@@ -430,6 +456,7 @@ export default function ClientsView({
         return [
           client.name,
           client.phone,
+          client.cpf || '',
           client.birthDate || '',
           getClientInternalCode(client)
         ].some((value) => normalizeSearch(value).includes(normalizedSearch));
@@ -532,6 +559,7 @@ export default function ClientsView({
     setClientEditForm({
       name: client.name,
       phone: formatPhoneMask(client.phone),
+      cpf: formatCpfMask(client.cpf || ''),
       birthDate: client.birthDate || ''
     });
     setPeriod(getDefaultPeriod());
@@ -551,6 +579,7 @@ export default function ClientsView({
     setClientEditForm({
       name: selectedClient.name,
       phone: formatPhoneMask(selectedClient.phone),
+      cpf: formatCpfMask(selectedClient.cpf || ''),
       birthDate: selectedClient.birthDate || ''
     });
     setIsEditingClient(true);
@@ -564,6 +593,7 @@ export default function ClientsView({
     setClientEditForm({
       name: selectedClient.name,
       phone: formatPhoneMask(selectedClient.phone),
+      cpf: formatCpfMask(selectedClient.cpf || ''),
       birthDate: selectedClient.birthDate || ''
     });
     setIsEditingClient(false);
@@ -583,6 +613,7 @@ export default function ClientsView({
     const wasUpdated = onUpdateClient(selectedClient.id, {
       name: clientEditForm.name.trim(),
       phone: clientEditForm.phone.trim(),
+      cpf: onlyDigits(clientEditForm.cpf) || undefined,
       birthDate: clientEditForm.birthDate || undefined
     });
 
@@ -599,6 +630,7 @@ export default function ClientsView({
         ...currentClient,
         name: clientEditForm.name.trim(),
         phone: clientEditForm.phone.trim(),
+        cpf: onlyDigits(clientEditForm.cpf) || undefined,
         birthDate: clientEditForm.birthDate || undefined
       };
     });
@@ -625,12 +657,14 @@ export default function ClientsView({
     onAddClient({
       name: manualClientForm.name.trim(),
       phone: manualClientForm.phone.trim(),
+      cpf: onlyDigits(manualClientForm.cpf) || undefined,
       birthDate: manualClientForm.birthDate || undefined
     });
 
     setManualClientForm({
       name: '',
       phone: '',
+      cpf: '',
       birthDate: ''
     });
 
@@ -716,7 +750,7 @@ export default function ClientsView({
               <input
                 id="input-client-search"
                 type="search"
-                placeholder="Buscar por nome, WhatsApp ou código"
+                placeholder="Buscar por nome, WhatsApp, CPF ou código"
                 value={clientSearch}
                 onChange={(event) => onChangeClientSearch(event.target.value)}
                 className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
@@ -792,9 +826,10 @@ export default function ClientsView({
       )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[1.4fr_1fr_1fr_210px] border-b border-slate-200 bg-[#0f4c5c] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white">
+        <div className="grid grid-cols-[1.25fr_1fr_1fr_1fr_210px] border-b border-slate-200 bg-[#0f4c5c] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white">
           <div>Nome do Cliente</div>
           <div>WhatsApp</div>
+          <div>CPF</div>
           <div>Dados do Cliente</div>
           <div className="text-center">WhatsApp Rápido</div>
         </div>
@@ -813,7 +848,7 @@ export default function ClientsView({
               <div
                 id={`client-row-${client.id}`}
                 key={client.id}
-                className={`grid grid-cols-1 gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[1.4fr_1fr_1fr_210px] lg:items-center ${
+                className={`grid grid-cols-1 gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[1.25fr_1fr_1fr_1fr_210px] lg:items-center ${
                   isBirthday ? 'bg-amber-50/80' : 'bg-white'
                 }`}
               >
@@ -843,6 +878,12 @@ export default function ClientsView({
 
                   <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     Aniv.: {client.birthDate ? formatDateBr(client.birthDate) : 'não informado'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-700">
+                    {client.cpf ? formatCpfMask(client.cpf) : 'Não informado'}
                   </p>
                 </div>
 
@@ -894,7 +935,7 @@ export default function ClientsView({
                 </div>
 
                 {clientAppointments.length === 0 && (
-                  <div className="text-[11px] font-semibold text-slate-400 lg:col-span-4">
+                  <div className="text-[11px] font-semibold text-slate-400 lg:col-span-5">
                     Cliente ainda sem histórico de agendamentos no período carregado.
                   </div>
                 )}
@@ -989,7 +1030,7 @@ export default function ClientsView({
                 onSubmit={handleSubmitClientEdit}
                 className="mt-4 rounded-2xl border bg-slate-50 p-4 space-y-4"
               >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
                       Nome
@@ -1031,6 +1072,26 @@ export default function ClientsView({
 
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      CPF
+                    </label>
+
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={clientEditForm.cpf}
+                      onChange={(event) => {
+                        setClientEditForm((currentForm) => ({
+                          ...currentForm,
+                          cpf: formatCpfMask(event.target.value)
+                        }));
+                      }}
+                      placeholder="000.000.000-00"
+                      className="w-full rounded-xl border bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
                       Aniversário
                     </label>
 
@@ -1066,7 +1127,7 @@ export default function ClientsView({
                 </div>
               </form>
             ) : (
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-2xl border bg-slate-50 p-4">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                     Nome
@@ -1091,6 +1152,18 @@ export default function ClientsView({
                     <Phone className="w-3.5 h-3.5" />
                     {formatPhoneMask(selectedClient.phone)}
                   </a>
+                </div>
+
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    CPF
+                  </span>
+
+                  <p className="mt-1 text-sm font-black text-neutral-950">
+                    {selectedClient.cpf
+                      ? formatCpfMask(selectedClient.cpf)
+                      : 'Não informado'}
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border bg-slate-50 p-4">
@@ -1322,6 +1395,25 @@ export default function ClientsView({
                     required
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-700">
+                  CPF (opcional)
+                </label>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={manualClientForm.cpf}
+                  onChange={(event) => {
+                    handleChangeManualClientForm({
+                      cpf: formatCpfMask(event.target.value)
+                    });
+                  }}
+                  placeholder="000.000.000-00"
+                  className="w-full rounded-xl border bg-slate-50 px-3.5 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
+                />
               </div>
 
               <div className="space-y-1">

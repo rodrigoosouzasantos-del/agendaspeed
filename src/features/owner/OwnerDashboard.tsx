@@ -524,12 +524,14 @@ function mapSupabaseAppointmentToAppAppointment(
 }
 
 const SUPABASE_CLIENTS_SELECT =
-  "id,name,phone,email,birth_date,notes,total_spent,client_cancel_count,client_reschedule_count,created_at,updated_at";
+  "id,name,phone,phone_normalized,cpf,email,birth_date,notes,total_spent,client_cancel_count,client_reschedule_count,created_at,updated_at";
 
 type SupabaseClientResponse = {
   id: string;
   name: string;
   phone: string;
+  phone_normalized: string | null;
+  cpf: string | null;
   email: string | null;
   birth_date: string | null;
   notes: string | null;
@@ -548,8 +550,9 @@ function mapSupabaseClientToAppClient(client: SupabaseClientResponse): Client {
     internalCode: `CLI-${String(client.id || normalizedPhone).replace(/\D/g, "").slice(-6).padStart(6, "0")}`,
     name: client.name || "",
     phone: client.phone || "",
-    phoneNormalized: normalizedPhone,
+    phoneNormalized: client.phone_normalized || normalizedPhone,
     phoneHistory: [],
+    cpf: client.cpf || undefined,
     email: client.email || undefined,
     birthDate: client.birth_date || undefined,
     preferredProfessionalId: null,
@@ -4079,6 +4082,7 @@ ${professionalAccessLink}`);
   const handleAddManualClient = (clientData: {
     name: string;
     phone: string;
+    cpf?: string;
     birthDate?: string;
   }) => {
     const newPhoneNormalized = normalizeClientPhone(clientData.phone);
@@ -4095,6 +4099,16 @@ ${professionalAccessLink}`);
       return;
     }
 
+    const normalizedCpf = onlyDigits(clientData.cpf || "");
+
+    if (
+      normalizedCpf &&
+      clients.some((client) => onlyDigits(client.cpf || "") === normalizedCpf)
+    ) {
+      alert("Já existe um cliente cadastrado com este CPF.");
+      return;
+    }
+
     if (!tenantId) {
       alert("Não foi possível identificar a empresa para cadastrar o cliente.");
       return;
@@ -4108,7 +4122,8 @@ ${professionalAccessLink}`);
         .insert({
           tenant_id: tenantId,
           name: clientData.name,
-          phone: clientData.phone,
+          phone: newPhoneNormalized,
+          cpf: normalizedCpf || null,
           birth_date: clientData.birthDate || null,
           notes,
         })
@@ -4147,6 +4162,7 @@ ${professionalAccessLink}`);
     updates: {
       name: string;
       phone: string;
+      cpf?: string;
       birthDate?: string;
     },
   ): boolean => {
@@ -4163,6 +4179,21 @@ ${professionalAccessLink}`);
 
     if (alreadyExists) {
       alert("Já existe outro cliente cadastrado com este WhatsApp.");
+      return false;
+    }
+
+    const normalizedCpf = onlyDigits(updates.cpf || "");
+
+    const cpfAlreadyExists = clients.some((client) => {
+      return (
+        client.id !== clientId &&
+        normalizedCpf &&
+        onlyDigits(client.cpf || "") === normalizedCpf
+      );
+    });
+
+    if (cpfAlreadyExists) {
+      alert("Já existe outro cliente cadastrado com este CPF.");
       return false;
     }
 
@@ -4191,9 +4222,10 @@ ${professionalAccessLink}`);
       return {
         ...client,
         name: updates.name,
-        phone: updates.phone,
+        phone: newPhoneNormalized,
         phoneNormalized: newPhoneNormalized,
         phoneHistory,
+        cpf: normalizedCpf || undefined,
         birthDate: updates.birthDate,
       };
     });
@@ -4210,7 +4242,8 @@ ${professionalAccessLink}`);
         .from("clients")
         .update({
           name: updates.name,
-          phone: updates.phone,
+          phone: newPhoneNormalized,
+          cpf: normalizedCpf || null,
           birth_date: updates.birthDate || null,
         })
         .eq("id", clientId)

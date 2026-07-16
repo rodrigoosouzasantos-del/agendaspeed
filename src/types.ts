@@ -163,6 +163,7 @@ export interface Client {
   phone: string;
   phoneNormalized?: string;
   phoneHistory?: string[];
+  cpf?: string;
   email?: string;
   birthDate?: string; // "YYYY-MM-DD"
   preferredProfessionalId: string | null;

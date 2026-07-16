@@ -130,6 +130,56 @@ function formatPhoneForDisplay(value: string): string {
   return value;
 }
 
+function getDefaultAreaCode(companyPhone: string): string {
+  const digits = normalizePhone(companyPhone);
+
+  if (digits.length >= 10) {
+    return digits.slice(0, 2);
+  }
+
+  return '';
+}
+
+function normalizeManualPhone(value: string, defaultAreaCode: string): string {
+  const digits = normalizePhone(value);
+
+  if (digits.length === 9 && defaultAreaCode.length === 2) {
+    return `${defaultAreaCode}${digits}`;
+  }
+
+  return digits.slice(0, 11);
+}
+
+function formatManualPhoneInput(value: string, defaultAreaCode: string): string {
+  const rawDigits = normalizePhone(value).slice(0, 11);
+
+  if (rawDigits.length <= 9 && !value.includes('(')) {
+    if (rawDigits.length === 9 && defaultAreaCode.length === 2) {
+      return formatPhoneForDisplay(`${defaultAreaCode}${rawDigits}`);
+    }
+
+    return rawDigits;
+  }
+
+  return formatPhoneForDisplay(rawDigits);
+}
+
+function clientPhoneForLookup(client: Client): string {
+  return normalizePhone(client.phoneNormalized || client.phone || '');
+}
+
+function formatCpfForDisplay(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  }
+
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
 function getAppointmentLabel(appointment: Appointment): string {
   return `${formatDateBr(getAppointmentDate(appointment))} às ${getAppointmentTime(appointment)}`;
 }
@@ -393,6 +443,7 @@ export default function ReceiptsView({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [manualClientPhone, setManualClientPhone] = useState('');
+  const [manualClientCpf, setManualClientCpf] = useState('');
   const [manualClientName, setManualClientName] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(0);
@@ -404,6 +455,36 @@ export default function ReceiptsView({
   const phoneKey = normalizePhone(phoneSearch);
   const normalizedCashSearch = normalizeSearchValue(cashSearch);
   const currentDayKey = todayKey();
+  const defaultAreaCode = getDefaultAreaCode(companyPhone);
+
+  const manualMatchedClient = useMemo(() => {
+    const normalizedManualPhone = normalizeManualPhone(
+      manualClientPhone,
+      defaultAreaCode
+    );
+    const normalizedManualCpf = manualClientCpf.replace(/\D/g, '');
+
+    return clients.find((client) => {
+      const clientPhone = normalizePhone(
+        client.phoneNormalized || client.phone || ''
+      );
+      const clientCpf = String(client.cpf || '').replace(/\D/g, '');
+
+      const phoneMatches =
+        normalizedManualPhone.length >= 10 &&
+        clientPhone === normalizedManualPhone;
+      const cpfMatches =
+        normalizedManualCpf.length === 11 &&
+        clientCpf === normalizedManualCpf;
+
+      return phoneMatches || cpfMatches;
+    }) || null;
+  }, [
+    clients,
+    defaultAreaCode,
+    manualClientCpf,
+    manualClientPhone
+  ]);
 
   const selectedClient = useMemo(() => {
     if (phoneKey.length < 8) {
@@ -694,6 +775,7 @@ export default function ReceiptsView({
     setSelectedAppointmentId(null);
     setCheckoutMode('manual');
     setManualClientPhone('');
+    setManualClientCpf('');
     setManualClientName('');
     resetCheckoutDraft();
     setExtraItems([defaultItem]);
@@ -716,6 +798,7 @@ export default function ReceiptsView({
     setCheckoutMode(null);
     setSelectedAppointmentId(null);
     setManualClientPhone('');
+    setManualClientCpf('');
     setManualClientName('');
     resetCheckoutDraft();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -878,8 +961,18 @@ export default function ReceiptsView({
   };
 
   const buildDraftReceiptPrintHtml = () => {
-    const clientName = selectedAppointment?.clientName || selectedClient?.name || manualClientName || 'Cliente';
-    const clientPhone = selectedAppointment?.clientPhone || selectedClient?.phone || manualClientPhone || '';
+    const clientName =
+      selectedAppointment?.clientName ||
+      manualMatchedClient?.name ||
+      selectedClient?.name ||
+      manualClientName ||
+      'Cliente';
+    const clientPhone =
+      selectedAppointment?.clientPhone ||
+      manualMatchedClient?.phone ||
+      selectedClient?.phone ||
+      manualClientPhone ||
+      '';
     const appointmentDate = selectedAppointment ? getAppointmentLabel(selectedAppointment) : '';
     const paymentDetails = [
       structuredPayments.length > 1 ? 'Pagamento dividido:' : '',
@@ -1095,10 +1188,11 @@ export default function ReceiptsView({
     }
 
     const clientName = isManualReceipt
-      ? manualClientName.trim() || selectedClient?.name || 'Cliente balcão'
+      ? manualMatchedClient?.name || manualClientName.trim() || 'Cliente balcão'
       : selectedAppointment?.clientName || selectedClient?.name || 'Cliente';
     const clientPhone = isManualReceipt
-      ? manualClientPhone.trim() || phoneSearch
+      ? manualMatchedClient?.phone ||
+        normalizeManualPhone(manualClientPhone, defaultAreaCode)
       : selectedAppointment?.clientPhone || selectedClient?.phone || phoneSearch;
 
     if (!normalizePhone(clientPhone)) {
@@ -1131,7 +1225,9 @@ export default function ReceiptsView({
     const receiptPrintHtml = buildDraftReceiptPrintHtml();
 
     onConfirmReceipt({
-      clientId: selectedClient?.id,
+      clientId: isManualReceipt
+        ? manualMatchedClient?.id
+        : selectedClient?.id,
       clientName,
       clientPhone,
       appointmentId: selectedAppointment?.id,
@@ -1162,6 +1258,7 @@ export default function ReceiptsView({
     setCheckoutMode(null);
     setIsCheckoutOpen(false);
     setManualClientPhone('');
+    setManualClientCpf('');
     setManualClientName('');
     resetCheckoutDraft();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1841,19 +1938,110 @@ export default function ReceiptsView({
               )}
 
               {checkoutMode === 'manual' && (
-                <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2">
-                  <input
-                    value={manualClientPhone}
-                    onChange={(event) => setManualClientPhone(event.target.value)}
-                    placeholder="WhatsApp do cliente"
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                  />
-                  <input
-                    value={manualClientName}
-                    onChange={(event) => setManualClientName(event.target.value)}
-                    placeholder="Nome do cliente"
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                  />
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_1.3fr]">
+                    <label>
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        WhatsApp
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={manualClientPhone}
+                        onChange={(event) => {
+                          const nextPhone = formatManualPhoneInput(
+                            event.target.value,
+                            defaultAreaCode
+                          );
+                          const normalizedNextPhone = normalizeManualPhone(
+                            nextPhone,
+                            defaultAreaCode
+                          );
+                          const matchedClient = clients.find((client) => {
+                            return normalizePhone(
+                              client.phoneNormalized || client.phone || ''
+                            ) === normalizedNextPhone;
+                          });
+
+                          setManualClientPhone(nextPhone);
+
+                          if (matchedClient) {
+                            setManualClientName(matchedClient.name);
+                            setManualClientCpf(
+                              formatCpfForDisplay(matchedClient.cpf || '')
+                            );
+                          }
+                        }}
+                        onBlur={() => {
+                          const normalizedPhone = normalizeManualPhone(
+                            manualClientPhone,
+                            defaultAreaCode
+                          );
+
+                          if (normalizedPhone.length >= 10) {
+                            setManualClientPhone(
+                              formatPhoneForDisplay(normalizedPhone)
+                            );
+                          }
+                        }}
+                        placeholder={
+                          defaultAreaCode
+                            ? `(DDD opcional: ${defaultAreaCode})`
+                            : '(99) 99999-9999'
+                        }
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                      />
+                    </label>
+
+                    <label>
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        CPF (opcional)
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={manualClientCpf}
+                        onChange={(event) => {
+                          const nextCpf = formatCpfForDisplay(event.target.value);
+                          const normalizedNextCpf = nextCpf.replace(/\D/g, '');
+                          const matchedClient = clients.find((client) => {
+                            return String(client.cpf || '').replace(/\D/g, '') === normalizedNextCpf;
+                          });
+
+                          setManualClientCpf(nextCpf);
+
+                          if (matchedClient && normalizedNextCpf.length === 11) {
+                            setManualClientName(matchedClient.name);
+                            setManualClientPhone(
+                              formatPhoneForDisplay(
+                                clientPhoneForLookup(matchedClient)
+                              )
+                            );
+                          }
+                        }}
+                        placeholder="000.000.000-00"
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                      />
+                    </label>
+
+                    <label>
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Nome do cliente
+                      </span>
+                      <input
+                        value={manualClientName}
+                        onChange={(event) => setManualClientName(event.target.value)}
+                        placeholder="Nome do cliente"
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                      />
+                    </label>
+                  </div>
+
+                  {manualMatchedClient && (
+                    <p className="mt-2 text-[11px] font-bold text-emerald-700">
+                      Cliente localizado: {manualMatchedClient.name}
+                    </p>
+                  )}
                 </div>
               )}
 
