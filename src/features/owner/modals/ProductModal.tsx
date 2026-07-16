@@ -4,7 +4,6 @@
  * Escopo:
  * - código;
  * - descrição;
- * - quantidade informativa;
  * - valor de custo;
  * - valor de venda;
  * - status ativo/inativo.
@@ -61,14 +60,12 @@ export default function ProductModal({
   editingProduct,
   code,
   description,
-  quantity,
   costPrice,
   salePrice,
   active,
   isSaving = false,
   onChangeCode,
   onChangeDescription,
-  onChangeQuantity,
   onChangeCostPrice,
   onChangeSalePrice,
   onChangeActive,
@@ -116,7 +113,7 @@ export default function ProductModal({
 
         <form onSubmit={onSubmit}>
           <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
-            <label className="space-y-1">
+            <label className="space-y-1 sm:col-span-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                 Código
               </span>
@@ -128,23 +125,6 @@ export default function ProductModal({
                 placeholder="Ex.: 0015"
                 autoFocus
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black uppercase text-slate-800 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
-              />
-            </label>
-
-            <label className="space-y-1 sm:col-span-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                Quantidade
-              </span>
-
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={quantity}
-                onChange={(event) =>
-                  onChangeQuantity(Math.max(0, Number(event.target.value) || 0))
-                }
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-800 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
               />
             </label>
 
