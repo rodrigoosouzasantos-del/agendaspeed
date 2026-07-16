@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  Plus,
   RefreshCcw,
   UserCheck,
   XCircle
@@ -287,6 +288,20 @@ function getTenantSlugCandidates(params: {
   }
 
   return Array.from(candidates);
+}
+
+function getPublicBookingUrlFromAppointment(params: {
+  appointment?: ClientAppointmentRow;
+  state: LocalState;
+}): string {
+  const slugCandidates = getTenantSlugCandidates(params);
+  const preferredSlug = slugCandidates[0] || '';
+
+  if (!preferredSlug) {
+    return `${window.location.origin}/`;
+  }
+
+  return `${window.location.origin}/${preferredSlug}`;
 }
 
 function timeToMinutes(time: string): number {
@@ -758,6 +773,17 @@ export default function ClientAppointmentsPage({
 
   const visibleAppointments = appointments.filter(isClientAppointmentVisible);
 
+  const newBookingUrl = useMemo(() => {
+    return getPublicBookingUrlFromAppointment({
+      appointment: visibleAppointments[0] || appointments[0],
+      state
+    });
+  }, [
+    appointments,
+    state,
+    visibleAppointments
+  ]);
+
   const groupedRescheduleOptions = useMemo(() => {
     const groups = new Map<string, RescheduleOptionRow[]>();
 
@@ -1147,7 +1173,7 @@ export default function ClientAppointmentsPage({
               <CalendarDays className="h-4 w-4" />
             </span>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="font-mono text-[9px] font-extrabold uppercase tracking-[0.22em] text-slate-400">
                 Estabelecimento
               </p>
@@ -1157,6 +1183,14 @@ export default function ClientAppointmentsPage({
               </p>
             </div>
           </div>
+
+          <a
+            href={newBookingUrl}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(249,115,22,0.22)] transition hover:bg-orange-600"
+          >
+            <Plus className="h-4 w-4" />
+            Novo agendamento
+          </a>
         </header>
 
         {loadError && visibleAppointments.length === 0 && (
