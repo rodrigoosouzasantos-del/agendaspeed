@@ -303,6 +303,10 @@ interface ClientBookingFeedbackState {
 interface PublicBookingCreationRow {
   appointment_id: string;
   client_id: string;
+  public_access_token?: string;
+  client_public_access_token?: string;
+  access_token?: string;
+  token?: string;
   whatsapp_url: string;
   success: boolean;
   message: string;
@@ -475,6 +479,52 @@ function buildClientFollowUpLink(token: string): string {
   const safeToken = encodeURIComponent(token);
 
   return `${window.location.origin}/meus-agendamentos/${safeToken}`;
+}
+
+function extractPublicAccessToken(value: unknown): string {
+  const firstValue = Array.isArray(value) ? value[0] : value;
+
+  if (typeof firstValue === 'string') {
+    return firstValue.trim();
+  }
+
+  if (firstValue && typeof firstValue === 'object') {
+    const record = firstValue as Record<string, unknown>;
+
+    return String(
+      record.public_access_token ||
+      record.client_public_access_token ||
+      record.access_token ||
+      record.token ||
+      ''
+    ).trim();
+  }
+
+  return '';
+}
+
+async function getClientPublicAccessTokenByAppointment(
+  appointmentId: string
+): Promise<string> {
+  if (!appointmentId) {
+    return '';
+  }
+
+  const { data, error } = await supabase.rpc(
+    'get_my_client_public_access_token_by_appointment',
+    {
+      p_appointment_id: appointmentId
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      error.message ||
+      'O agendamento foi criado, mas não foi possível gerar o link de acompanhamento.'
+    );
+  }
+
+  return extractPublicAccessToken(data);
 }
 
 function buildClientFollowUpWhatsappUrl(params: {
@@ -1841,7 +1891,20 @@ export default function ClientBooking({
         };
       });
 
-      const followUpToken = firstRow.client_id || firstRow.appointment_id;
+      const tokenReturnedWithBooking = extractPublicAccessToken(firstRow);
+      const followUpToken =
+        tokenReturnedWithBooking ||
+        await getClientPublicAccessTokenByAppointment(firstRow.appointment_id);
+
+      if (!followUpToken) {
+        showFeedbackMessage(
+          'Agendamento criado, mas link indisponível',
+          'Seu horário foi reservado, porém não foi possível gerar o link para confirmar, remarcar ou cancelar. Entre em contato com o estabelecimento.'
+        );
+        setSubmittingBooking(false);
+        return;
+      }
+
       const followUpLink = buildClientFollowUpLink(followUpToken);
       const nextWhatsappUrl = buildClientFollowUpWhatsappUrl({
         companyPhone: config.phone,
