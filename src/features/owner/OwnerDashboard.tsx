@@ -1267,6 +1267,10 @@ export default function OwnerDashboard({
   const [productCostPrice, setProductCostPrice] = useState(0);
   const [productSalePrice, setProductSalePrice] = useState(0);
   const [productActive, setProductActive] = useState(true);
+  const [productPopup, setProductPopup] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   const [clientSearch, setClientSearch] = useState("");
   const [professionalFilter, setProfessionalFilter] = useState<string>("all");
@@ -2307,7 +2311,10 @@ export default function OwnerDashboard({
       setIsSavingProduct(false);
 
       if (error.code === "23505") {
-        alert("Já existe um produto com esse código nesta empresa.");
+        setProductPopup({
+          title: "Código já cadastrado",
+          message: "Já existe um produto com esse código nesta empresa.",
+        });
         return;
       }
 
@@ -4962,6 +4969,38 @@ ${professionalAccessLink}`);
         }}
         onSubmit={handleAddNewService}
       />
+
+      {productPopup && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-amber-500" />
+
+            <div className="p-5 text-left">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-xl font-black text-amber-700">
+                !
+              </div>
+
+              <h2 className="mt-4 text-lg font-black text-neutral-950">
+                {productPopup.title}
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                {productPopup.message}
+              </p>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setProductPopup(null)}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#123945]"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ProductModal
         isOpen={showProductModal}
