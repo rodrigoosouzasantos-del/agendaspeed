@@ -1739,32 +1739,37 @@ export default function ReceiptsView({
   }
 
   if (isCheckoutOpen) {
+    const checkoutExtraItems =
+      checkoutMode === 'appointment' ? extraItems : receiptItems;
+
     return (
-      <section className="space-y-3">
+      <section className="space-y-2">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 bg-[#0f4c5c]" />
-          <div className="relative px-4 py-3 text-center">
+          <div className="h-1 bg-[#0f4c5c]" />
+          <div className="relative flex min-h-[62px] items-center justify-center px-4 py-2.5">
             <button
               type="button"
               onClick={handleBackToSearch}
-              className="absolute left-4 top-3 rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white hover:bg-[#123945] transition flex items-center justify-center gap-2"
+              className="absolute left-4 flex items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945]"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="h-4 w-4" />
               Voltar
             </button>
 
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
-            </p>
-            <h1 className="text-xl font-black tracking-tight text-neutral-950">
-              Fechamento do pagamento
-            </h1>
+            <div className="text-center">
+              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+                AGENDASPEED • CAIXA
+              </p>
+              <h1 className="text-lg font-black tracking-tight text-neutral-950">
+                Fechamento do pagamento
+              </h1>
+            </div>
           </div>
         </div>
 
         {checkoutMode === 'appointment' && !selectedAppointment && (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-            <AlertCircle className="w-9 h-9 mx-auto text-neutral-400 mb-2" />
+          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-sm">
+            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-neutral-400" />
             <p className="text-sm font-black text-neutral-700">
               Nenhum atendimento selecionado.
             </p>
@@ -1772,315 +1777,286 @@ export default function ReceiptsView({
         )}
 
         {canShowCheckout && (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="bg-[#0f4c5c] px-4 py-3 text-white">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 bg-[#0f4c5c] px-4 py-2.5 text-white">
+              <div>
                 <h2 className="text-sm font-black uppercase tracking-tight">
-                  Serviço prestado
+                  Resumo do recebimento
                 </h2>
-                <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                  Confira cliente, serviço, profissional e extras.
+                <p className="text-[10px] font-semibold text-white/75">
+                  Confira os itens, informe o pagamento e conclua a baixa.
                 </p>
               </div>
 
-              <div className="p-4 space-y-3">
-                {checkoutMode === 'appointment' && selectedAppointment && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                          Cliente
-                        </p>
-                        <p className="mt-1 text-lg font-black text-slate-950">
-                          {selectedAppointment.clientName || 'Cliente'}
-                        </p>
-                        <p className="text-xs font-semibold text-slate-500">
-                          {formatPhoneForDisplay(selectedAppointment.clientPhone || '')}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-right">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                          Atendimento
-                        </p>
-                        <p className="text-sm font-black text-slate-950">
-                          {formatDateBr(getAppointmentDate(selectedAppointment))} às {getAppointmentTime(selectedAppointment)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {receiptItems.map(renderDraftItem)}
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={handleAddExtraItem}
-                    className="w-full rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 py-2.5 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/10 transition flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleAddProductItem}
-                    disabled={!products.some((product) => product.active)}
-                    className="w-full rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 flex items-center justify-center gap-2"
-                  >
-                    <Package className="w-4 h-4" />
-                    Adicionar produto
-                  </button>
-                </div>
-              </div>
+              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
+                {formatCurrency(total)}
+              </span>
             </div>
 
-            <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="bg-[#0f4c5c] px-4 py-3 text-white">
-                <h2 className="text-sm font-black uppercase tracking-tight">
-                  Informações de pagamento
-                </h2>
-                <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                  Escolha a forma de pagamento, aplique desconto e confirme a baixa.
-                </p>
-              </div>
-
-              <div className="p-4 space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    Fechamento financeiro
-                  </p>
-                  <p className="mt-1 text-sm font-black text-slate-900">
-                    Confira os valores e finalize o recebimento.
-                  </p>
-                </div>
-                {checkoutMode === 'manual' && (
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+            <div className="space-y-3 p-3">
+              {checkoutMode === 'appointment' && selectedAppointment && (
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.2fr_1.4fr_1fr_120px]">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
                       Cliente
                     </p>
-                    <div className="mt-2 grid grid-cols-1 gap-2">
-                      <input
-                        value={manualClientPhone}
-                        onChange={(event) => setManualClientPhone(event.target.value)}
-                        placeholder="WhatsApp do cliente"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
-                      <input
-                        value={manualClientName}
-                        onChange={(event) => setManualClientName(event.target.value)}
-                        placeholder="Nome do cliente"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
+                    <p className="truncate text-sm font-black text-slate-950">
+                      {selectedAppointment.clientName || 'Cliente'}
+                    </p>
+                    <p className="truncate text-[11px] font-semibold text-slate-500">
+                      {formatPhoneForDisplay(selectedAppointment.clientPhone || '')}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      Serviço
+                    </p>
+                    <p className="truncate text-sm font-black text-slate-950">
+                      {getAppointmentServiceName(selectedAppointment, services)}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      Profissional
+                    </p>
+                    <p className="truncate text-sm font-black text-slate-950">
+                      {getAppointmentProfessionalName(selectedAppointment, professionals)}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      Atendimento
+                    </p>
+                    <p className="text-xs font-black text-slate-950">
+                      {formatDateBr(getAppointmentDate(selectedAppointment))}
+                    </p>
+                    <p className="text-xs font-black text-[#0f4c5c]">
+                      {getAppointmentTime(selectedAppointment)} • {formatCurrency(selectedAppointment.price)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {checkoutMode === 'manual' && (
+                <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2">
+                  <input
+                    value={manualClientPhone}
+                    onChange={(event) => setManualClientPhone(event.target.value)}
+                    placeholder="WhatsApp do cliente"
+                    className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                  <input
+                    value={manualClientName}
+                    onChange={(event) => setManualClientName(event.target.value)}
+                    placeholder="Nome do cliente"
+                    className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </div>
+              )}
+
+              {checkoutExtraItems.length > 0 && (
+                <div className="space-y-2">
+                  {checkoutExtraItems.map(renderDraftItem)}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddExtraItem}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 text-sm font-black text-[#0f4c5c] transition hover:bg-[#0f4c5c]/10"
+                >
+                  <Plus className="h-4 w-4" />
+                  {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddProductItem}
+                  disabled={!products.some((product) => product.active)}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <Package className="h-4 w-4" />
+                  Adicionar produto
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 pt-3">
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.45fr_0.8fr_0.85fr]">
+                  <div>
+                    <p className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                      Forma de pagamento
+                    </p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {paymentOptions().map((option) => (
+                        <button
+                          type="button"
+                          key={option}
+                          onClick={() => {
+                            setPaymentType(option);
+                            setUseSplitPayment(false);
+                          }}
+                          className={`h-9 rounded-xl border px-2 text-[11px] font-black transition ${
+                            !useSplitPayment && paymentType === option
+                              ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
+                          }`}
+                        >
+                          {getPaymentLabel(option)}
+                        </button>
+                      ))}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setUseSplitPayment((current) => !current)}
+                      className={`mt-2 h-9 w-full rounded-xl border px-3 text-[11px] font-black transition ${
+                        useSplitPayment
+                          ? 'border-[#0f4c5c] bg-[#0f4c5c]/10 text-[#0f4c5c]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
+                      }`}
+                    >
+                      Pagamento dividido
+                    </button>
+
+                    {!useSplitPayment && paymentType === 'dinheiro' && (
+                      <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                        <label>
+                          <span className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                            Valor recebido
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyInput(cashAmountPaid)}
+                            onChange={(event) => setCashAmountPaid(parseCurrencyInput(event.target.value))}
+                            className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                          />
+                        </label>
+                        <div className="min-w-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-right">
+                          <p className="text-[9px] font-black uppercase text-slate-400">Troco</p>
+                          <p className="text-sm font-black text-[#0f4c5c]">{formatCurrency(cashChange)}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {useSplitPayment && (
+                      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            ['Dinheiro', splitCashAmount, setSplitCashAmount],
+                            ['Pix', splitPixAmount, setSplitPixAmount],
+                            ['Débito', splitDebitAmount, setSplitDebitAmount],
+                            ['Crédito', splitCreditAmount, setSplitCreditAmount]
+                          ].map(([label, value, setter]) => (
+                            <label key={String(label)}>
+                              <span className="text-[9px] font-black uppercase text-slate-500">
+                                {String(label)}
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatCurrencyInput(Number(value))}
+                                onChange={(event) =>
+                                  (setter as React.Dispatch<React.SetStateAction<number>>)(
+                                    parseCurrencyInput(event.target.value)
+                                  )
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold outline-none focus:border-[#0f4c5c]"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-2 flex justify-end gap-4 text-[11px] font-black text-slate-600">
+                          <span>Restante: {formatCurrency(splitRemaining)}</span>
+                          <span className="text-[#0f4c5c]">Troco: {formatCurrency(splitChange)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
 
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">
-                    Forma de pagamento
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {paymentOptions().map((option) => (
-                      <button
-                        type="button"
-                        key={option}
-                        onClick={() => setPaymentType(option)}
-                        className={`rounded-xl border px-3 py-2.5 text-xs font-black transition ${
-                          paymentType === option
-                            ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
-                        }`}
-                      >
-                        {getPaymentLabel(option)}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setUseSplitPayment((current) => !current)}
-                    className={`mt-3 w-full rounded-xl border px-3 py-2 text-xs font-black transition ${
-                      useSplitPayment
-                        ? 'border-[#0f4c5c] bg-[#0f4c5c]/10 text-[#0f4c5c]'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
-                    }`}
-                  >
-                    Pagamento dividido
-                  </button>
-
-                  {!useSplitPayment && paymentType === 'dinheiro' && (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                        Valor recebido em dinheiro
-                      </label>
+                  <div className="grid grid-rows-[auto_1fr] gap-2">
+                    <label>
+                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                        Desconto
+                      </span>
                       <input
                         type="text"
                         inputMode="numeric"
-                        value={formatCurrencyInput(cashAmountPaid)}
-                        onChange={(event) => setCashAmountPaid(parseCurrencyInput(event.target.value))}
-                        className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                        value={formatCurrencyInput(discountValue)}
+                        onChange={(event) => setDiscountValue(parseCurrencyInput(event.target.value))}
+                        className="mt-1 h-9 w-full rounded-xl border border-slate-300 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
                       />
-                      <div className="mt-2 flex items-center justify-between text-xs font-black text-slate-600">
-                        <span>Troco</span>
-                        <span className="text-[#0f4c5c]">{formatCurrency(cashChange)}</span>
+                    </label>
+
+                    <label>
+                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                        Observações
+                      </span>
+                      <textarea
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        placeholder="Observação opcional"
+                        rows={2}
+                        className="mt-1 min-h-[58px] w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold outline-none focus:border-[#0f4c5c]"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                        <span>Subtotal</span>
+                        <span>{formatCurrency(subtotal)}</span>
                       </div>
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                        <span>Desconto</span>
+                        <span>- {formatCurrency(normalizedDiscount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                        <span className="text-sm font-black text-slate-950">Total</span>
+                        <span className="text-xl font-black text-[#0f4c5c]">{formatCurrency(total)}</span>
+                      </div>
+                      {structuredAmountPending > 0 && (
+                        <div className="flex items-center justify-between text-xs font-black text-amber-700">
+                          <span>Pendente</span>
+                          <span>{formatCurrency(structuredAmountPending)}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {useSplitPayment && (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                            Dinheiro
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatCurrencyInput(splitCashAmount)}
-                            onChange={(event) => setSplitCashAmount(parseCurrencyInput(event.target.value))}
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                            Pix
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatCurrencyInput(splitPixAmount)}
-                            onChange={(event) => setSplitPixAmount(parseCurrencyInput(event.target.value))}
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                            Débito
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatCurrencyInput(splitDebitAmount)}
-                            onChange={(event) => setSplitDebitAmount(parseCurrencyInput(event.target.value))}
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                            Crédito
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatCurrencyInput(splitCreditAmount)}
-                            onChange={(event) => setSplitCreditAmount(parseCurrencyInput(event.target.value))}
-                            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                          />
-                        </div>
-                      </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handlePrintDraftReceipt}
+                        className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#0f4c5c]/20 bg-white px-3 text-xs font-black text-[#0f4c5c] transition hover:bg-[#0f4c5c]/5"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Imprimir
+                      </button>
 
-                      <div className="grid grid-cols-3 gap-2 text-xs font-black">
-                        <div className="rounded-xl bg-white border border-slate-200 p-2">
-                          <p className="text-slate-400">Informado</p>
-                          <p className="text-slate-900">{formatCurrency(splitTotal)}</p>
-                        </div>
-                        <div className="rounded-xl bg-white border border-slate-200 p-2">
-                          <p className="text-slate-400">Restante</p>
-                          <p className="text-slate-900">{formatCurrency(splitRemaining)}</p>
-                        </div>
-                        <div className="rounded-xl bg-white border border-slate-200 p-2">
-                          <p className="text-slate-400">Troco</p>
-                          <p className="text-[#0f4c5c]">{formatCurrency(splitChange)}</p>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleConfirmReceipt}
+                        disabled={receiptItems.length === 0}
+                        className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 text-xs font-black text-white transition hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {structuredAmountPending > 0 ? 'Salvar pendente' : 'Baixar'}
+                      </button>
                     </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Desconto
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrencyInput(discountValue)}
-                    onChange={(event) => setDiscountValue(parseCurrencyInput(event.target.value))}
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Observações do caixa
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    placeholder="Ex.: cliente pagou parte em pix e parte em dinheiro."
-                    rows={3}
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c] resize-none"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
-                    <span>Subtotal</span>
-                    <span>{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
-                    <span>Desconto</span>
-                    <span>- {formatCurrency(normalizedDiscount)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-sm font-black text-slate-950">Total</span>
-                    <span className="text-2xl font-black text-[#0f4c5c]">{formatCurrency(total)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
-                    <span>Recebido</span>
-                    <span className="text-emerald-700">{formatCurrency(structuredAmountPaid)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm font-bold text-slate-600">
-                    <span>Pendente</span>
-                    <span className={structuredAmountPending > 0 ? 'text-amber-700' : 'text-slate-500'}>
-                      {formatCurrency(structuredAmountPending)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePrintDraftReceipt}
-                    className="rounded-xl border border-[#0f4c5c]/20 bg-white px-4 py-3 text-sm font-black text-[#0f4c5c] hover:bg-[#0f4c5c]/5 transition flex items-center justify-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Imprimir
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleConfirmReceipt}
-                    disabled={receiptItems.length === 0}
-                    className="rounded-xl bg-[#0f4c5c] px-4 py-3 text-sm font-black text-white hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400 transition flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    {structuredAmountPending > 0 ? 'Salvar pendente' : 'Baixar'}
-                  </button>
                 </div>
               </div>
-            </aside>
+            </div>
           </div>
         )}
       </section>
     );
   }
-
 
   return (
     <section className="space-y-3">
