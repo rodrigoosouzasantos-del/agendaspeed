@@ -3,7 +3,7 @@
  *
  * Escopo enxuto:
  * - cadastrar produtos usados apenas como complemento dos recebimentos;
- * - exibir código, descrição, quantidade, custo e valor de venda;
+ * - exibir código, descrição, custo e valor de venda;
  * - manter custo visível somente no painel administrativo;
  * - permitir busca, edição, ativação, desativação e exclusão;
  * - não implementar estoque avançado, fornecedores ou movimentações.
@@ -60,7 +60,6 @@ export default function ProductsView({
         return [
           product.code,
           product.description,
-          String(product.quantity),
           String(product.costPrice),
           String(product.salePrice),
         ].some((value) => normalizeSearch(value || "").includes(normalizedSearch));
@@ -130,12 +129,11 @@ export default function ProductsView({
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-xs">
+          <table className="w-full min-w-[760px] text-left text-xs">
             <thead className="border-b bg-[#0f4c5c] text-[10px] font-black uppercase tracking-wider text-white">
               <tr>
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Descrição</th>
-                <th className="px-4 py-3 text-center">Qtd.</th>
                 <th className="px-4 py-3 text-right">Custo</th>
                 <th className="px-4 py-3 text-right">Venda</th>
                 <th className="px-4 py-3 text-center">Status</th>
@@ -165,10 +163,6 @@ export default function ProductsView({
                         {product.description}
                       </span>
                     </div>
-                  </td>
-
-                  <td className="px-4 py-3.5 text-center font-bold text-slate-700">
-                    {Number(product.quantity) || 0}
                   </td>
 
                   <td className="px-4 py-3.5 text-right font-bold text-slate-600">
@@ -234,7 +228,7 @@ export default function ProductsView({
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={6} className="px-4 py-12 text-center">
                     <Package className="mx-auto h-9 w-9 text-slate-300" />
 
                     <p className="mt-3 text-sm font-black text-slate-700">
@@ -254,8 +248,8 @@ export default function ProductsView({
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
         <p className="text-xs font-semibold leading-relaxed text-slate-500">
-          A quantidade é apenas uma informação simples do cadastro. Esta versão não possui
-          movimentação de estoque, fornecedores, lotes ou inventário.
+          Os produtos são usados apenas como complementos nos recebimentos. Esta versão
+          não possui controle de estoque, fornecedores, lotes ou inventário.
         </p>
       </div>
     </div>
