@@ -303,6 +303,7 @@ interface ClientBookingFeedbackState {
 interface PublicBookingCreationRow {
   appointment_id: string;
   client_id: string;
+  client_public_token?: string;
   public_access_token?: string;
   client_public_access_token?: string;
   access_token?: string;
@@ -492,6 +493,7 @@ function extractPublicAccessToken(value: unknown): string {
     const record = firstValue as Record<string, unknown>;
 
     return String(
+      record.client_public_token ||
       record.public_access_token ||
       record.client_public_access_token ||
       record.access_token ||
@@ -501,30 +503,6 @@ function extractPublicAccessToken(value: unknown): string {
   }
 
   return '';
-}
-
-async function getClientPublicAccessTokenByAppointment(
-  appointmentId: string
-): Promise<string> {
-  if (!appointmentId) {
-    return '';
-  }
-
-  const { data, error } = await supabase.rpc(
-    'get_my_client_public_access_token_by_appointment',
-    {
-      p_appointment_id: appointmentId
-    }
-  );
-
-  if (error) {
-    throw new Error(
-      error.message ||
-      'O agendamento foi criado, mas não foi possível gerar o link de acompanhamento.'
-    );
-  }
-
-  return extractPublicAccessToken(data);
 }
 
 function buildClientFollowUpWhatsappUrl(params: {
@@ -1829,7 +1807,7 @@ export default function ClientBooking({
     }
 
     try {
-      const { data, error } = await supabase.rpc('create_public_booking', {
+      const { data, error } = await supabase.rpc('create_public_booking_v2', {
         p_slug: publicSlug || 'domcabelo',
         p_service_id: selectedService.id,
         p_professional_id: selectedProfessional.id,
@@ -1891,10 +1869,7 @@ export default function ClientBooking({
         };
       });
 
-      const tokenReturnedWithBooking = extractPublicAccessToken(firstRow);
-      const followUpToken =
-        tokenReturnedWithBooking ||
-        await getClientPublicAccessTokenByAppointment(firstRow.appointment_id);
+      const followUpToken = extractPublicAccessToken(firstRow);
 
       if (!followUpToken) {
         showFeedbackMessage(
