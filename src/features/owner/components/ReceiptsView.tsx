@@ -19,7 +19,6 @@ import React, {
 import {
   AlertCircle,
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -426,7 +425,6 @@ export default function ReceiptsView({
   const [phoneSearch, setPhoneSearch] = useState('');
   const [cashSearch, setCashSearch] = useState('');
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
-  const [checkoutQueueIds, setCheckoutQueueIds] = useState<string[]>([]);
   const [locallyCompletedIds, setLocallyCompletedIds] = useState<string[]>([]);
   const [extraItems, setExtraItems] = useState<ReceiptDraftItem[]>([]);
   const [paymentType, setPaymentType] = useState<PaymentType>('pix');
@@ -544,44 +542,18 @@ export default function ReceiptsView({
     });
   }, [receivableAppointments, normalizedCashSearch, services, professionals]);
 
-  const dayAppointments = useMemo(() => {
-    return filteredReceivableAppointments
-      .filter((appointment) => {
-        return (
-          getAppointmentDate(appointment) === currentDayKey &&
-          !checkoutQueueIds.includes(appointment.id)
-        );
-      })
-      .sort((firstAppointment, secondAppointment) => {
-        return getAppointmentTime(firstAppointment).localeCompare(getAppointmentTime(secondAppointment));
-      });
-  }, [filteredReceivableAppointments, currentDayKey, checkoutQueueIds]);
+  const receivableAppointmentsList = useMemo(() => {
+    return [...filteredReceivableAppointments].sort((firstAppointment, secondAppointment) => {
+      const firstIsOverdue = getAppointmentDate(firstAppointment) < currentDayKey;
+      const secondIsOverdue = getAppointmentDate(secondAppointment) < currentDayKey;
 
-  const pendingReceivableAppointments = useMemo(() => {
-    const overdueAppointments = filteredReceivableAppointments
-      .filter((appointment) => {
-        return getAppointmentDate(appointment) < currentDayKey;
-      })
-      .sort((firstAppointment, secondAppointment) => {
-        return firstAppointment.dateTime.localeCompare(secondAppointment.dateTime);
-      });
+      if (firstIsOverdue !== secondIsOverdue) {
+        return firstIsOverdue ? -1 : 1;
+      }
 
-    const queuedTodayAppointments = filteredReceivableAppointments
-      .filter((appointment) => {
-        return (
-          getAppointmentDate(appointment) === currentDayKey &&
-          checkoutQueueIds.includes(appointment.id)
-        );
-      })
-      .sort((firstAppointment, secondAppointment) => {
-        return getAppointmentTime(firstAppointment).localeCompare(getAppointmentTime(secondAppointment));
-      });
-
-    return [
-      ...overdueAppointments,
-      ...queuedTodayAppointments
-    ];
-  }, [filteredReceivableAppointments, currentDayKey, checkoutQueueIds]);
+      return firstAppointment.dateTime.localeCompare(secondAppointment.dateTime);
+    });
+  }, [filteredReceivableAppointments, currentDayKey]);
 
   const selectedAppointment = useMemo(() => {
     if (!selectedAppointmentId) {
@@ -727,17 +699,6 @@ export default function ReceiptsView({
     onMarkAppointmentCompleted(appointmentId);
     setLocallyCompletedIds((currentIds) => Array.from(new Set([...currentIds, appointmentId])));
   };
-
-  const handleMoveAppointmentToReceivable = (appointmentId: string) => {
-    setCheckoutQueueIds((currentIds) => {
-      if (currentIds.includes(appointmentId)) {
-        return currentIds;
-      }
-
-      return [...currentIds, appointmentId];
-    });
-  };
-
 
   const createDefaultManualItem = (): ReceiptDraftItem | null => {
     const firstActiveService = services.find((service) => service.active) || services[0];
@@ -1249,11 +1210,6 @@ export default function ReceiptsView({
     setPrintAfterConfirmTitle('Comprovante de recebimento');
     setPrintAfterConfirmHtml(receiptPrintHtml);
     setPhoneSearch('');
-    if (selectedAppointment?.id) {
-      setCheckoutQueueIds((currentIds) =>
-        currentIds.filter((currentId) => currentId !== selectedAppointment.id)
-      );
-    }
     setSelectedAppointmentId(null);
     setCheckoutMode(null);
     setIsCheckoutOpen(false);
@@ -1492,12 +1448,11 @@ export default function ReceiptsView({
     );
   };
 
-  const renderReceivableAppointmentCard = (appointment: Appointment, variant: 'day' | 'pending') => {
+  const renderReceivableAppointmentCard = (appointment: Appointment) => {
     const serviceName = getAppointmentServiceName(appointment, services);
     const professionalName = getAppointmentProfessionalName(appointment, professionals);
     const serviceDescription = getAppointmentServiceDescription(appointment, services);
     const appointmentDate = getAppointmentDate(appointment);
-    const isPending = variant === 'pending';
     const isOverdue = appointmentDate < currentDayKey;
 
     return (
@@ -1540,7 +1495,7 @@ export default function ReceiptsView({
           )}
         </div>
 
-        {isPending && isOverdue && (
+        {isOverdue && (
           <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
             <p className="text-[11px] font-bold text-amber-700">
               Valor antigo sem baixa. Priorize este recebimento.
@@ -1549,24 +1504,13 @@ export default function ReceiptsView({
         )}
 
         <div className="mt-3">
-          {isPending ? (
-            <button
-              type="button"
-              onClick={() => handleOpenCheckout(appointment.id)}
-              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
-            >
-              Baixar pagamento
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleMoveAppointmentToReceivable(appointment.id)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-[#0f4c5c] hover:text-[#0f4c5c] flex items-center justify-center gap-2"
-            >
-              <ArrowRight className="h-4 w-4" />
-              Enviar para receber
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => handleOpenCheckout(appointment.id)}
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+          >
+            Baixar pagamento
+          </button>
         </div>
       </div>
     );
@@ -2295,69 +2239,37 @@ export default function ReceiptsView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
-          <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-tight">
-                Atendimentos do Dia
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                Organize os atendimentos e envie para baixa.
-              </p>
-            </div>
-            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
-              {dayAppointments.length}
-            </span>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
+        <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-tight">
+              Atendimentos para receber
+            </h2>
+            <p className="mt-0.5 text-[11px] font-semibold text-white/80">
+              Selecione o atendimento e faça a baixa diretamente.
+            </p>
           </div>
-
-          <div className="p-3 space-y-2">
-            {dayAppointments.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                <p className="text-sm font-black text-neutral-800">
-                  Nenhum atendimento do dia aguardando organização.
-                </p>
-                <p className="text-xs font-semibold text-neutral-500 mt-1">
-                  Quando precisar receber, mova o card para a coluna da direita.
-                </p>
-              </div>
-            )}
-
-            {dayAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'day'))}
-          </div>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
+            {receivableAppointmentsList.length}
+          </span>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
-          <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-tight">
-                Valores a Receber
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-                Baixas pendentes e cartões prontos para receber.
+        <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-2">
+          {receivableAppointmentsList.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center xl:col-span-2">
+              <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+              <p className="text-sm font-black text-neutral-800">
+                Nenhum atendimento aguardando baixa.
+              </p>
+              <p className="text-xs font-semibold text-neutral-500 mt-1">
+                Os atendimentos concluídos ou pendentes de pagamento aparecerão aqui.
               </p>
             </div>
-            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
-              {pendingReceivableAppointments.length}
-            </span>
-          </div>
+          )}
 
-          <div className="p-3 space-y-2">
-            {pendingReceivableAppointments.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                <p className="text-sm font-black text-neutral-800">
-                  Nenhum valor aguardando baixa.
-                </p>
-                <p className="text-xs font-semibold text-neutral-500 mt-1">
-                  Atendimentos antigos e cards movidos para recebimento aparecem aqui.
-                </p>
-              </div>
-            )}
-
-            {pendingReceivableAppointments.map((appointment) => renderReceivableAppointmentCard(appointment, 'pending'))}
-          </div>
+          {receivableAppointmentsList.map((appointment) =>
+            renderReceivableAppointmentCard(appointment)
+          )}
         </div>
       </div>
 
