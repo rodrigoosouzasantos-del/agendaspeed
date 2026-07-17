@@ -1218,6 +1218,19 @@ function mapOwnerSaasInvoice(
   };
 }
 
+interface OwnerFeedbackState {
+  title: string;
+  message: string;
+}
+
+interface OwnerConfirmationState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone: "warning" | "danger";
+  onConfirm: () => void | Promise<void>;
+}
+
 export default function OwnerDashboard({
   state,
   onUpdateState,
@@ -1274,6 +1287,40 @@ export default function OwnerDashboard({
     title: string;
     message: string;
   } | null>(null);
+
+  const [ownerFeedback, setOwnerFeedback] =
+    useState<OwnerFeedbackState | null>(null);
+  const [ownerConfirmation, setOwnerConfirmation] =
+    useState<OwnerConfirmationState | null>(null);
+  const [isConfirmingOwnerAction, setIsConfirmingOwnerAction] = useState(false);
+
+  const showOwnerFeedback = (
+    message: string,
+    title = "Atenção",
+  ) => {
+    setOwnerFeedback({
+      title,
+      message,
+    });
+  };
+
+  const closeOwnerConfirmation = () => {
+    if (isConfirmingOwnerAction) return;
+    setOwnerConfirmation(null);
+  };
+
+  const confirmOwnerAction = async () => {
+    if (!ownerConfirmation || isConfirmingOwnerAction) return;
+
+    setIsConfirmingOwnerAction(true);
+
+    try {
+      await ownerConfirmation.onConfirm();
+      setOwnerConfirmation(null);
+    } finally {
+      setIsConfirmingOwnerAction(false);
+    }
+  };
 
   const [clientSearch, setClientSearch] = useState("");
   const [professionalFilter, setProfessionalFilter] = useState<string>("all");
@@ -2274,7 +2321,7 @@ export default function OwnerDashboard({
     event.preventDefault();
 
     if (!tenantId) {
-      alert("Não foi possível identificar a empresa ativa.");
+      showOwnerFeedback("Não foi possível identificar a empresa ativa.");
       return;
     }
 
@@ -2282,7 +2329,7 @@ export default function OwnerDashboard({
     const normalizedDescription = productDescription.trim();
 
     if (!normalizedCode || !normalizedDescription) {
-      alert("Informe o código e a descrição do produto.");
+      showOwnerFeedback("Informe o código e a descrição do produto.");
       return;
     }
 
@@ -2321,7 +2368,7 @@ export default function OwnerDashboard({
         return;
       }
 
-      alert(error.message || "Não foi possível salvar o produto.");
+      showOwnerFeedback(error.message || "Não foi possível salvar o produto.");
       return;
     }
 
@@ -2365,7 +2412,7 @@ export default function OwnerDashboard({
       .single();
 
     if (error) {
-      alert(error.message || "Não foi possível alterar o status do produto.");
+      showOwnerFeedback(error.message || "Não foi possível alterar o status do produto.");
       return;
     }
 
@@ -2382,34 +2429,37 @@ export default function OwnerDashboard({
     );
   };
 
-  const handleDeleteProduct = async (product: Product) => {
+  const handleDeleteProduct = (product: Product) => {
     if (!tenantId) return;
 
-    const confirmed = window.confirm(
-      `Deseja excluir definitivamente o produto "${product.description}"?`,
-    );
+    setOwnerConfirmation({
+      title: "Excluir produto?",
+      message: `Deseja excluir definitivamente o produto "${product.description}"? Esta ação não poderá ser desfeita.`,
+      confirmLabel: "Sim, excluir",
+      tone: "danger",
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from("products")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("id", product.id);
 
-    if (!confirmed) return;
+        if (error) {
+          showOwnerFeedback(
+            error.message ||
+              "Não foi possível excluir o produto. Ele pode estar vinculado a um recebimento.",
+            "Produto não excluído",
+          );
+          return;
+        }
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("tenant_id", tenantId)
-      .eq("id", product.id);
-
-    if (error) {
-      alert(
-        error.message ||
-          "Não foi possível excluir o produto. Ele pode estar vinculado a um recebimento.",
-      );
-      return;
-    }
-
-    setProducts((currentProducts) =>
-      currentProducts.filter(
-        (currentProduct) => currentProduct.id !== product.id,
-      ),
-    );
+        setProducts((currentProducts) =>
+          currentProducts.filter(
+            (currentProduct) => currentProduct.id !== product.id,
+          ),
+        );
+      },
+    });
   };
 
   const resetAppointmentForm = () => {
@@ -2494,7 +2544,7 @@ export default function OwnerDashboard({
     });
 
     if (error) {
-      alert(
+      showOwnerFeedback(
         error.message || "Não foi possível atualizar o status do agendamento.",
       );
       setLiveAppointments(previousAppointments);
@@ -2542,7 +2592,7 @@ export default function OwnerDashboard({
       !newApptDate ||
       !newApptTime
     ) {
-      alert("Por favor, defina todos os campos obrigatórios do atendimento.");
+      showOwnerFeedback("Por favor, defina todos os campos obrigatórios do atendimento.");
       return;
     }
 
@@ -2554,7 +2604,7 @@ export default function OwnerDashboard({
     );
 
     if (!selectedService || !selectedProfessional) {
-      alert("Serviço ou profissional não encontrado.");
+      showOwnerFeedback("Serviço ou profissional não encontrado.");
       return;
     }
 
@@ -2583,7 +2633,7 @@ export default function OwnerDashboard({
     });
 
     if (error) {
-      alert(error.message || "Não foi possível criar o agendamento.");
+      showOwnerFeedback(error.message || "Não foi possível criar o agendamento.");
       return;
     }
 
@@ -2592,7 +2642,7 @@ export default function OwnerDashboard({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      alert("Não foi possível confirmar o agendamento criado.");
+      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
       return;
     }
 
@@ -2632,7 +2682,7 @@ export default function OwnerDashboard({
     );
 
     if (!selectedService || !selectedProfessional) {
-      alert("Serviço ou profissional não encontrado.");
+      showOwnerFeedback("Serviço ou profissional não encontrado.");
       return;
     }
 
@@ -2661,7 +2711,7 @@ export default function OwnerDashboard({
     });
 
     if (error) {
-      alert(error.message || "Não foi possível criar o agendamento.");
+      showOwnerFeedback(error.message || "Não foi possível criar o agendamento.");
       return;
     }
 
@@ -2670,7 +2720,7 @@ export default function OwnerDashboard({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      alert("Não foi possível confirmar o agendamento criado.");
+      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
       return;
     }
 
@@ -2757,7 +2807,7 @@ export default function OwnerDashboard({
     });
 
     if (error) {
-      alert(error.message || "Não foi possível remarcar o agendamento.");
+      showOwnerFeedback(error.message || "Não foi possível remarcar o agendamento.");
       setLiveAppointments(previousAppointments);
 
       onUpdateState({
@@ -2843,12 +2893,12 @@ export default function OwnerDashboard({
     if (isSavingProfessional) return;
 
     if (!profName || !profPhone || !profRole) {
-      alert("Favor inserir nome, WhatsApp e cargo do profissional.");
+      showOwnerFeedback("Favor inserir nome, WhatsApp e cargo do profissional.");
       return;
     }
 
     if (!tenantId) {
-      alert("Não foi possível identificar a empresa para salvar a foto.");
+      showOwnerFeedback("Não foi possível identificar a empresa para salvar a foto.");
       return;
     }
 
@@ -2997,7 +3047,7 @@ export default function OwnerDashboard({
       resetProfessionalForm();
     } catch (error) {
       console.error("Erro ao salvar profissional:", error);
-      alert(
+      showOwnerFeedback(
         error instanceof Error
           ? error.message
           : "Não foi possível salvar o profissional.",
@@ -3007,60 +3057,73 @@ export default function OwnerDashboard({
     }
   };
 
-  const handleDeleteProf = async (professionalId: string) => {
-    if (!confirm("Tem certeza que deseja inativar este profissional?")) {
-      return;
-    }
+  const handleDeleteProf = (professionalId: string) => {
+    const targetProfessional = professionals.find(
+      (professional) => professional.id === professionalId,
+    );
 
-    if (!isValidUuid(professionalId)) {
-      const updatedProfessionals = professionals.filter((professional) => {
-        return professional.id !== professionalId;
-      });
+    setOwnerConfirmation({
+      title: "Inativar profissional?",
+      message: targetProfessional
+        ? `Deseja inativar ${targetProfessional.name}? O profissional ficará sem acesso à agenda até ser ativado novamente.`
+        : "Deseja inativar este profissional?",
+      confirmLabel: "Sim, inativar",
+      tone: "warning",
+      onConfirm: async () => {
+        if (!isValidUuid(professionalId)) {
+          const updatedProfessionals = professionals.filter((professional) => {
+            return professional.id !== professionalId;
+          });
 
-      setLiveProfessionals(updatedProfessionals);
+          setLiveProfessionals(updatedProfessionals);
 
-      onUpdateState({
-        ...state,
-        professionals: updatedProfessionals,
-      });
+          onUpdateState({
+            ...state,
+            professionals: updatedProfessionals,
+          });
 
-      return;
-    }
-
-    const { data, error } = await supabase.rpc("deactivate_my_professional", {
-      p_professional_id: professionalId,
-    });
-
-    if (error) {
-      alert(error.message || "Não foi possível inativar o profissional.");
-      return;
-    }
-
-    const savedRow = (
-      Array.isArray(data) ? data[0] : null
-    ) as SupabaseProfessionalResponse | null;
-    const savedProfessional = savedRow?.id
-      ? mapSupabaseProfessionalToAppProfessional(savedRow)
-      : null;
-
-    const updatedProfessionals = professionals.map((professional) => {
-      if (professional.id !== professionalId) {
-        return professional;
-      }
-
-      return (
-        savedProfessional || {
-          ...professional,
-          active: false,
+          return;
         }
-      );
-    });
 
-    setLiveProfessionals(updatedProfessionals);
+        const { data, error } = await supabase.rpc("deactivate_my_professional", {
+          p_professional_id: professionalId,
+        });
 
-    onUpdateState({
-      ...state,
-      professionals: updatedProfessionals,
+        if (error) {
+          showOwnerFeedback(
+            error.message || "Não foi possível inativar o profissional.",
+            "Profissional não inativado",
+          );
+          return;
+        }
+
+        const savedRow = (
+          Array.isArray(data) ? data[0] : null
+        ) as SupabaseProfessionalResponse | null;
+        const savedProfessional = savedRow?.id
+          ? mapSupabaseProfessionalToAppProfessional(savedRow)
+          : null;
+
+        const updatedProfessionals = professionals.map((professional) => {
+          if (professional.id !== professionalId) {
+            return professional;
+          }
+
+          return (
+            savedProfessional || {
+              ...professional,
+              active: false,
+            }
+          );
+        });
+
+        setLiveProfessionals(updatedProfessionals);
+
+        onUpdateState({
+          ...state,
+          professionals: updatedProfessionals,
+        });
+      },
     });
   };
 
@@ -3070,7 +3133,7 @@ export default function OwnerDashboard({
     });
 
     if (!targetProfessional) {
-      alert("Profissional não encontrado.");
+      showOwnerFeedback("Profissional não encontrado.");
       return;
     }
 
@@ -3114,7 +3177,7 @@ export default function OwnerDashboard({
       });
 
       if (error) {
-        alert(
+        showOwnerFeedback(
           error.message ||
             "Não foi possível excluir o profissional. Verifique se existem agendamentos vinculados a ele.",
         );
@@ -3140,7 +3203,7 @@ export default function OwnerDashboard({
 
   const handleOpenProfessionalAgenda = (professional: Professional) => {
     if (!professional.active) {
-      alert("Este profissional está inativo e sem acesso à agenda.");
+      showOwnerFeedback("Este profissional está inativo e sem acesso à agenda.");
       return;
     }
 
@@ -3153,7 +3216,7 @@ export default function OwnerDashboard({
     professional: Professional,
   ) => {
     if (!professional.id || !isValidUuid(professional.id)) {
-      alert(
+      showOwnerFeedback(
         "Este profissional ainda é um registro local/de teste. Salve ou recadastre o profissional no Supabase antes de gerar o link de acesso.",
       );
       return;
@@ -3167,7 +3230,7 @@ export default function OwnerDashboard({
     );
 
     if (error) {
-      alert(error.message || "Não foi possível gerar o link do profissional.");
+      showOwnerFeedback(error.message || "Não foi possível gerar o link do profissional.");
       return;
     }
 
@@ -3190,7 +3253,7 @@ export default function OwnerDashboard({
         );
 
     if (!result?.success || !professionalAccessLink) {
-      alert(
+      showOwnerFeedback(
         result?.message || "Não foi possível gerar o link do profissional.",
       );
       return;
@@ -3198,13 +3261,13 @@ export default function OwnerDashboard({
 
     try {
       await navigator.clipboard.writeText(professionalAccessLink);
-      alert(
+      showOwnerFeedback(
         `Link do profissional copiado para a área de transferência:
 
 ${professionalAccessLink}`,
       );
     } catch {
-      alert(`Link do profissional gerado:
+      showOwnerFeedback(`Link do profissional gerado:
 
 ${professionalAccessLink}`);
     }
@@ -3234,7 +3297,7 @@ ${professionalAccessLink}`);
     event.preventDefault();
 
     if (!servName || !servCategory || !servPrice || !servDuration) {
-      alert("Favor preencher os dados do serviço.");
+      showOwnerFeedback("Favor preencher os dados do serviço.");
       return;
     }
 
@@ -3263,7 +3326,7 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível salvar o serviço.");
+      showOwnerFeedback(error.message || "Não foi possível salvar o serviço.");
       return;
     }
 
@@ -3272,7 +3335,7 @@ ${professionalAccessLink}`);
     ) as SupabaseServiceResponse | null;
 
     if (!savedRow?.id) {
-      alert("Serviço salvo, mas não foi possível recarregar o registro.");
+      showOwnerFeedback("Serviço salvo, mas não foi possível recarregar o registro.");
       return;
     }
 
@@ -3331,7 +3394,7 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível salvar a permissão.");
+      showOwnerFeedback(error.message || "Não foi possível salvar a permissão.");
       return;
     }
 
@@ -3381,7 +3444,7 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível salvar a permissão.");
+      showOwnerFeedback(error.message || "Não foi possível salvar a permissão.");
       return;
     }
 
@@ -3467,7 +3530,7 @@ ${professionalAccessLink}`);
     });
 
     if (error) {
-      alert(error.message || "Não foi possível salvar as permissões.");
+      showOwnerFeedback(error.message || "Não foi possível salvar as permissões.");
       return;
     }
 
@@ -3954,7 +4017,7 @@ ${professionalAccessLink}`);
     if (isSavingTenantSettings) return;
 
     if (!tenantId) {
-      alert('Não foi possível identificar a empresa para salvar as imagens.');
+      showOwnerFeedback('Não foi possível identificar a empresa para salvar as imagens.');
       return;
     }
 
@@ -4069,7 +4132,7 @@ ${professionalAccessLink}`);
     } catch (error) {
       setSettingsSaveMessage("");
       console.error('Erro ao salvar configurações da empresa:', error);
-      alert(
+      showOwnerFeedback(
         error instanceof Error
           ? `Não foi possível salvar: ${error.message}`
           : 'Não foi possível salvar as configurações.',
@@ -4095,7 +4158,7 @@ ${professionalAccessLink}`);
     });
 
     if (alreadyExists) {
-      alert("Já existe um cliente cadastrado com este WhatsApp.");
+      showOwnerFeedback("Já existe um cliente cadastrado com este WhatsApp.");
       return;
     }
 
@@ -4105,12 +4168,12 @@ ${professionalAccessLink}`);
       normalizedCpf &&
       clients.some((client) => onlyDigits(client.cpf || "") === normalizedCpf)
     ) {
-      alert("Já existe um cliente cadastrado com este CPF.");
+      showOwnerFeedback("Já existe um cliente cadastrado com este CPF.");
       return;
     }
 
     if (!tenantId) {
-      alert("Não foi possível identificar a empresa para cadastrar o cliente.");
+      showOwnerFeedback("Não foi possível identificar a empresa para cadastrar o cliente.");
       return;
     }
 
@@ -4131,7 +4194,7 @@ ${professionalAccessLink}`);
         .limit(1);
 
       if (error) {
-        alert(error.message || "Não foi possível cadastrar o cliente.");
+        showOwnerFeedback(error.message || "Não foi possível cadastrar o cliente.");
         return;
       }
 
@@ -4140,7 +4203,7 @@ ${professionalAccessLink}`);
       ) as SupabaseClientResponse | null;
 
       if (!savedRow) {
-        alert("Cliente salvo, mas não foi possível recarregar o registro.");
+        showOwnerFeedback("Cliente salvo, mas não foi possível recarregar o registro.");
         void loadClientsFromSupabase(false);
         return;
       }
@@ -4178,7 +4241,7 @@ ${professionalAccessLink}`);
     });
 
     if (alreadyExists) {
-      alert("Já existe outro cliente cadastrado com este WhatsApp.");
+      showOwnerFeedback("Já existe outro cliente cadastrado com este WhatsApp.");
       return false;
     }
 
@@ -4193,7 +4256,7 @@ ${professionalAccessLink}`);
     });
 
     if (cpfAlreadyExists) {
-      alert("Já existe outro cliente cadastrado com este CPF.");
+      showOwnerFeedback("Já existe outro cliente cadastrado com este CPF.");
       return false;
     }
 
@@ -4251,7 +4314,7 @@ ${professionalAccessLink}`);
         .limit(1);
 
       if (error) {
-        alert(error.message || "Não foi possível atualizar o cliente.");
+        showOwnerFeedback(error.message || "Não foi possível atualizar o cliente.");
         setLiveClients(previousClients);
 
         onUpdateState({
@@ -4290,7 +4353,7 @@ ${professionalAccessLink}`);
     const targetClient = clients.find((client) => client.id === clientId);
 
     if (!targetClient) {
-      alert("Cliente não encontrado.");
+      showOwnerFeedback("Cliente não encontrado.");
       return;
     }
 
@@ -4310,7 +4373,7 @@ ${professionalAccessLink}`);
       .eq("id", clientId);
 
     if (error) {
-      alert(error.message || "Não foi possível excluir o cliente.");
+      showOwnerFeedback(error.message || "Não foi possível excluir o cliente.");
       setLiveClients(previousClients);
 
       onUpdateState({
@@ -4352,7 +4415,7 @@ ${professionalAccessLink}`);
 
   const handleConfirmReceipt = async (payload: ReceiptPayload) => {
     if (!tenantId) {
-      alert("Não foi possível identificar a empresa para salvar o recebimento.");
+      showOwnerFeedback("Não foi possível identificar a empresa para salvar o recebimento.");
       return;
     }
 
@@ -4386,7 +4449,7 @@ ${professionalAccessLink}`);
       .limit(1);
 
     if (receiptError) {
-      alert(receiptError.message || "Não foi possível salvar o recebimento.");
+      showOwnerFeedback(receiptError.message || "Não foi possível salvar o recebimento.");
       return;
     }
 
@@ -4395,7 +4458,7 @@ ${professionalAccessLink}`);
       : null) as SupabaseReceiptResponse | null;
 
     if (!savedReceiptRow?.id) {
-      alert("Recebimento salvo, mas não foi possível confirmar o registro.");
+      showOwnerFeedback("Recebimento salvo, mas não foi possível confirmar o registro.");
       void loadFinancialRecordsFromSupabase(false);
       return;
     }
@@ -4425,7 +4488,7 @@ ${professionalAccessLink}`);
 
       if (receiptItemsError) {
         await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
-        alert(
+        showOwnerFeedback(
           receiptItemsError.message ||
             "Não foi possível salvar os itens do recebimento.",
         );
@@ -4458,7 +4521,7 @@ ${professionalAccessLink}`);
 
       if (receiptPaymentError) {
         await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
-        alert(
+        showOwnerFeedback(
           receiptPaymentError.message ||
             "Não foi possível salvar as formas de pagamento do recebimento.",
         );
@@ -4532,7 +4595,7 @@ ${professionalAccessLink}`);
     notes?: string;
   }) => {
     if (!tenantId) {
-      alert("Não foi possível identificar a empresa para salvar a despesa.");
+      showOwnerFeedback("Não foi possível identificar a empresa para salvar a despesa.");
       return;
     }
 
@@ -4554,7 +4617,7 @@ ${professionalAccessLink}`);
       .limit(1);
 
     if (error) {
-      alert(error.message || "Não foi possível salvar a despesa.");
+      showOwnerFeedback(error.message || "Não foi possível salvar a despesa.");
       return;
     }
 
@@ -4563,7 +4626,7 @@ ${professionalAccessLink}`);
       : null) as SupabaseCashExpenseResponse | null;
 
     if (!savedRow) {
-      alert("Despesa salva, mas não foi possível recarregar o registro.");
+      showOwnerFeedback("Despesa salva, mas não foi possível recarregar o registro.");
       void loadFinancialRecordsFromSupabase(false);
       return;
     }
@@ -5028,6 +5091,98 @@ ${professionalAccessLink}`);
                   className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#123945]"
                 >
                   Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ownerFeedback && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#E0A96D]" />
+
+            <div className="p-5 text-left">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FBF4EC] text-xl font-black text-[#8A663F]">
+                !
+              </div>
+
+              <h2 className="mt-4 text-lg font-black text-neutral-950">
+                {ownerFeedback.title}
+              </h2>
+
+              <p className="mt-2 whitespace-pre-line text-sm font-semibold leading-relaxed text-slate-600">
+                {ownerFeedback.message}
+              </p>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setOwnerFeedback(null)}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#123945]"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ownerConfirmation && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div
+              className={`h-1.5 ${
+                ownerConfirmation.tone === "danger"
+                  ? "bg-red-600"
+                  : "bg-amber-500"
+              }`}
+            />
+
+            <div className="p-5 text-left">
+              <div
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-black ${
+                  ownerConfirmation.tone === "danger"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                !
+              </div>
+
+              <h2 className="mt-4 text-lg font-black text-neutral-950">
+                {ownerConfirmation.title}
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                {ownerConfirmation.message}
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeOwnerConfirmation}
+                  disabled={isConfirmingOwnerAction}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmOwnerAction}
+                  disabled={isConfirmingOwnerAction}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    ownerConfirmation.tone === "danger"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
+                >
+                  {isConfirmingOwnerAction
+                    ? "Processando..."
+                    : ownerConfirmation.confirmLabel}
                 </button>
               </div>
             </div>
