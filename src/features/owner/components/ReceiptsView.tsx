@@ -115,6 +115,12 @@ function expensePaymentOptions(): PaymentType[] {
   return ['pix', 'dinheiro', 'debito', 'credito'];
 }
 
+function getReceiptPaymentLabel(paymentType: PaymentType): string {
+  if (paymentType === 'debito') return 'Débito';
+  if (paymentType === 'credito') return 'Crédito';
+  return getPaymentLabel(paymentType);
+}
+
 function formatPhoneForDisplay(value: string): string {
   const digits = normalizePhone(value);
 
@@ -448,7 +454,10 @@ export default function ReceiptsView({
   const [expensePaymentType, setExpensePaymentType] = useState<PaymentType>('dinheiro');
   const [expenseNotes, setExpenseNotes] = useState('');
   const [printAfterConfirmHtml, setPrintAfterConfirmHtml] = useState<string | null>(null);
-  const [printAfterConfirmTitle, setPrintAfterConfirmTitle] = useState('Comprovante de recebimento');
+  const [printAfterConfirmTitle, setPrintAfterConfirmTitle] = useState('Comprovante de pagamento');
+  const [isPendingAuthorizationOpen, setIsPendingAuthorizationOpen] = useState(false);
+  const [pendingAuthorizationAmount, setPendingAuthorizationAmount] = useState(0);
+  const [validationPopupMessage, setValidationPopupMessage] = useState('');
 
   const phoneKey = normalizePhone(phoneSearch);
   const normalizedCashSearch = normalizeSearchValue(cashSearch);
@@ -701,18 +710,20 @@ export default function ReceiptsView({
   };
 
   const createDefaultManualItem = (): ReceiptDraftItem | null => {
-    const firstActiveService = services.find((service) => service.active) || services[0];
-    const firstProfessional = professionals.find((professional) => professional.active) || professionals[0];
+    const hasActiveService = services.some((service) => service.active);
+    const hasActiveProfessional = professionals.some(
+      (professional) => professional.active
+    );
 
-    if (!firstActiveService || !firstProfessional) {
+    if (!hasActiveService || !hasActiveProfessional) {
       return null;
     }
 
     return {
       id: `manual-${Date.now()}`,
-      serviceId: firstActiveService.id,
-      professionalId: firstProfessional.id,
-      price: firstActiveService.price,
+      serviceId: '',
+      professionalId: '',
+      price: 0,
       itemType: 'manual'
     };
   };
@@ -766,10 +777,7 @@ export default function ReceiptsView({
   };
 
   const handleAddExtraItem = () => {
-    const firstActiveService = services.find((service) => service.active) || services[0];
-    const firstProfessional = professionals.find((professional) => professional.active) || professionals[0];
-
-    if (!firstActiveService || !firstProfessional) {
+    if (!services.some((service) => service.active) || !professionals.some((professional) => professional.active)) {
       alert('Cadastre pelo menos um serviço e um profissional ativo para adicionar extras.');
       return;
     }
@@ -778,18 +786,16 @@ export default function ReceiptsView({
       ...currentItems,
       {
         id: `extra-${Date.now()}`,
-        serviceId: firstActiveService.id,
-        professionalId: firstProfessional.id,
-        price: firstActiveService.price,
+        serviceId: '',
+        professionalId: '',
+        price: 0,
         itemType: checkoutMode === 'manual' ? 'manual' : 'extra'
       }
     ]);
   };
 
   const handleAddProductItem = () => {
-    const firstActiveProduct = products.find((product) => product.active);
-
-    if (!firstActiveProduct) {
+    if (!products.some((product) => product.active)) {
       alert('Cadastre pelo menos um produto ativo para adicioná-lo ao recebimento.');
       return;
     }
@@ -800,11 +806,11 @@ export default function ReceiptsView({
         id: `product-${Date.now()}`,
         serviceId: '',
         professionalId: '',
-        productId: firstActiveProduct.id,
-        itemDescription: firstActiveProduct.description,
+        productId: '',
+        itemDescription: '',
         quantity: 1,
-        unitPrice: firstActiveProduct.salePrice,
-        price: firstActiveProduct.salePrice,
+        unitPrice: 0,
+        price: 0,
         itemType: 'product'
       }
     ]);
@@ -938,7 +944,7 @@ export default function ReceiptsView({
     const paymentDetails = [
       structuredPayments.length > 1 ? 'Pagamento dividido:' : '',
       ...structuredPayments.map((payment) => {
-        return `${getPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
+        return `${getReceiptPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
       }),
       structuredAmountPending > 0
         ? `Pendente ${formatCurrency(structuredAmountPending)}`
@@ -1003,7 +1009,7 @@ export default function ReceiptsView({
     return `
       ${buildBusinessPrintHeader()}
       <div class="center">
-        <div class="title">COMPROVANTE DE RECEBIMENTO</div>
+        <div class="title">COMPROVANTE DE PAGAMENTO</div>
         <div class="muted">AgendaZap</div>
       </div>
       <div class="line"></div>
@@ -1016,7 +1022,7 @@ export default function ReceiptsView({
       <div class="row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
       <div class="row"><span>Desconto</span><span>${formatCurrency(normalizedDiscount)}</span></div>
       <div class="row total"><span>Total</span><span>${formatCurrency(total)}</span></div>
-      <div class="row"><span>Pagamento</span><span>${escapeHtml(getPaymentLabel(paymentType))}</span></div>
+      <div class="row"><span>Pagamento</span><span>${escapeHtml(getReceiptPaymentLabel(paymentType))}</span></div>
       ${printNotes ? `<div class="line"></div><div class="small">Obs.: ${escapeHtml(printNotes)}</div>` : ''}
       <div class="line"></div>
       <div class="center small">Obrigado pela preferência!</div>
@@ -1029,7 +1035,7 @@ export default function ReceiptsView({
       return;
     }
 
-    openThermalPrint('Comprovante de recebimento', buildDraftReceiptPrintHtml());
+    openThermalPrint('Comprovante de pagamento', buildDraftReceiptPrintHtml());
   };
 
   const handlePrintReceipt = (receipt: Receipt) => {
@@ -1062,7 +1068,7 @@ export default function ReceiptsView({
     const body = `
       ${buildBusinessPrintHeader()}
       <div class="center">
-        <div class="title">RECEBIMENTO</div>
+        <div class="title">PAGAMENTO</div>
         <div class="muted">${new Date(receipt.paidAt).toLocaleString('pt-BR')}</div>
       </div>
       <div class="line"></div>
@@ -1074,13 +1080,13 @@ export default function ReceiptsView({
       <div class="row"><span>Subtotal</span><span>${formatCurrency(receipt.subtotal)}</span></div>
       <div class="row"><span>Desconto</span><span>${formatCurrency(receipt.discountValue)}</span></div>
       <div class="row total"><span>Total</span><span>${formatCurrency(receipt.totalAmount)}</span></div>
-      <div class="row"><span>Pagamento</span><span>${escapeHtml(getPaymentLabel(receipt.paymentType))}</span></div>
+      <div class="row"><span>Pagamento</span><span>${escapeHtml(getReceiptPaymentLabel(receipt.paymentType))}</span></div>
       ${receipt.notes ? `<div class="line"></div><div class="small">Obs.: ${escapeHtml(receipt.notes)}</div>` : ''}
       <div class="line"></div>
       <div class="center small">Obrigado pela preferência!</div>
     `;
 
-    openThermalPrint('Comprovante de recebimento', body);
+    openThermalPrint('Comprovante de pagamento', body);
   };
 
   const handlePrintDailySummary = () => {
@@ -1092,20 +1098,20 @@ export default function ReceiptsView({
     const paymentRows = todayTotalsByPayment
       .filter((item) => item.total > 0)
       .map((item) => `
-        <div class="row"><span>${escapeHtml(getPaymentLabel(item.paymentType))}</span><span>${formatCurrency(item.total)}</span></div>
+        <div class="row"><span>${escapeHtml(getReceiptPaymentLabel(item.paymentType))}</span><span>${formatCurrency(item.total)}</span></div>
       `).join('');
 
     const receiptRows = todayReceipts.map((receipt) => `
       <div class="item">
         <div class="strong">${escapeHtml(receipt.clientName)}</div>
-        <div class="row"><span>${escapeHtml(getPaymentLabel(receipt.paymentType))}</span><span>${formatCurrency(receipt.totalAmount)}</span></div>
+        <div class="row"><span>${escapeHtml(getReceiptPaymentLabel(receipt.paymentType))}</span><span>${formatCurrency(receipt.totalAmount)}</span></div>
       </div>
     `).join('');
 
     const expenseRows = todayExpenses.map((expense) => `
       <div class="item">
         <div class="strong">${escapeHtml(expense.description)}</div>
-        <div class="row"><span>${escapeHtml(getPaymentLabel(expense.paymentType))}</span><span>- ${formatCurrency(expense.amount)}</span></div>
+        <div class="row"><span>${escapeHtml(getReceiptPaymentLabel(expense.paymentType))}</span><span>- ${formatCurrency(expense.amount)}</span></div>
       </div>
     `).join('');
 
@@ -1135,19 +1141,8 @@ export default function ReceiptsView({
     openThermalPrint('Resumo de recebimentos do dia', body);
   };
 
-  const handleConfirmReceipt = () => {
+  const finalizeReceipt = () => {
     const isManualReceipt = checkoutMode === 'manual';
-
-    if (!isManualReceipt && !selectedAppointment) {
-      alert('Selecione um atendimento para baixar o pagamento.');
-      return;
-    }
-
-    if (receiptItems.length === 0) {
-      alert('Inclua pelo menos um serviço ou produto no recebimento.');
-      return;
-    }
-
     const clientName = isManualReceipt
       ? manualMatchedClient?.name || manualClientName.trim() || 'Cliente balcão'
       : selectedAppointment?.clientName || selectedClient?.name || 'Cliente';
@@ -1156,16 +1151,10 @@ export default function ReceiptsView({
         normalizeManualPhone(manualClientPhone, defaultAreaCode)
       : selectedAppointment?.clientPhone || selectedClient?.phone || phoneSearch;
 
-    if (!normalizePhone(clientPhone)) {
-      alert('Informe o WhatsApp do cliente para concluir o recebimento.');
-      return;
-    }
-
-
     const paymentDetails = [
       structuredPayments.length > 1 ? 'Pagamento dividido:' : '',
       ...structuredPayments.map((payment) => {
-        return `${getPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
+        return `${getReceiptPaymentLabel(payment.paymentType)} ${formatCurrency(payment.amount)}`;
       }),
       structuredAmountPending > 0
         ? `Pendente ${formatCurrency(structuredAmountPending)}`
@@ -1207,7 +1196,7 @@ export default function ReceiptsView({
       notes: receiptNotes
     });
 
-    setPrintAfterConfirmTitle('Comprovante de recebimento');
+    setPrintAfterConfirmTitle('Comprovante de pagamento');
     setPrintAfterConfirmHtml(receiptPrintHtml);
     setPhoneSearch('');
     setSelectedAppointmentId(null);
@@ -1218,6 +1207,66 @@ export default function ReceiptsView({
     setManualClientName('');
     resetCheckoutDraft();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleConfirmReceipt = () => {
+    const isManualReceipt = checkoutMode === 'manual';
+
+    if (!isManualReceipt && !selectedAppointment) {
+      alert('Selecione um atendimento para baixar o pagamento.');
+      return;
+    }
+
+    if (receiptItems.length === 0) {
+      alert('Inclua pelo menos um serviço ou produto no recebimento.');
+      return;
+    }
+
+    const hasIncompleteItem = receiptItems.some((item) => {
+      return item.itemType === 'product'
+        ? !item.productId
+        : !item.serviceId || !item.professionalId;
+    });
+
+    if (hasIncompleteItem) {
+      setValidationPopupMessage(
+        'Selecione o serviço, o profissional ou o produto antes de concluir.'
+      );
+      return;
+    }
+
+    const clientPhone = isManualReceipt
+      ? manualMatchedClient?.phone ||
+        normalizeManualPhone(manualClientPhone, defaultAreaCode)
+      : selectedAppointment?.clientPhone || selectedClient?.phone || phoneSearch;
+
+    if (!normalizePhone(clientPhone)) {
+      alert('Informe o WhatsApp do cliente para concluir o recebimento.');
+      return;
+    }
+
+    const paymentIsZero = structuredAmountPaid <= 0;
+    const paymentMatchesTotal = Math.abs(structuredAmountPaid - total) < 0.01;
+    const paymentIsBelowTotal =
+      !paymentIsZero &&
+      !paymentMatchesTotal &&
+      structuredAmountPaid < total;
+
+    if (paymentIsBelowTotal) {
+      setPendingAuthorizationAmount(
+        Math.max(0, total - structuredAmountPaid)
+      );
+      setIsPendingAuthorizationOpen(true);
+      return;
+    }
+
+    finalizeReceipt();
+  };
+
+  const handleAuthorizePendingReceipt = () => {
+    setIsPendingAuthorizationOpen(false);
+    setPendingAuthorizationAmount(0);
+    finalizeReceipt();
   };
 
   const handlePrintConfirmedReceipt = () => {
@@ -1278,6 +1327,7 @@ export default function ReceiptsView({
                 onChange={(event) => handleChangeProduct(item.id, event.target.value)}
                 className="mt-1 w-full rounded-xl border border-orange-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
               >
+                <option value="">Selecione o produto</option>
                 {products
                   .filter((productOption) => productOption.active)
                   .map((option) => (
@@ -1369,6 +1419,7 @@ export default function ReceiptsView({
                 onChange={(event) => handleChangeExtraService(item.id, event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
               >
+                <option value="">Selecione o serviço</option>
                 {services.filter((serviceOption) => serviceOption.active).map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
@@ -1400,6 +1451,7 @@ export default function ReceiptsView({
                 onChange={(event) => handleChangeExtraProfessional(item.id, event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
               >
+                <option value="">Selecione o profissional</option>
                 {professionals.filter((professionalOption) => professionalOption.active).map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
@@ -1586,7 +1638,7 @@ export default function ReceiptsView({
             {todayTotalsByPayment.map((item) => (
               <div key={item.paymentType} className="rounded-2xl bg-neutral-50 border border-neutral-200 p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
-                  {getPaymentLabel(item.paymentType)}
+                  {getReceiptPaymentLabel(item.paymentType)}
                 </p>
                 <p className="text-sm font-black text-neutral-950 mt-1">
                   {formatCurrency(item.total)}
@@ -1615,7 +1667,7 @@ export default function ReceiptsView({
                   </p>
                   <p className="text-xs font-bold text-neutral-500">
                     {new Date(receipt.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {' '}• {getPaymentLabel(receipt.paymentType)} • {receipt.items.length} item(ns)
+                    {' '}• {getReceiptPaymentLabel(receipt.paymentType)} • {receipt.items.length} item(ns)
                   </p>
                 </div>
 
@@ -1647,7 +1699,7 @@ export default function ReceiptsView({
                   </p>
                   <p className="text-xs font-bold text-red-500">
                     {new Date(expense.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {' '}• Despesa • {getPaymentLabel(expense.paymentType)}
+                    {' '}• Despesa • {getReceiptPaymentLabel(expense.paymentType)}
                   </p>
                 </div>
 
@@ -1740,7 +1792,7 @@ export default function ReceiptsView({
                           : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-200'
                       }`}
                     >
-                      {getPaymentLabel(option)}
+                      {getReceiptPaymentLabel(option)}
                     </button>
                   ))}
                 </div>
@@ -2037,7 +2089,7 @@ export default function ReceiptsView({
                               : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
                           }`}
                         >
-                          {getPaymentLabel(option)}
+                          {getReceiptPaymentLabel(option)}
                         </button>
                       ))}
                     </div>
@@ -2177,7 +2229,7 @@ export default function ReceiptsView({
                         className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 text-xs font-black text-white transition hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400"
                       >
                         <CheckCircle2 className="h-4 w-4" />
-                        {structuredAmountPending > 0 ? 'Salvar pendente' : 'Baixar'}
+                        Baixar
                       </button>
                     </div>
                   </div>
@@ -2275,6 +2327,80 @@ export default function ReceiptsView({
 
       {renderHistory()}
 
+      {validationPopupMessage && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-amber-500" />
+
+            <div className="p-5 text-left">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+
+              <h3 className="mt-4 text-lg font-black text-neutral-950">
+                Verifique os dados
+              </h3>
+
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                {validationPopupMessage}
+              </p>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setValidationPopupMessage('')}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123945]"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPendingAuthorizationOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-amber-500" />
+            <div className="p-5 text-left">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <h3 className="mt-4 text-lg font-black text-neutral-950">
+                Valor inferior ao total
+              </h3>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                O valor informado é menor que o total dos serviços e produtos.
+                Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
+              </p>
+              <p className="mt-2 text-sm font-black text-amber-700">
+                Deseja baixar este pagamento com valor pendente?
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPendingAuthorizationOpen(false);
+                    setPendingAuthorizationAmount(0);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                >
+                  Não, corrigir
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAuthorizePendingReceipt}
+                  className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-black text-white transition hover:bg-amber-700"
+                >
+                  Sim, autorizar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {printAfterConfirmHtml && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-5 shadow-2xl">
@@ -2282,7 +2408,7 @@ export default function ReceiptsView({
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-black text-neutral-950 text-center">
-              Recebimento confirmado
+              Pagamento confirmado
             </h3>
             <p className="text-sm font-semibold text-neutral-500 text-center mt-2">
               Deseja imprimir o comprovante agora?
