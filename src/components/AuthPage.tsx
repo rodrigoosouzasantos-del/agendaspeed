@@ -639,7 +639,7 @@ export default function AuthPage({
     setResetLoading(true);
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/redefinir-senha`,
     });
 
     setResetLoading(false);

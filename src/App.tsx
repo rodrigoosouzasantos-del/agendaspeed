@@ -22,6 +22,7 @@ import ClientAppointmentsPage from './features/client/ClientAppointmentsPage';
 import OwnerDashboard from './features/owner/OwnerDashboard';
 import ProfessionalDashboard from './features/professional/ProfessionalDashboard';
 import FirstAccessPage from './features/auth/FirstAccessPage';
+import ResetPasswordPage from './features/auth/ResetPasswordPage';
 import MasterDashboard from './features/master/MasterDashboard';
 import { supabase } from './lib/supabase';
 import { Appointment } from './types';
@@ -36,6 +37,7 @@ type AppView =
   | 'client-booking'
   | 'client-appointments'
   | 'first-access'
+  | 'reset-password'
   | 'master-dashboard';
 
 type SessionUser = {
@@ -154,6 +156,7 @@ const RESERVED_PUBLIC_PATHS = new Set([
   'profissional',
   'profissional-acesso',
   'primeiro-acesso',
+  'redefinir-senha',
   'meus-agendamentos',
 ]);
 
@@ -202,6 +205,10 @@ function getInitialViewFromPath(): AppView {
 
   if (pathname.startsWith('/primeiro-acesso/')) {
     return 'first-access';
+  }
+
+  if (pathname === '/redefinir-senha') {
+    return 'reset-password';
   }
 
   if (pathname.startsWith('/meus-agendamentos/')) {
@@ -382,6 +389,18 @@ export default function App() {
       const pathname = window.location.pathname;
       const currentProfessionalAccessToken = getProfessionalAccessTokenFromPath();
 
+      if (pathname === '/redefinir-senha') {
+        setOwnerContext(null);
+        setSessionUser(null);
+        setCurrentView('reset-password');
+
+        if (isMounted) {
+          setAuthChecking(false);
+        }
+
+        return;
+      }
+
       if (pathname.startsWith('/profissional-acesso/') && currentProfessionalAccessToken) {
         setOwnerContext(null);
         setSessionUser({
@@ -435,7 +454,15 @@ export default function App() {
 
     checkInitialAuth();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async () => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setOwnerContext(null);
+        setSessionUser(null);
+        navigateTo('reset-password', '/redefinir-senha');
+        setAuthChecking(false);
+        return;
+      }
+
       const currentProfessionalAccessToken = getProfessionalAccessTokenFromPath();
 
       if (window.location.pathname.startsWith('/profissional-acesso/') && currentProfessionalAccessToken) {
@@ -642,6 +669,10 @@ export default function App() {
       <div className="flex-1 w-full">
         {currentView === 'first-access' && (
           <FirstAccessPage />
+        )}
+
+        {currentView === 'reset-password' && (
+          <ResetPasswordPage />
         )}
 
         {currentView === 'landing' && (
