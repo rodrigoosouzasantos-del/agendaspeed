@@ -103,8 +103,8 @@ interface ReceiptsViewProps {
   companyPhone?: string;
   companyInstagram?: string;
   onMarkAppointmentCompleted: (appointmentId: string) => void;
-  onConfirmReceipt: (payload: ReceiptPayload) => void;
-  onConfirmExpense: (payload: ExpensePayload) => void;
+  onConfirmReceipt: (payload: ReceiptPayload) => void | Promise<void>;
+  onConfirmExpense: (payload: ExpensePayload) => void | Promise<void>;
 }
 
 function paymentOptions(): PaymentType[] {
@@ -358,12 +358,11 @@ function parseCurrencyInput(value: string): number {
   return Number(digits) / 100;
 }
 
-function openThermalPrint(title: string, body: string): void {
+function openThermalPrint(title: string, body: string): boolean {
   const printWindow = window.open('', '_blank', 'width=380,height=620');
 
   if (!printWindow) {
-    alert('O navegador bloqueou a impressão. Libere pop-ups para imprimir a filipeta.');
-    return;
+    return false;
   }
 
   printWindow.document.write(`
@@ -410,6 +409,8 @@ function openThermalPrint(title: string, body: string): void {
   setTimeout(() => {
     printWindow.print();
   }, 250);
+
+  return true;
 }
 
 export default function ReceiptsView({
@@ -458,6 +459,8 @@ export default function ReceiptsView({
   const [isPendingAuthorizationOpen, setIsPendingAuthorizationOpen] = useState(false);
   const [pendingAuthorizationAmount, setPendingAuthorizationAmount] = useState(0);
   const [validationPopupMessage, setValidationPopupMessage] = useState('');
+  const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
 
   const phoneKey = normalizePhone(phoneSearch);
   const normalizedCashSearch = normalizeSearchValue(cashSearch);
@@ -512,11 +515,30 @@ export default function ReceiptsView({
   const alreadyReceivedAppointmentIds = useMemo(() => {
     return new Set(
       receipts
-        .filter((receipt) => receipt.status === 'paid')
+        .filter((receipt) => receipt.status !== 'cancelled')
         .map((receipt) => receipt.appointmentId)
         .filter(Boolean)
     );
   }, [receipts]);
+
+  const pendingReceipts = useMemo(() => {
+    return receipts
+      .filter((receipt) => {
+        return (
+          receipt.status === 'pending' &&
+          Number(receipt.amountPending) > 0
+        );
+      })
+      .sort((firstReceipt, secondReceipt) => {
+        return secondReceipt.createdAt.localeCompare(firstReceipt.createdAt);
+      });
+  }, [receipts]);
+
+  const totalPendingReceipts = useMemo(() => {
+    return pendingReceipts.reduce((sum, receipt) => {
+      return sum + (Number(receipt.amountPending) || 0);
+    }, 0);
+  }, [pendingReceipts]);
 
   const receivableAppointments = useMemo(() => {
     return appointments
@@ -625,7 +647,7 @@ export default function ReceiptsView({
       ].filter((payment) => payment.amount > 0);
     }
 
-    if (paymentType === 'pendente') {
+    if (paymentType === 'pendente' || paymentType === 'cortesia') {
       return [];
     }
 
@@ -655,7 +677,7 @@ export default function ReceiptsView({
 
   const structuredAmountPaid = useSplitPayment
     ? Math.min(total, splitTotal)
-    : paymentType === 'pendente'
+    : paymentType === 'pendente' || paymentType === 'cortesia'
       ? 0
       : paymentType === 'dinheiro'
         ? normalizedCashAmountPaid > 0
@@ -669,19 +691,48 @@ export default function ReceiptsView({
   );
 
   const structuredReceiptStatus: 'paid' | 'pending' =
-    structuredAmountPending > 0 ? 'pending' : 'paid';
+    paymentType === 'cortesia'
+      ? 'paid'
+      : structuredAmountPending > 0
+        ? 'pending'
+        : 'paid';
 
   const todayReceipts = useMemo(() => {
     return receipts
-      .filter((receipt) => receipt.status === 'paid' && receipt.paidAt.slice(0, 10) === currentDayKey)
+      .filter((receipt) => {
+        return (
+          receipt.status !== 'cancelled' &&
+          Number(receipt.amountPaid) > 0 &&
+          receipt.paidAt.slice(0, 10) === currentDayKey
+        );
+      })
       .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
   }, [receipts, currentDayKey]);
 
   const todayTotalsByPayment = useMemo(() => {
     return paymentOptions().map((option) => {
-      const totalByOption = todayReceipts
-        .filter((receipt) => receipt.paymentType === option)
-        .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
+      const totalByOption = todayReceipts.reduce((sum, receipt) => {
+        const receiptPayments = Array.isArray(receipt.payments)
+          ? receipt.payments
+          : [];
+
+        if (receiptPayments.length > 0) {
+          return (
+            sum +
+            receiptPayments
+              .filter((payment) => payment.paymentType === option)
+              .reduce((paymentSum, payment) => {
+                return paymentSum + (Number(payment.amount) || 0);
+              }, 0)
+          );
+        }
+
+        if (receipt.paymentType !== option || option === 'cortesia') {
+          return sum;
+        }
+
+        return sum + (Number(receipt.amountPaid) || 0);
+      }, 0);
 
       return {
         paymentType: option,
@@ -690,7 +741,13 @@ export default function ReceiptsView({
     });
   }, [todayReceipts]);
 
-  const totalReceivedToday = todayReceipts.reduce((sum, receipt) => sum + receipt.totalAmount, 0);
+  const totalReceivedToday = todayReceipts.reduce((sum, receipt) => {
+    if (receipt.paymentType === 'cortesia') {
+      return sum;
+    }
+
+    return sum + (Number(receipt.amountPaid) || 0);
+  }, 0);
 
   const todayExpenses = useMemo(() => {
     return cashExpenses
@@ -750,7 +807,7 @@ export default function ReceiptsView({
     const defaultItem = createDefaultManualItem();
 
     if (!defaultItem) {
-      alert('Cadastre pelo menos um serviço e um profissional ativo para lançar pagamento manual.');
+      setValidationPopupMessage('Cadastre pelo menos um serviço e um profissional ativo para lançar pagamento manual.');
       return;
     }
 
@@ -788,7 +845,7 @@ export default function ReceiptsView({
 
   const handleAddExtraItem = () => {
     if (!services.some((service) => service.active) || !professionals.some((professional) => professional.active)) {
-      alert('Cadastre pelo menos um serviço e um profissional ativo para adicionar extras.');
+      setValidationPopupMessage('Cadastre pelo menos um serviço e um profissional ativo para adicionar extras.');
       return;
     }
 
@@ -806,7 +863,7 @@ export default function ReceiptsView({
 
   const handleAddProductItem = () => {
     if (!products.some((product) => product.active)) {
-      alert('Cadastre pelo menos um produto ativo para adicioná-lo ao recebimento.');
+      setValidationPopupMessage('Cadastre pelo menos um produto ativo para adicioná-lo ao recebimento.');
       return;
     }
 
@@ -1041,11 +1098,20 @@ export default function ReceiptsView({
 
   const handlePrintDraftReceipt = () => {
     if (receiptItems.length === 0) {
-      alert('Inclua pelo menos um serviço ou produto para imprimir.');
+      setValidationPopupMessage('Inclua pelo menos um serviço ou produto para imprimir.');
       return;
     }
 
-    openThermalPrint('Comprovante de pagamento', buildDraftReceiptPrintHtml());
+    const printOpened = openThermalPrint(
+      'Comprovante de pagamento',
+      buildDraftReceiptPrintHtml()
+    );
+
+    if (!printOpened) {
+      setValidationPopupMessage(
+        'O navegador bloqueou a impressão. Libere pop-ups para imprimir a filipeta.'
+      );
+    }
   };
 
   const handlePrintReceipt = (receipt: Receipt) => {
@@ -1089,19 +1155,29 @@ export default function ReceiptsView({
       <div class="line"></div>
       <div class="row"><span>Subtotal</span><span>${formatCurrency(receipt.subtotal)}</span></div>
       <div class="row"><span>Desconto</span><span>${formatCurrency(receipt.discountValue)}</span></div>
-      <div class="row total"><span>Total</span><span>${formatCurrency(receipt.totalAmount)}</span></div>
-      <div class="row"><span>Pagamento</span><span>${escapeHtml(getReceiptPaymentLabel(receipt.paymentType))}</span></div>
+      <div class="row total"><span>Total</span><span>${formatCurrency(Number(receipt.amountPaid) || 0)}</span></div>
+      <div class="row"><span>Pagamento</span><span>${escapeHtml(
+        receipt.payments && receipt.payments.length > 1
+          ? 'Dividido'
+          : getReceiptPaymentLabel(receipt.paymentType)
+      )}</span></div>
       ${receipt.notes ? `<div class="line"></div><div class="small">Obs.: ${escapeHtml(receipt.notes)}</div>` : ''}
       <div class="line"></div>
       <div class="center small">Obrigado pela preferência!</div>
     `;
 
-    openThermalPrint('Comprovante de pagamento', body);
+    const printOpened = openThermalPrint('Comprovante de pagamento', body);
+
+    if (!printOpened) {
+      setValidationPopupMessage(
+        'O navegador bloqueou a impressão. Libere pop-ups para imprimir a filipeta.'
+      );
+    }
   };
 
   const handlePrintDailySummary = () => {
     if (todayReceipts.length === 0 && todayExpenses.length === 0) {
-      alert('Ainda não há movimentações no dia para imprimir.');
+      setValidationPopupMessage('Ainda não há movimentações no dia para imprimir.');
       return;
     }
 
@@ -1148,10 +1224,19 @@ export default function ReceiptsView({
       <div class="center small">Fim do resumo</div>
     `;
 
-    openThermalPrint('Resumo de recebimentos do dia', body);
+    const printOpened = openThermalPrint(
+      'Resumo de recebimentos do dia',
+      body
+    );
+
+    if (!printOpened) {
+      setValidationPopupMessage(
+        'O navegador bloqueou a impressão. Libere pop-ups para imprimir o resumo.'
+      );
+    }
   };
 
-  const finalizeReceipt = () => {
+  const finalizeReceipt = async () => {
     const isManualReceipt = checkoutMode === 'manual';
     const clientName = isManualReceipt
       ? manualMatchedClient?.name || manualClientName.trim() || 'Cliente balcão'
@@ -1184,7 +1269,10 @@ export default function ReceiptsView({
 
     const receiptPrintHtml = buildDraftReceiptPrintHtml();
 
-    onConfirmReceipt({
+    setIsSubmittingReceipt(true);
+
+    try {
+      await onConfirmReceipt({
       clientId: isManualReceipt
         ? manualMatchedClient?.id
         : selectedClient?.id,
@@ -1203,32 +1291,36 @@ export default function ReceiptsView({
       amountPaid: structuredAmountPaid,
       amountPending: structuredAmountPending,
       discountValue: normalizedDiscount,
-      notes: receiptNotes
-    });
+        notes: receiptNotes
+      });
 
-    setPrintAfterConfirmTitle('Comprovante de pagamento');
-    setPrintAfterConfirmHtml(receiptPrintHtml);
-    setPhoneSearch('');
-    setSelectedAppointmentId(null);
-    setCheckoutMode(null);
-    setIsCheckoutOpen(false);
-    setManualClientPhone('');
-    setManualClientCpf('');
-    setManualClientName('');
-    resetCheckoutDraft();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      setPrintAfterConfirmTitle('Comprovante de pagamento');
+      setPrintAfterConfirmHtml(receiptPrintHtml);
+      setPhoneSearch('');
+      setSelectedAppointmentId(null);
+      setCheckoutMode(null);
+      setIsCheckoutOpen(false);
+      setManualClientPhone('');
+      setManualClientCpf('');
+      setManualClientName('');
+      resetCheckoutDraft();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsSubmittingReceipt(false);
+    }
   };
 
-  const handleConfirmReceipt = () => {
+  const handleConfirmReceipt = async () => {
+    if (isSubmittingReceipt) return;
     const isManualReceipt = checkoutMode === 'manual';
 
     if (!isManualReceipt && !selectedAppointment) {
-      alert('Selecione um atendimento para baixar o pagamento.');
+      setValidationPopupMessage('Selecione um atendimento para baixar o pagamento.');
       return;
     }
 
     if (receiptItems.length === 0) {
-      alert('Inclua pelo menos um serviço ou produto no recebimento.');
+      setValidationPopupMessage('Inclua pelo menos um serviço ou produto no recebimento.');
       return;
     }
 
@@ -1251,15 +1343,19 @@ export default function ReceiptsView({
       : selectedAppointment?.clientPhone || selectedClient?.phone || phoneSearch;
 
     if (!normalizePhone(clientPhone)) {
-      alert('Informe o WhatsApp do cliente para concluir o recebimento.');
+      setValidationPopupMessage('Informe o WhatsApp do cliente para concluir o recebimento.');
       return;
     }
 
     const currentAmountPaid = useSplitPayment
       ? Math.min(total, splitTotal)
-      : paymentType === 'dinheiro'
-        ? Math.min(total, normalizedCashAmountPaid)
-        : total;
+      : paymentType === 'pendente' || paymentType === 'cortesia'
+        ? 0
+        : paymentType === 'dinheiro'
+          ? normalizedCashAmountPaid > 0
+            ? Math.min(total, normalizedCashAmountPaid)
+            : total
+          : total;
 
     const currentPendingAmount = Number(
       Math.max(0, total - currentAmountPaid).toFixed(2)
@@ -1271,18 +1367,28 @@ export default function ReceiptsView({
       return;
     }
 
-    finalizeReceipt();
+    await finalizeReceipt();
   };
 
-  const handleAuthorizePendingReceipt = () => {
-    finalizeReceipt();
+  const handleAuthorizePendingReceipt = async () => {
+    await finalizeReceipt();
     setIsPendingAuthorizationOpen(false);
     setPendingAuthorizationAmount(0);
   };
 
   const handlePrintConfirmedReceipt = () => {
     if (printAfterConfirmHtml) {
-      openThermalPrint(printAfterConfirmTitle, printAfterConfirmHtml);
+      const printOpened = openThermalPrint(
+        printAfterConfirmTitle,
+        printAfterConfirmHtml
+      );
+
+      if (!printOpened) {
+        setValidationPopupMessage(
+          'O navegador bloqueou a impressão. Libere pop-ups para imprimir o comprovante.'
+        );
+        return;
+      }
     }
 
     setPrintAfterConfirmHtml(null);
@@ -1292,26 +1398,33 @@ export default function ReceiptsView({
     setPrintAfterConfirmHtml(null);
   };
 
-  const handleConfirmExpense = () => {
+  const handleConfirmExpense = async () => {
+    if (isSubmittingExpense) return;
     if (!expenseDescription.trim()) {
-      alert('Informe a descrição da despesa.');
+      setValidationPopupMessage('Informe a descrição da despesa.');
       return;
     }
 
     if ((Number(expenseAmount) || 0) <= 0) {
-      alert('Informe o valor da despesa.');
+      setValidationPopupMessage('Informe o valor da despesa.');
       return;
     }
 
-    onConfirmExpense({
-      description: expenseDescription.trim(),
-      amount: Number(expenseAmount) || 0,
-      paymentType: expensePaymentType,
-      notes: expenseNotes
-    });
+    setIsSubmittingExpense(true);
 
-    alert('Despesa lançada com sucesso.');
-    handleBackToSearch();
+    try {
+      await onConfirmExpense({
+        description: expenseDescription.trim(),
+        amount: Number(expenseAmount) || 0,
+        paymentType: expensePaymentType,
+        notes: expenseNotes
+      });
+
+      setValidationPopupMessage('Despesa lançada com sucesso.');
+      handleBackToSearch();
+    } finally {
+      setIsSubmittingExpense(false);
+    }
   };
 
   const renderDraftItem = (item: ReceiptDraftItem) => {
@@ -1684,7 +1797,7 @@ export default function ReceiptsView({
 
                 <div className="flex flex-row gap-2 items-center justify-end">
                   <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-black text-emerald-700 text-center">
-                    {formatCurrency(receipt.totalAmount)}
+                    {formatCurrency(Number(receipt.amountPaid) || 0)}
                   </span>
                   <button
                     type="button"
@@ -1831,10 +1944,11 @@ export default function ReceiptsView({
             <button
               type="button"
               onClick={handleConfirmExpense}
+              disabled={isSubmittingExpense}
               className="w-full rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirmar despesa
+              {isSubmittingExpense ? 'Salvando despesa...' : 'Confirmar despesa'}
             </button>
           </div>
         </div>
@@ -2236,11 +2350,11 @@ export default function ReceiptsView({
                       <button
                         type="button"
                         onClick={handleConfirmReceipt}
-                        disabled={receiptItems.length === 0}
+                        disabled={receiptItems.length === 0 || isSubmittingReceipt}
                         className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 text-xs font-black text-white transition hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400"
                       >
                         <CheckCircle2 className="h-4 w-4" />
-                        Baixar
+                        {isSubmittingReceipt ? 'Salvando...' : 'Baixar'}
                       </button>
                     </div>
                   </div>
@@ -2403,6 +2517,94 @@ export default function ReceiptsView({
           {receivableAppointmentsList.map((appointment) =>
             renderReceivableAppointmentCard(appointment)
           )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-3 text-white">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-tight">
+              Valores pendentes
+            </h2>
+            <p className="mt-0.5 text-[11px] font-semibold text-white/90">
+              Atendimentos parcialmente pagos aparecem somente nesta seção.
+            </p>
+          </div>
+
+          <div className="text-right">
+            <span className="block text-[10px] font-black uppercase text-white/75">
+              Saldo total
+            </span>
+            <strong className="text-sm font-black">
+              {formatCurrency(totalPendingReceipts)}
+            </strong>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-2">
+          {pendingReceipts.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 p-6 text-center xl:col-span-2">
+              <CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-amber-500" />
+              <p className="text-sm font-black text-amber-800">
+                Nenhum valor pendente.
+              </p>
+            </div>
+          )}
+
+          {pendingReceipts.map((receipt) => (
+            <article
+              key={receipt.id}
+              className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-950">
+                    {receipt.clientName || 'Cliente'}
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                    {formatPhoneForDisplay(receipt.clientPhone)}
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-black text-amber-700">
+                  Pendente
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <span className="text-[9px] font-black uppercase text-slate-400">
+                    Total
+                  </span>
+                  <p className="text-xs font-black text-slate-800">
+                    {formatCurrency(receipt.totalAmount)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-white p-2">
+                  <span className="text-[9px] font-black uppercase text-emerald-500">
+                    Pago
+                  </span>
+                  <p className="text-xs font-black text-emerald-700">
+                    {formatCurrency(Number(receipt.amountPaid) || 0)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-300 bg-white p-2">
+                  <span className="text-[9px] font-black uppercase text-amber-500">
+                    Restante
+                  </span>
+                  <p className="text-xs font-black text-amber-700">
+                    {formatCurrency(Number(receipt.amountPending) || 0)}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-2 text-[11px] font-semibold leading-relaxed text-amber-800">
+                O atendimento saiu da lista principal para evitar uma segunda baixa integral.
+              </p>
+            </article>
+          ))}
         </div>
       </div>
 

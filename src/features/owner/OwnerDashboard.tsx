@@ -4413,10 +4413,16 @@ ${professionalAccessLink}`);
     } as unknown as typeof state);
   };
 
-  const handleConfirmReceipt = async (payload: ReceiptPayload) => {
+  const handleConfirmReceipt = async (payload: ReceiptPayload): Promise<void> => {
+    const failReceiptSave = (message: string): never => {
+      showOwnerFeedback(message, "Recebimento não concluído");
+      throw new Error(message);
+    };
+
     if (!tenantId) {
-      showOwnerFeedback("Não foi possível identificar a empresa para salvar o recebimento.");
-      return;
+      failReceiptSave(
+        "Não foi possível identificar a empresa para salvar o recebimento.",
+      );
     }
 
     const draftReceiptItems = buildReceiptItems({
@@ -4427,7 +4433,10 @@ ${professionalAccessLink}`);
       professionals,
     });
 
-    const subtotal = draftReceiptItems.reduce((sum, item) => sum + item.price, 0);
+    const subtotal = draftReceiptItems.reduce(
+      (sum, item) => sum + item.price,
+      0,
+    );
     const discountValue = Math.max(
       0,
       Math.min(Number(payload.discountValue) || 0, subtotal),
@@ -4449,23 +4458,28 @@ ${professionalAccessLink}`);
       .limit(1);
 
     if (receiptError) {
-      showOwnerFeedback(receiptError.message || "Não foi possível salvar o recebimento.");
-      return;
+      failReceiptSave(
+        receiptError.message || "Não foi possível salvar o recebimento.",
+      );
     }
 
-    const savedReceiptRow = (Array.isArray(receiptData)
-      ? receiptData[0]
-      : null) as SupabaseReceiptResponse | null;
+    const savedReceiptRow = (
+      Array.isArray(receiptData) ? receiptData[0] : null
+    ) as SupabaseReceiptResponse | null;
 
     if (!savedReceiptRow?.id) {
-      showOwnerFeedback("Recebimento salvo, mas não foi possível confirmar o registro.");
       void loadFinancialRecordsFromSupabase(false);
-      return;
+
+      failReceiptSave(
+        "Recebimento salvo, mas não foi possível confirmar o registro.",
+      );
     }
+
+    const savedReceiptId = savedReceiptRow!.id;
 
     const receiptItems = buildReceiptItems({
       draftItems: payload.items,
-      receiptId: savedReceiptRow.id,
+      receiptId: savedReceiptId,
       services,
       products,
       professionals,
@@ -4478,60 +4492,45 @@ ${professionalAccessLink}`);
       });
     });
 
-    let savedReceiptItemRows: SupabaseReceiptItemResponse[] = [];
-
     if (receiptItemsPayload.length > 0) {
-      const { data: receiptItemsData, error: receiptItemsError } = await supabase
+      const { error: receiptItemsError } = await supabase
         .from("receipt_items")
-        .insert(receiptItemsPayload)
-        .select(SUPABASE_RECEIPT_ITEMS_SELECT);
+        .insert(receiptItemsPayload);
 
       if (receiptItemsError) {
-        await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
-        showOwnerFeedback(
+        await supabase.from("receipts").delete().eq("id", savedReceiptId);
+        void loadFinancialRecordsFromSupabase(false);
+
+        failReceiptSave(
           receiptItemsError.message ||
             "Não foi possível salvar os itens do recebimento.",
         );
-        void loadFinancialRecordsFromSupabase(false);
-        return;
       }
-
-      savedReceiptItemRows = (Array.isArray(receiptItemsData)
-        ? receiptItemsData
-        : []) as SupabaseReceiptItemResponse[];
     }
 
     const receiptPaymentsPayload = payload.payments
       .filter((payment) => Number(payment.amount) > 0)
       .map((payment) => ({
         tenant_id: tenantId,
-        receipt_id: savedReceiptRow.id,
+        receipt_id: savedReceiptId,
         payment_type: payment.paymentType,
         amount: Number(payment.amount) || 0,
       }));
 
-    let savedReceiptPaymentRows: SupabaseReceiptPaymentResponse[] = [];
-
     if (receiptPaymentsPayload.length > 0) {
-      const { data: receiptPaymentsData, error: receiptPaymentError } =
-        await supabase
-          .from("receipt_payments")
-          .insert(receiptPaymentsPayload)
-          .select(SUPABASE_RECEIPT_PAYMENTS_SELECT);
+      const { error: receiptPaymentError } = await supabase
+        .from("receipt_payments")
+        .insert(receiptPaymentsPayload);
 
       if (receiptPaymentError) {
-        await supabase.from("receipts").delete().eq("id", savedReceiptRow.id);
-        showOwnerFeedback(
+        await supabase.from("receipts").delete().eq("id", savedReceiptId);
+        void loadFinancialRecordsFromSupabase(false);
+
+        failReceiptSave(
           receiptPaymentError.message ||
             "Não foi possível salvar as formas de pagamento do recebimento.",
         );
-        void loadFinancialRecordsFromSupabase(false);
-        return;
       }
-
-      savedReceiptPaymentRows = (Array.isArray(receiptPaymentsData)
-        ? receiptPaymentsData
-        : []) as SupabaseReceiptPaymentResponse[];
     }
 
     if (toNullableUuid(payload.appointmentId)) {
@@ -4551,13 +4550,7 @@ ${professionalAccessLink}`);
       }
     }
 
-    const savedReceipt = mapSupabaseReceiptToAppReceipt({
-      receipt: savedReceiptRow,
-      items: savedReceiptItemRows,
-      payments: savedReceiptPaymentRows,
-    });
-    const updatedReceipts = [savedReceipt, ...receipts];
-
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
     const updatedAppointments = appointments.map((appointment) => {
       if (appointment.id !== payload.appointmentId) {
         return appointment;
@@ -4576,15 +4569,14 @@ ${professionalAccessLink}`);
       };
     });
 
-    setReceipts(updatedReceipts);
     setLiveAppointments(updatedAppointments);
     void loadClientsFromSupabase(false);
 
     onUpdateState({
       ...state,
       appointments: updatedAppointments,
-      receipts: updatedReceipts,
-      cashExpenses,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
     } as unknown as typeof state);
   };
 
@@ -4593,10 +4585,16 @@ ${professionalAccessLink}`);
     amount: number;
     paymentType: PaymentType;
     notes?: string;
-  }) => {
+  }): Promise<void> => {
+    const failExpenseSave = (message: string): never => {
+      showOwnerFeedback(message, "Despesa não concluída");
+      throw new Error(message);
+    };
+
     if (!tenantId) {
-      showOwnerFeedback("Não foi possível identificar a empresa para salvar a despesa.");
-      return;
+      failExpenseSave(
+        "Não foi possível identificar a empresa para salvar a despesa.",
+      );
     }
 
     const today = new Date().toLocaleDateString("en-CA", {
@@ -4617,31 +4615,29 @@ ${professionalAccessLink}`);
       .limit(1);
 
     if (error) {
-      showOwnerFeedback(error.message || "Não foi possível salvar a despesa.");
-      return;
+      failExpenseSave(error.message || "Não foi possível salvar a despesa.");
     }
 
-    const savedRow = (Array.isArray(data)
-      ? data[0]
-      : null) as SupabaseCashExpenseResponse | null;
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseCashExpenseResponse | null;
 
     if (!savedRow) {
-      showOwnerFeedback("Despesa salva, mas não foi possível recarregar o registro.");
       void loadFinancialRecordsFromSupabase(false);
-      return;
+
+      failExpenseSave(
+        "Despesa salva, mas não foi possível recarregar o registro.",
+      );
     }
 
-    const savedExpense = mapSupabaseCashExpenseToAppCashExpense(savedRow);
-    const updatedExpenses = [savedExpense, ...cashExpenses];
-
-    setCashExpenses(updatedExpenses);
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
 
     onUpdateState({
       ...state,
       appointments,
       clients,
-      receipts,
-      cashExpenses: updatedExpenses,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
     } as unknown as typeof state);
   };
 
