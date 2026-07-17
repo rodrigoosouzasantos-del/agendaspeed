@@ -720,18 +720,20 @@ export default function ReceiptsView({
   };
 
   const createDefaultManualItem = (): ReceiptDraftItem | null => {
-    const firstActiveService = services.find((service) => service.active) || services[0];
-    const firstProfessional = professionals.find((professional) => professional.active) || professionals[0];
+    const hasActiveService = services.some((service) => service.active);
+    const hasActiveProfessional = professionals.some(
+      (professional) => professional.active
+    );
 
-    if (!firstActiveService || !firstProfessional) {
+    if (!hasActiveService || !hasActiveProfessional) {
       return null;
     }
 
     return {
       id: `manual-${Date.now()}`,
-      serviceId: firstActiveService.id,
-      professionalId: firstProfessional.id,
-      price: firstActiveService.price,
+      serviceId: '',
+      professionalId: '',
+      price: 0,
       itemType: 'manual'
     };
   };
@@ -1256,23 +1258,14 @@ export default function ReceiptsView({
     const currentAmountPaid = useSplitPayment
       ? Math.min(total, splitTotal)
       : paymentType === 'dinheiro'
-        ? normalizedCashAmountPaid > 0
-          ? Math.min(total, normalizedCashAmountPaid)
-          : total
+        ? Math.min(total, normalizedCashAmountPaid)
         : total;
 
-    const currentPendingAmount = Math.max(
-      0,
-      Number((total - currentAmountPaid).toFixed(2))
+    const currentPendingAmount = Number(
+      Math.max(0, total - currentAmountPaid).toFixed(2)
     );
 
-    const shouldRequestPendingAuthorization =
-      currentAmountPaid > 0 &&
-      currentPendingAmount > 0;
-
-    setPendingAuthorizationAmount(0);
-
-    if (shouldRequestPendingAuthorization) {
+    if (currentAmountPaid > 0 && currentPendingAmount > 0) {
       setPendingAuthorizationAmount(currentPendingAmount);
       setIsPendingAuthorizationOpen(true);
       return;
@@ -1282,9 +1275,9 @@ export default function ReceiptsView({
   };
 
   const handleAuthorizePendingReceipt = () => {
+    finalizeReceipt();
     setIsPendingAuthorizationOpen(false);
     setPendingAuthorizationAmount(0);
-    finalizeReceipt();
   };
 
   const handlePrintConfirmedReceipt = () => {
@@ -2256,6 +2249,76 @@ export default function ReceiptsView({
             </div>
           </div>
         )}
+
+        {validationPopupMessage && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
+              <div className="h-1.5 bg-amber-500" />
+              <div className="p-5 text-left">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <h3 className="mt-4 text-lg font-black text-neutral-950">
+                  Verifique os dados
+                </h3>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                  {validationPopupMessage}
+                </p>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setValidationPopupMessage('')}
+                    className="rounded-xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123945]"
+                  >
+                    Entendi
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isPendingAuthorizationOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
+              <div className="h-1.5 bg-amber-500" />
+              <div className="p-5 text-left">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <h3 className="mt-4 text-lg font-black text-neutral-950">
+                  Valor inferior ao total
+                </h3>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                  O valor informado é menor que o total dos serviços e produtos.
+                  Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
+                </p>
+                <p className="mt-2 text-sm font-black text-amber-700">
+                  Deseja baixar este pagamento com valor pendente?
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPendingAuthorizationOpen(false);
+                      setPendingAuthorizationAmount(0);
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Não, corrigir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAuthorizePendingReceipt}
+                    className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-black text-white transition hover:bg-amber-700"
+                  >
+                    Sim, autorizar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     );
   }
@@ -2393,7 +2456,7 @@ export default function ReceiptsView({
                 Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
               </p>
               <p className="mt-2 text-sm font-black text-amber-700">
-                Deseja autorizar o fechamento com valor pendente?
+                Deseja baixar este pagamento com valor pendente?
               </p>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <button
@@ -2426,7 +2489,7 @@ export default function ReceiptsView({
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-black text-neutral-950 text-center">
-              Recebimento confirmado
+              Pagamento confirmado
             </h3>
             <p className="text-sm font-semibold text-neutral-500 text-center mt-2">
               Deseja imprimir o comprovante agora?
