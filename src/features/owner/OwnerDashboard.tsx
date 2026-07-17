@@ -2570,7 +2570,7 @@ export default function OwnerDashboard({
       serviceId: newApptServiceId,
       professionalId: newApptProfId,
       price: selectedService.price,
-      status: "confirmed",
+      status: "scheduled",
       paymentType: newApptPayment,
       notes: newApptNotes || "Agendado manualmente pelo Administrador.",
       commissionPaid: false,
@@ -2648,7 +2648,7 @@ export default function OwnerDashboard({
       serviceId: payload.serviceId,
       professionalId: payload.professionalId,
       price: selectedService.price,
-      status: "confirmed",
+      status: "scheduled",
       paymentType: payload.paymentType,
       notes: payload.notes || "Agendado pela Agenda Geral.",
       commissionPaid: false,
@@ -2736,7 +2736,7 @@ export default function OwnerDashboard({
       return {
         ...appointment,
         dateTime: `${date}T${time}`,
-        status: "confirmed" as AppointmentStatus,
+        status: "scheduled" as AppointmentStatus,
         notes: appointment.notes
           ? `${appointment.notes} | Remarcado pela Agenda Geral.`
           : "Remarcado pela Agenda Geral.",
