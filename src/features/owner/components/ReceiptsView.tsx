@@ -653,11 +653,21 @@ export default function ReceiptsView({
     useSplitPayment
   ]);
 
-  const structuredAmountPaid = Math.min(
-    total,
-    structuredPayments.reduce((sum, payment) => sum + payment.amount, 0)
+  const structuredAmountPaid = useSplitPayment
+    ? Math.min(total, splitTotal)
+    : paymentType === 'pendente'
+      ? 0
+      : paymentType === 'dinheiro'
+        ? normalizedCashAmountPaid > 0
+          ? Math.min(total, normalizedCashAmountPaid)
+          : total
+        : total;
+
+  const structuredAmountPending = Math.max(
+    0,
+    Number((total - structuredAmountPaid).toFixed(2))
   );
-  const structuredAmountPending = Math.max(0, total - structuredAmountPaid);
+
   const structuredReceiptStatus: 'paid' | 'pending' =
     structuredAmountPending > 0 ? 'pending' : 'paid';
 
@@ -710,20 +720,18 @@ export default function ReceiptsView({
   };
 
   const createDefaultManualItem = (): ReceiptDraftItem | null => {
-    const hasActiveService = services.some((service) => service.active);
-    const hasActiveProfessional = professionals.some(
-      (professional) => professional.active
-    );
+    const firstActiveService = services.find((service) => service.active) || services[0];
+    const firstProfessional = professionals.find((professional) => professional.active) || professionals[0];
 
-    if (!hasActiveService || !hasActiveProfessional) {
+    if (!firstActiveService || !firstProfessional) {
       return null;
     }
 
     return {
       id: `manual-${Date.now()}`,
-      serviceId: '',
-      professionalId: '',
-      price: 0,
+      serviceId: firstActiveService.id,
+      professionalId: firstProfessional.id,
+      price: firstActiveService.price,
       itemType: 'manual'
     };
   };
@@ -1245,17 +1253,27 @@ export default function ReceiptsView({
       return;
     }
 
-    const paymentIsZero = structuredAmountPaid <= 0;
-    const paymentMatchesTotal = Math.abs(structuredAmountPaid - total) < 0.01;
-    const paymentIsBelowTotal =
-      !paymentIsZero &&
-      !paymentMatchesTotal &&
-      structuredAmountPaid < total;
+    const currentAmountPaid = useSplitPayment
+      ? Math.min(total, splitTotal)
+      : paymentType === 'dinheiro'
+        ? normalizedCashAmountPaid > 0
+          ? Math.min(total, normalizedCashAmountPaid)
+          : total
+        : total;
 
-    if (paymentIsBelowTotal) {
-      setPendingAuthorizationAmount(
-        Math.max(0, total - structuredAmountPaid)
-      );
+    const currentPendingAmount = Math.max(
+      0,
+      Number((total - currentAmountPaid).toFixed(2))
+    );
+
+    const shouldRequestPendingAuthorization =
+      currentAmountPaid > 0 &&
+      currentPendingAmount > 0;
+
+    setPendingAuthorizationAmount(0);
+
+    if (shouldRequestPendingAuthorization) {
+      setPendingAuthorizationAmount(currentPendingAmount);
       setIsPendingAuthorizationOpen(true);
       return;
     }
@@ -2375,7 +2393,7 @@ export default function ReceiptsView({
                 Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
               </p>
               <p className="mt-2 text-sm font-black text-amber-700">
-                Deseja baixar este pagamento com valor pendente?
+                Deseja autorizar o fechamento com valor pendente?
               </p>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <button
@@ -2408,7 +2426,7 @@ export default function ReceiptsView({
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-black text-neutral-950 text-center">
-              Pagamento confirmado
+              Recebimento confirmado
             </h3>
             <p className="text-sm font-semibold text-neutral-500 text-center mt-2">
               Deseja imprimir o comprovante agora?
