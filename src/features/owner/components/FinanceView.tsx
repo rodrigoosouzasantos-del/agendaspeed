@@ -26,6 +26,7 @@ import {
   Appointment,
   CashExpense,
   Professional,
+  Receipt,
   Service
 } from '../../../types';
 
@@ -44,6 +45,7 @@ interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
   completedAppointments: Appointment[];
+  receipts?: Receipt[];
   cashExpenses: CashExpense[];
   companyName: string;
   companyAddress: string;
@@ -126,6 +128,20 @@ function parseCurrencyInput(value: string): number {
 
 function formatCurrencyInput(value: number): string {
   return formatCurrency(Number(value) || 0);
+}
+
+function calculateRoundedPercentage(
+  value: number,
+  total: number
+): number {
+  const normalizedValue = Number(value) || 0;
+  const normalizedTotal = Number(total) || 0;
+
+  if (normalizedTotal <= 0 || normalizedValue <= 0) {
+    return 0;
+  }
+
+  return Math.round((normalizedValue / normalizedTotal) * 100);
 }
 
 function escapeHtml(value: string): string {
@@ -346,6 +362,7 @@ export default function FinanceView({
   professionals,
   services,
   completedAppointments,
+  receipts = [],
   cashExpenses,
   companyName,
   companyAddress,
@@ -462,12 +479,22 @@ export default function FinanceView({
       });
     });
 
-    return Array.from(map.values()).sort((a, b) => {
-      return a.serviceName.localeCompare(b.serviceName);
-    });
+    return Array.from(map.values())
+      .map((row) => ({
+        ...row,
+        percentage: calculateRoundedPercentage(row.total, totalRevenue)
+      }))
+      .sort((a, b) => {
+        if (b.total !== a.total) {
+          return b.total - a.total;
+        }
+
+        return a.serviceName.localeCompare(b.serviceName);
+      });
   }, [
     filteredAppointments,
-    services
+    services,
+    totalRevenue
   ]);
 
   const paymentRevenueRows = useMemo(() => {
@@ -486,10 +513,11 @@ export default function FinanceView({
 
       return {
         paymentType,
-        total
+        total,
+        percentage: calculateRoundedPercentage(total, totalRevenue)
       };
     });
-  }, [filteredAppointments]);
+  }, [filteredAppointments, totalRevenue]);
 
   const professionalRevenueRows = useMemo(() => {
     return professionals
@@ -500,16 +528,110 @@ export default function FinanceView({
 
         return {
           professional,
-          total
+          total,
+          percentage: calculateRoundedPercentage(total, totalRevenue)
         };
       })
       .sort((a, b) => {
+        if (b.total !== a.total) {
+          return b.total - a.total;
+        }
+
         return a.professional.name.localeCompare(b.professional.name);
       });
   }, [
     filteredAppointments,
     professionals
   ]);
+
+  const filteredReceipts = useMemo(() => {
+    if (isInvalidPeriod) {
+      return [];
+    }
+
+    return receipts.filter((receipt) => {
+      const receiptDate = receipt.paidAt.slice(0, 10);
+
+      return (
+        receipt.status !== 'cancelled' &&
+        receiptDate >= period.startDate &&
+        receiptDate <= period.endDate
+      );
+    });
+  }, [
+    isInvalidPeriod,
+    period,
+    receipts
+  ]);
+
+  const productRevenueRows = useMemo(() => {
+    const productMap = new Map<string, {
+      productId: string;
+      code: string;
+      description: string;
+      quantity: number;
+      total: number;
+      unitValue: number;
+    }>();
+
+    filteredReceipts.forEach((receipt) => {
+      receipt.items
+        .filter((item) => item.itemType === 'product')
+        .forEach((item) => {
+          const productId = item.productId || item.itemDescription || item.id;
+          const quantity = Math.max(1, Number(item.quantity) || 1);
+          const total = Number(item.price) || 0;
+          const current = productMap.get(productId);
+
+          if (current) {
+            current.quantity += quantity;
+            current.total += total;
+            current.unitValue =
+              current.quantity > 0 ? current.total / current.quantity : 0;
+            return;
+          }
+
+          productMap.set(productId, {
+            productId,
+            code: '',
+            description:
+              item.itemDescription ||
+              item.serviceName ||
+              'Produto',
+            quantity,
+            total,
+            unitValue:
+              Number(item.unitPrice) ||
+              (quantity > 0 ? total / quantity : 0)
+          });
+        });
+    });
+
+    const totalProductsRevenue = Array.from(productMap.values()).reduce(
+      (sum, row) => sum + row.total,
+      0
+    );
+
+    return Array.from(productMap.values())
+      .map((row) => ({
+        ...row,
+        percentage: calculateRoundedPercentage(
+          row.total,
+          totalProductsRevenue
+        )
+      }))
+      .sort((a, b) => {
+        if (b.total !== a.total) {
+          return b.total - a.total;
+        }
+
+        return a.description.localeCompare(b.description);
+      });
+  }, [filteredReceipts]);
+
+  const totalProductsRevenue = useMemo(() => {
+    return productRevenueRows.reduce((sum, row) => sum + row.total, 0);
+  }, [productRevenueRows]);
 
   const commissionRows = useMemo(() => {
     return professionals
@@ -765,6 +887,7 @@ export default function FinanceView({
           <td class="right">${row.quantity}</td>
           <td class="right">${formatCurrency(row.unitValue)}</td>
           <td class="right">${formatCurrency(row.total)}</td>
+          <td class="right">${row.percentage}%</td>
         </tr>
       `;
     }).join('');
@@ -774,6 +897,7 @@ export default function FinanceView({
         <tr>
           <td>${escapeHtml(getPaymentLabel(row.paymentType))}</td>
           <td class="right">${formatCurrency(row.total)}</td>
+          <td class="right">${row.percentage}%</td>
         </tr>
       `;
     }).join('');
@@ -783,6 +907,19 @@ export default function FinanceView({
         <tr>
           <td>${escapeHtml(row.professional.name)}</td>
           <td class="right">${formatCurrency(row.total)}</td>
+          <td class="right">${row.percentage}%</td>
+        </tr>
+      `;
+    }).join('');
+
+    const productRowsHtml = productRevenueRows.map((row) => {
+      return `
+        <tr>
+          <td>${escapeHtml(row.description)}</td>
+          <td class="right">${row.quantity}</td>
+          <td class="right">${formatCurrency(row.unitValue)}</td>
+          <td class="right">${formatCurrency(row.total)}</td>
+          <td class="right">${row.percentage}%</td>
         </tr>
       `;
     }).join('');
@@ -806,10 +943,11 @@ export default function FinanceView({
               <th class="right">Atendimento</th>
               <th class="right">Valor individual</th>
               <th class="right">Total</th>
+              <th class="right">%</th>
             </tr>
           </thead>
           <tbody>
-            ${serviceRowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b;">Nenhum atendimento finalizado no período.</td></tr>'}
+            ${serviceRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#64748b;">Nenhum atendimento finalizado no período.</td></tr>'}
           </tbody>
         </table>
 
@@ -821,6 +959,7 @@ export default function FinanceView({
             <tr>
               <th>Forma</th>
               <th class="right">Valor</th>
+              <th class="right">%</th>
             </tr>
           </thead>
           <tbody>
@@ -836,10 +975,29 @@ export default function FinanceView({
             <tr>
               <th>Colaborador</th>
               <th class="right">Valor</th>
+              <th class="right">%</th>
             </tr>
           </thead>
           <tbody>
             ${professionalRowsHtml}
+          </tbody>
+        </table>
+
+        <br />
+
+        <h2>Vendas por produto</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th class="right">Quantidade</th>
+              <th class="right">Valor médio</th>
+              <th class="right">Total</th>
+              <th class="right">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#64748b;">Nenhum produto vendido no período.</td></tr>'}
           </tbody>
         </table>
 
@@ -1150,6 +1308,7 @@ export default function FinanceView({
                     <th className="px-4 py-3 text-center">Atendimento</th>
                     <th className="px-4 py-3 text-right">Valor individual</th>
                     <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-right">%</th>
                   </tr>
                 </thead>
 
@@ -1168,12 +1327,15 @@ export default function FinanceView({
                       <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(row.total)}
                       </td>
+                      <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                        {row.percentage}%
+                      </td>
                     </tr>
                   ))}
 
                   {serviceRevenueRows.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-slate-400">
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
                         Nenhum atendimento finalizado neste período.
                       </td>
                     </tr>
@@ -1185,6 +1347,9 @@ export default function FinanceView({
                     </td>
                     <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                       {formatCurrency(totalRevenue)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                      100%
                     </td>
                   </tr>
                 </tbody>
@@ -1200,6 +1365,7 @@ export default function FinanceView({
                     <tr>
                       <th className="px-4 py-3">Forma</th>
                       <th className="px-4 py-3 text-right">Valor</th>
+                      <th className="px-4 py-3 text-right">%</th>
                     </tr>
                   </thead>
 
@@ -1212,6 +1378,9 @@ export default function FinanceView({
                         <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                           {formatCurrency(row.total)}
                         </td>
+                        <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                          {row.percentage}%
+                        </td>
                       </tr>
                     ))}
 
@@ -1219,6 +1388,9 @@ export default function FinanceView({
                       <td className="px-4 py-3.5 text-right font-black uppercase">Total</td>
                       <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                        100%
                       </td>
                     </tr>
                   </tbody>
@@ -1233,6 +1405,7 @@ export default function FinanceView({
                     <tr>
                       <th className="px-4 py-3">Colaborador</th>
                       <th className="px-4 py-3 text-right">Valor</th>
+                      <th className="px-4 py-3 text-right">%</th>
                     </tr>
                   </thead>
 
@@ -1245,6 +1418,9 @@ export default function FinanceView({
                         <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                           {formatCurrency(row.total)}
                         </td>
+                        <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                          {row.percentage}%
+                        </td>
                       </tr>
                     ))}
 
@@ -1253,12 +1429,73 @@ export default function FinanceView({
                       <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
                       </td>
+                      <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                        100%
+                      </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </PanelCard>
           </div>
+
+          <PanelCard title="Vendas por Produto">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Produto</th>
+                    <th className="px-4 py-3 text-center">Quantidade</th>
+                    <th className="px-4 py-3 text-right">Valor médio</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-right">%</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {productRevenueRows.map((row) => (
+                    <tr key={row.productId} className="hover:bg-slate-50">
+                      <td className="px-4 py-3.5 font-bold text-slate-900">
+                        {row.description}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-bold">
+                        {row.quantity}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-bold text-slate-700">
+                        {formatCurrency(row.unitValue)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
+                        {formatCurrency(row.total)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                        {row.percentage}%
+                      </td>
+                    </tr>
+                  ))}
+
+                  {productRevenueRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        Nenhum produto vendido neste período.
+                      </td>
+                    </tr>
+                  )}
+
+                  <tr className="bg-slate-50">
+                    <td colSpan={3} className="px-4 py-3.5 text-right font-black uppercase">
+                      Total
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
+                      {formatCurrency(totalProductsRevenue)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-black text-slate-700">
+                      {totalProductsRevenue > 0 ? '100%' : '0%'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </PanelCard>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">

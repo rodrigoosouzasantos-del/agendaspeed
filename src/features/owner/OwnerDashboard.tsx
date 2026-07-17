@@ -4847,6 +4847,7 @@ ${professionalAccessLink}`);
               professionals={professionals}
               services={services}
               completedAppointments={financialSummary.completedAppointments}
+              receipts={receipts}
               cashExpenses={cashExpenses}
               companyName={configName}
               companyAddress={configAddress}
