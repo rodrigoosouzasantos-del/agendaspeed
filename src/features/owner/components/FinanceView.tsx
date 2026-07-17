@@ -25,6 +25,7 @@ import {
 import {
   Appointment,
   CashExpense,
+  PaymentType,
   Professional,
   Receipt,
   Service
@@ -41,6 +42,20 @@ import {
 
 type FinanceInternalTab = 'faturamento' | 'comissoes' | 'livroCaixa';
 
+export interface CommissionPaymentPayload {
+  professionalId: string;
+  professionalName: string;
+  periodStart: string;
+  periodEnd: string;
+  calculatedCommission: number;
+  extraValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  paidAt: string;
+  notes?: string;
+}
+
 interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
@@ -50,6 +65,9 @@ interface FinanceViewProps {
   companyName: string;
   companyAddress: string;
   companyPhone: string;
+  onPayCommission?: (
+    payload: CommissionPaymentPayload
+  ) => void | Promise<void>;
 }
 
 interface FinancePeriod {
@@ -62,6 +80,13 @@ interface CashBookRow {
   type: 'recebimento' | 'despesa';
   description: string;
   value: number;
+}
+
+interface CommissionRow {
+  professional: Professional;
+  completedCount: number;
+  totalProduced: number;
+  commissionValue: number;
 }
 
 function padDatePart(value: number): string {
@@ -366,7 +391,8 @@ export default function FinanceView({
   cashExpenses,
   companyName,
   companyAddress,
-  companyPhone
+  companyPhone,
+  onPayCommission
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -386,6 +412,25 @@ export default function FinanceView({
 
     return storedValue ? Number(storedValue) || 0 : 0;
   });
+
+  const [selectedCommissionRow, setSelectedCommissionRow] =
+    useState<CommissionRow | null>(null);
+  const [commissionPaidAt, setCommissionPaidAt] = useState(
+    formatLocalDateStr(new Date())
+  );
+  const [commissionPaymentType, setCommissionPaymentType] =
+    useState<PaymentType>('dinheiro');
+  const [commissionExtraValue, setCommissionExtraValue] = useState(0);
+  const [commissionDiscountValue, setCommissionDiscountValue] = useState(0);
+  const [commissionNotes, setCommissionNotes] = useState('');
+  const [isSavingCommissionPayment, setIsSavingCommissionPayment] =
+    useState(false);
+  const [commissionFeedback, setCommissionFeedback] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
+  const [pendingCommissionPrintHtml, setPendingCommissionPrintHtml] =
+    useState('');
 
   const isInvalidDraftPeriod =
     Boolean(draftPeriod.startDate && draftPeriod.endDate) &&
@@ -635,7 +680,7 @@ export default function FinanceView({
 
   const totalGrossRevenue = totalRevenue + totalProductsRevenue;
 
-  const commissionRows = useMemo(() => {
+  const commissionRows = useMemo<CommissionRow[]>(() => {
     return professionals
       .map((professional) => {
         const completedCount = countProfessionalCompletedAppointments({
@@ -669,6 +714,192 @@ export default function FinanceView({
     professionals,
     services
   ]);
+
+  const commissionAmountToPay = selectedCommissionRow
+    ? Math.max(
+        0,
+        selectedCommissionRow.commissionValue +
+          commissionExtraValue -
+          commissionDiscountValue
+      )
+    : 0;
+
+  const resetCommissionPaymentForm = () => {
+    setSelectedCommissionRow(null);
+    setCommissionPaidAt(formatLocalDateStr(new Date()));
+    setCommissionPaymentType('dinheiro');
+    setCommissionExtraValue(0);
+    setCommissionDiscountValue(0);
+    setCommissionNotes('');
+  };
+
+  const handleOpenCommissionPayment = (row: CommissionRow) => {
+    setSelectedCommissionRow(row);
+    setCommissionPaidAt(formatLocalDateStr(new Date()));
+    setCommissionPaymentType('dinheiro');
+    setCommissionExtraValue(0);
+    setCommissionDiscountValue(0);
+    setCommissionNotes('');
+  };
+
+  const buildCommissionPaymentPrintHtml = (
+    row: CommissionRow,
+    payload: CommissionPaymentPayload
+  ) => {
+    return `
+      ${buildEstablishmentPrintHeader({
+        companyName,
+        companyAddress,
+        companyPhone,
+        reportTitle: 'Comprovante de Pagamento de Comissão',
+        period: {
+          startDate: payload.periodStart,
+          endDate: payload.periodEnd
+        }
+      })}
+
+      <table>
+        <tbody>
+          <tr>
+            <th>Profissional</th>
+            <td>${escapeHtml(row.professional.name)}</td>
+          </tr>
+          <tr>
+            <th>Data do pagamento</th>
+            <td>${formatDateBr(payload.paidAt)}</td>
+          </tr>
+          <tr>
+            <th>Forma de pagamento</th>
+            <td>${escapeHtml(getPaymentLabel(payload.paymentType))}</td>
+          </tr>
+          <tr>
+            <th>Atendimentos</th>
+            <td>${row.completedCount}</td>
+          </tr>
+          <tr>
+            <th>Produção</th>
+            <td>${formatCurrency(row.totalProduced)}</td>
+          </tr>
+          <tr>
+            <th>Comissão calculada</th>
+            <td>${formatCurrency(payload.calculatedCommission)}</td>
+          </tr>
+          <tr>
+            <th>Extra</th>
+            <td>${formatCurrency(payload.extraValue)}</td>
+          </tr>
+          <tr>
+            <th>Desconto</th>
+            <td>${formatCurrency(payload.discountValue)}</td>
+          </tr>
+          <tr>
+            <th>Total pago</th>
+            <td><strong>${formatCurrency(payload.amountPaid)}</strong></td>
+          </tr>
+          ${
+            payload.notes
+              ? `<tr><th>Observações</th><td>${escapeHtml(payload.notes)}</td></tr>`
+              : ''
+          }
+        </tbody>
+      </table>
+
+      <div class="summary">
+        <div class="summary-row">
+          <span>Recebi o valor acima informado.</span>
+        </div>
+        <div class="summary-row">
+          <span>Assinatura: ______________________________</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const handleConfirmCommissionPayment = async () => {
+    if (!selectedCommissionRow || isSavingCommissionPayment) {
+      return;
+    }
+
+    if (!commissionPaidAt) {
+      setCommissionFeedback({
+        title: 'Data obrigatória',
+        message: 'Informe a data do pagamento da comissão.'
+      });
+      return;
+    }
+
+    if (commissionAmountToPay <= 0) {
+      setCommissionFeedback({
+        title: 'Valor inválido',
+        message: 'O valor final da comissão precisa ser maior que zero.'
+      });
+      return;
+    }
+
+    if (!onPayCommission) {
+      setCommissionFeedback({
+        title: 'Integração pendente',
+        message:
+          'O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    const payload: CommissionPaymentPayload = {
+      professionalId: selectedCommissionRow.professional.id,
+      professionalName: selectedCommissionRow.professional.name,
+      periodStart: period.startDate,
+      periodEnd: period.endDate,
+      calculatedCommission: selectedCommissionRow.commissionValue,
+      extraValue: commissionExtraValue,
+      discountValue: commissionDiscountValue,
+      amountPaid: commissionAmountToPay,
+      paymentType: commissionPaymentType,
+      paidAt: commissionPaidAt,
+      notes: commissionNotes.trim() || undefined
+    };
+
+    setIsSavingCommissionPayment(true);
+
+    try {
+      await onPayCommission(payload);
+
+      setPendingCommissionPrintHtml(
+        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload)
+      );
+      resetCommissionPaymentForm();
+      setCommissionFeedback({
+        title: 'Comissão paga',
+        message:
+          'O pagamento foi registrado com sucesso. Você já pode imprimir o comprovante.'
+      });
+    } catch (error) {
+      setCommissionFeedback({
+        title: 'Pagamento não concluído',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível registrar o pagamento da comissão.'
+      });
+    } finally {
+      setIsSavingCommissionPayment(false);
+    }
+  };
+
+  const handlePrintSavedCommissionPayment = () => {
+    if (!pendingCommissionPrintHtml) {
+      return;
+    }
+
+    buildPrintWindow({
+      title: 'Comprovante de Comissão',
+      thermal: true,
+      body: pendingCommissionPrintHtml
+    });
+
+    setPendingCommissionPrintHtml('');
+    setCommissionFeedback(null);
+  };
 
   const cashBookRows = useMemo<CashBookRow[]>(() => {
     const cashAppointmentRows = filteredAppointments
@@ -1734,13 +1965,24 @@ export default function FinanceView({
                     </td>
 
                     <td className="px-4 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handlePrintProfessionalCommission(row)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
-                      >
-                        Imprimir
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintProfessionalCommission(row)}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
+                        >
+                          Imprimir
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCommissionPayment(row)}
+                          disabled={row.commissionValue <= 0}
+                          className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-[10px] font-black text-white transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          Pagar comissão
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1769,6 +2011,227 @@ export default function FinanceView({
             </table>
           </div>
         </PanelCard>
+      )}
+
+      {selectedCommissionRow && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#0f4c5c]" />
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
+                    Pagamento de comissão
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    {selectedCommissionRow.professional.name}
+                  </h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Período de {formatDateBr(period.startDate)} a {formatDateBr(period.endDate)}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetCommissionPaymentForm}
+                  disabled={isSavingCommissionPayment}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <span className="text-[9px] font-black uppercase text-slate-400">
+                    Produção
+                  </span>
+                  <p className="mt-1 text-base font-black text-slate-900">
+                    {formatCurrency(selectedCommissionRow.totalProduced)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <span className="text-[9px] font-black uppercase text-slate-400">
+                    Atendimentos
+                  </span>
+                  <p className="mt-1 text-base font-black text-slate-900">
+                    {selectedCommissionRow.completedCount}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-3">
+                  <span className="text-[9px] font-black uppercase text-[#0f4c5c]">
+                    Comissão calculada
+                  </span>
+                  <p className="mt-1 text-base font-black text-[#0f4c5c]">
+                    {formatCurrency(selectedCommissionRow.commissionValue)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Data do pagamento
+                  </span>
+                  <input
+                    type="date"
+                    value={commissionPaidAt}
+                    onChange={(event) => setCommissionPaidAt(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Forma de pagamento
+                  </span>
+                  <select
+                    value={commissionPaymentType}
+                    onChange={(event) =>
+                      setCommissionPaymentType(event.target.value as PaymentType)
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  >
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="pix">PIX</option>
+                    <option value="debito">Débito</option>
+                    <option value="credito">Crédito</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Extra
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={commissionExtraValue}
+                    onChange={(event) =>
+                      setCommissionExtraValue(
+                        Math.max(0, Number(event.target.value) || 0)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Desconto
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={commissionDiscountValue}
+                    onChange={(event) =>
+                      setCommissionDiscountValue(
+                        Math.max(0, Number(event.target.value) || 0)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 block space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-500">
+                  Observações
+                </span>
+                <textarea
+                  value={commissionNotes}
+                  onChange={(event) => setCommissionNotes(event.target.value)}
+                  rows={3}
+                  placeholder="Ex.: bônus, ajuste de faltas ou adiantamento."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
+                />
+              </label>
+
+              <div className="mt-4 rounded-2xl border border-[#0f4c5c]/25 bg-[#0f4c5c]/5 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-black uppercase text-[#0f4c5c]">
+                    Total a pagar
+                  </span>
+                  <strong className="text-xl font-black text-[#0f4c5c]">
+                    {formatCurrency(commissionAmountToPay)}
+                  </strong>
+                </div>
+
+                <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                  Comissão + extra - desconto.
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={resetCommissionPaymentForm}
+                  disabled={isSavingCommissionPayment}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmCommissionPayment}
+                  disabled={isSavingCommissionPayment}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingCommissionPayment
+                    ? 'Salvando pagamento...'
+                    : 'Confirmar pagamento'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {commissionFeedback && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#E0A96D]" />
+
+            <div className="p-5">
+              <h2 className="text-lg font-black text-slate-950">
+                {commissionFeedback.title}
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                {commissionFeedback.message}
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                {pendingCommissionPrintHtml && (
+                  <button
+                    type="button"
+                    onClick={handlePrintSavedCommissionPayment}
+                    className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-sm font-black text-white hover:bg-[#123945]"
+                  >
+                    Imprimir comprovante
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommissionFeedback(null);
+                    setPendingCommissionPrintHtml('');
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
