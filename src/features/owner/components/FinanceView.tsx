@@ -633,6 +633,8 @@ export default function FinanceView({
     return productRevenueRows.reduce((sum, row) => sum + row.total, 0);
   }, [productRevenueRows]);
 
+  const totalGrossRevenue = totalRevenue + totalProductsRevenue;
+
   const commissionRows = useMemo(() => {
     return professionals
       .map((professional) => {
@@ -948,6 +950,11 @@ export default function FinanceView({
           </thead>
           <tbody>
             ${serviceRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#64748b;">Nenhum atendimento finalizado no período.</td></tr>'}
+            <tr>
+              <td colspan="3" class="right"><strong>Total de serviços</strong></td>
+              <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+            </tr>
           </tbody>
         </table>
 
@@ -964,6 +971,11 @@ export default function FinanceView({
           </thead>
           <tbody>
             ${paymentRowsHtml}
+            <tr>
+              <td class="right"><strong>Total por formas de pagamento</strong></td>
+              <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+            </tr>
           </tbody>
         </table>
 
@@ -980,6 +992,11 @@ export default function FinanceView({
           </thead>
           <tbody>
             ${professionalRowsHtml}
+            <tr>
+              <td class="right"><strong>Total produzido por colaboradores</strong></td>
+              <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+            </tr>
           </tbody>
         </table>
 
@@ -998,13 +1015,26 @@ export default function FinanceView({
           </thead>
           <tbody>
             ${productRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#64748b;">Nenhum produto vendido no período.</td></tr>'}
+            <tr>
+              <td colspan="3" class="right"><strong>Total vendido em produtos</strong></td>
+              <td class="right"><strong>${formatCurrency(totalProductsRevenue)}</strong></td>
+              <td class="right"><strong>${totalProductsRevenue > 0 ? '100%' : '0%'}</strong></td>
+            </tr>
           </tbody>
         </table>
 
         <div class="summary">
           <div class="summary-row">
-            <span>Faturamento bruto</span>
+            <span>Faturamento com serviços</span>
             <span>${formatCurrency(totalRevenue)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Vendas de produtos</span>
+            <span>${formatCurrency(totalProductsRevenue)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Faturamento bruto total</span>
+            <span>${formatCurrency(totalGrossRevenue)}</span>
           </div>
           <div class="summary-row">
             <span>Comissões</span>
@@ -1012,7 +1042,7 @@ export default function FinanceView({
           </div>
           <div class="summary-row">
             <span>Líquido estimado</span>
-            <span>${formatCurrency(totalRevenue - totalCommissions)}</span>
+            <span>${formatCurrency(totalGrossRevenue - totalCommissions)}</span>
           </div>
         </div>
       `
@@ -1343,7 +1373,7 @@ export default function FinanceView({
 
                   <tr className="bg-slate-50">
                     <td colSpan={3} className="px-4 py-3.5 text-right font-black uppercase">
-                      Total
+                      Total de serviços
                     </td>
                     <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                       {formatCurrency(totalRevenue)}
@@ -1385,7 +1415,9 @@ export default function FinanceView({
                     ))}
 
                     <tr className="bg-slate-50">
-                      <td className="px-4 py-3.5 text-right font-black uppercase">Total</td>
+                      <td className="px-4 py-3.5 text-right font-black uppercase">
+                        Total por formas
+                      </td>
                       <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
                       </td>
@@ -1425,7 +1457,9 @@ export default function FinanceView({
                     ))}
 
                     <tr className="bg-slate-50">
-                      <td className="px-4 py-3.5 text-right font-black uppercase">Total</td>
+                      <td className="px-4 py-3.5 text-right font-black uppercase">
+                        Total produzido
+                      </td>
                       <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                         {formatCurrency(totalRevenue)}
                       </td>
@@ -1483,7 +1517,7 @@ export default function FinanceView({
 
                   <tr className="bg-slate-50">
                     <td colSpan={3} className="px-4 py-3.5 text-right font-black uppercase">
-                      Total
+                      Total vendido em produtos
                     </td>
                     <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
                       {formatCurrency(totalProductsRevenue)}
@@ -1502,13 +1536,31 @@ export default function FinanceView({
               Resumo do período
             </p>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-[10px] font-black uppercase text-slate-400">
-                  Faturamento
+                  Serviços
                 </span>
                 <p className="text-lg font-black text-[#0f4c5c]">
                   {formatCurrency(totalRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400">
+                  Produtos
+                </span>
+                <p className="text-lg font-black text-[#0f4c5c]">
+                  {formatCurrency(totalProductsRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-3">
+                <span className="text-[10px] font-black uppercase text-[#0f4c5c]">
+                  Faturamento bruto total
+                </span>
+                <p className="text-lg font-black text-[#0f4c5c]">
+                  {formatCurrency(totalGrossRevenue)}
                 </p>
               </div>
 
@@ -1523,10 +1575,10 @@ export default function FinanceView({
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-[10px] font-black uppercase text-slate-400">
-                  Líquido
+                  Líquido estimado
                 </span>
                 <p className="text-lg font-black text-[#0f4c5c]">
-                  {formatCurrency(totalRevenue - totalCommissions)}
+                  {formatCurrency(totalGrossRevenue - totalCommissions)}
                 </p>
               </div>
             </div>
