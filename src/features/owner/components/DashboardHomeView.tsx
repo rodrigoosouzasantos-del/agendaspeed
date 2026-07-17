@@ -10,6 +10,7 @@
  */
 
 import React, {
+  useEffect,
   useMemo,
   useState
 } from 'react';
@@ -436,6 +437,19 @@ function isOperationalAppointmentVisible(params: {
     hideExpired = false
   } = params;
 
+  if (hideExpired) {
+    const currentDateStr = getCurrentDateStr();
+
+    if (dateStr === currentDateStr) {
+      const currentMinutes = getCurrentTimeInMinutes();
+      const appointmentMinutes = getAppointmentTimeInMinutes(appointment);
+
+      if (currentMinutes > appointmentMinutes + 20) {
+        return false;
+      }
+    }
+  }
+
   if (isHistoricalAppointmentStatus(appointment.status)) {
     return !isHistoricalSlotAlreadyOccupied({
       appointment,
@@ -443,28 +457,7 @@ function isOperationalAppointmentVisible(params: {
     });
   }
 
-  if (!hideExpired) {
-    return true;
-  }
-
-  if (appointment.status === 'completed') {
-    return false;
-  }
-
-  const currentDateStr = getCurrentDateStr();
-
-  if (dateStr !== currentDateStr) {
-    return true;
-  }
-
-  const currentMinutes = getCurrentTimeInMinutes();
-  const appointmentMinutes = getAppointmentTimeInMinutes(appointment);
-  const serviceDuration = getServiceDurationMinutes({
-    appointment,
-    services
-  });
-
-  return currentMinutes <= appointmentMinutes + serviceDuration + 30;
+  return true;
 }
 
 function countProfessionalSlotsForDate(params: {
@@ -726,6 +719,17 @@ export default function DashboardHomeView({
 }: DashboardHomeViewProps) {
   const [activeFilter, setActiveFilter] =
     useState<DashboardFilter>('all');
+  const [timeRefreshVersion, setTimeRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    const refreshIntervalId = window.setInterval(() => {
+      setTimeRefreshVersion((currentVersion) => currentVersion + 1);
+    }, 60000);
+
+    return () => {
+      window.clearInterval(refreshIntervalId);
+    };
+  }, []);
 
   const [showServicesAnalysis, setShowServicesAnalysis] = useState(false);
   const [servicesAnalysisPeriod, setServicesAnalysisPeriod] =
@@ -773,14 +777,16 @@ export default function DashboardHomeView({
         appointment,
         dateStr: baseDateStr,
         appointments,
-        services
+        services,
+        hideExpired: true
       });
     });
   }, [
     todayAppointmentsSorted,
     baseDateStr,
     appointments,
-    services
+    services,
+    timeRefreshVersion
   ]);
 
   const operationalNextBusinessAppointments = useMemo(() => {
