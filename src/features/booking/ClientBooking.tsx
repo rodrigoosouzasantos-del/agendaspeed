@@ -303,6 +303,7 @@ interface ClientBookingFeedbackState {
 interface PublicBookingCreationRow {
   appointment_id: string;
   client_id: string;
+  public_short_token?: string;
   public_access_token?: string;
   client_public_access_token?: string;
   access_token?: string;
@@ -492,6 +493,7 @@ function extractPublicAccessToken(value: unknown): string {
     const record = firstValue as Record<string, unknown>;
 
     return String(
+      record.public_short_token ||
       record.public_access_token ||
       record.client_public_access_token ||
       record.access_token ||
@@ -599,6 +601,77 @@ function formatPublicPhone(value: string): string {
   }
 
   return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2, 7)}-${localDigits.slice(7, 11)}`;
+}
+
+function normalizeClientName(value: string): string {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .toLocaleUpperCase('pt-BR');
+}
+
+function getLocalWhatsappDigits(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+
+  if (digits.startsWith('55') && digits.length > 11) {
+    return digits.slice(2, 13);
+  }
+
+  return digits.slice(0, 11);
+}
+
+function formatClientWhatsapp(value: string): string {
+  return formatPublicPhone(getLocalWhatsappDigits(value));
+}
+
+function isValidClientWhatsapp(value: string): boolean {
+  const digits = getLocalWhatsappDigits(value);
+
+  return digits.length === 10 || digits.length === 11;
+}
+
+interface PublicClientLookupRow {
+  found?: boolean;
+  client_name?: string;
+  name?: string;
+}
+
+async function findPublicClientNameByPhone(params: {
+  slug: string;
+  phone: string;
+}): Promise<string> {
+  const phoneDigits = getLocalWhatsappDigits(params.phone);
+
+  if (!params.slug || !isValidClientWhatsapp(phoneDigits)) {
+    return '';
+  }
+
+  const { data, error } = await supabase.rpc(
+    'get_public_client_name_by_phone',
+    {
+      p_slug: params.slug,
+      p_phone: phoneDigits
+    }
+  );
+
+  if (error) {
+    console.warn(
+      'Não foi possível consultar o nome do cliente pelo WhatsApp:',
+      error.message
+    );
+    return '';
+  }
+
+  const firstRow = (
+    Array.isArray(data) ? data[0] : data
+  ) as PublicClientLookupRow | null;
+
+  if (!firstRow || firstRow.found === false) {
+    return '';
+  }
+
+  return normalizeClientName(
+    String(firstRow.client_name || firstRow.name || '')
+  ).trim();
 }
 
 function normalizePublicAddress(address: string): string {
@@ -1117,14 +1190,17 @@ function ClientInfoStep({
 
         <div className="space-y-3">
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">Nome completo</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">WhatsApp</span>
             <div className="relative">
-              <User className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+              <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
               <input
-                type="text"
-                value={clientName}
-                onChange={(event) => onChangeClientName(event.target.value)}
-                placeholder="Digite seu nome completo"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                value={clientPhone}
+                onChange={(event) => onChangeClientPhone(event.target.value)}
+                placeholder="(99) 99999-9999"
+                maxLength={15}
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#1A3038] focus:bg-white"
                 required
               />
@@ -1132,15 +1208,16 @@ function ClientInfoStep({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">WhatsApp</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">Nome completo</span>
             <div className="relative">
-              <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+              <User className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
               <input
-                type="tel"
-                value={clientPhone}
-                onChange={(event) => onChangeClientPhone(event.target.value)}
-                placeholder="(99) 99999-9999"
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#1A3038] focus:bg-white"
+                type="text"
+                autoComplete="name"
+                value={clientName}
+                onChange={(event) => onChangeClientName(event.target.value)}
+                placeholder="DIGITE SEU NOME COMPLETO"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-10 pr-3 text-sm font-semibold uppercase text-slate-700 outline-none transition focus:border-[#1A3038] focus:bg-white"
                 required
               />
             </div>
@@ -1354,6 +1431,7 @@ export default function ClientBooking({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientNameWasAutoFilled, setClientNameWasAutoFilled] = useState(false);
   const [notes, setNotes] = useState('');
 
   const [createdWhatsappUrl, setCreatedWhatsappUrl] = useState('');
@@ -1623,6 +1701,68 @@ export default function ClientBooking({
     });
   };
 
+  const handleChangeClientName = (value: string) => {
+    setClientName(normalizeClientName(value));
+    setClientNameWasAutoFilled(false);
+  };
+
+  const handleChangeClientPhone = (value: string) => {
+    const formattedPhone = formatClientWhatsapp(value);
+
+    setClientPhone(formattedPhone);
+
+    if (!isValidClientWhatsapp(formattedPhone)) {
+      if (clientNameWasAutoFilled) {
+        setClientName('');
+      }
+
+      setClientNameWasAutoFilled(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      currentStep !== 4 ||
+      !publicSlug ||
+      !isValidClientWhatsapp(clientPhone)
+    ) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const lookupTimeoutId = window.setTimeout(async () => {
+      const foundClientName = await findPublicClientNameByPhone({
+        slug: publicSlug,
+        phone: clientPhone
+      });
+
+      if (isCancelled) return;
+
+      if (foundClientName) {
+        setClientName(foundClientName);
+        setClientNameWasAutoFilled(true);
+        return;
+      }
+
+      if (clientNameWasAutoFilled) {
+        setClientName('');
+      }
+
+      setClientNameWasAutoFilled(false);
+    }, 450);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(lookupTimeoutId);
+    };
+  }, [
+    currentStep,
+    publicSlug,
+    clientPhone,
+    clientNameWasAutoFilled
+  ]);
+
   const handleSelectService = (service: Service) => {
     setSelectedService(service);
     setSelectedProfessional(null);
@@ -1715,6 +1855,7 @@ export default function ClientBooking({
     setClientName('');
     setClientPhone('');
     setClientEmail('');
+    setClientNameWasAutoFilled(false);
     setNotes('');
     setCreatedWhatsappUrl('');
   };
@@ -1804,6 +1945,17 @@ export default function ClientBooking({
       return;
     }
 
+    if (!isValidClientWhatsapp(clientPhone)) {
+      showFeedbackMessage(
+        'WhatsApp inválido',
+        'Informe um número com DDD, usando 10 ou 11 dígitos.'
+      );
+      return;
+    }
+
+    const normalizedClientName = normalizeClientName(clientName).trim();
+    const normalizedClientPhone = getLocalWhatsappDigits(clientPhone);
+
     const commissionValue = calculateBookingCommission({
       selectedService,
       selectedProfessional
@@ -1834,8 +1986,8 @@ export default function ClientBooking({
         p_service_id: selectedService.id,
         p_professional_id: selectedProfessional.id,
         p_starts_at_local: `${selectedDate}T${selectedTime}`,
-        p_client_name: clientName.trim(),
-        p_client_phone: clientPhone.trim(),
+        p_client_name: normalizedClientName,
+        p_client_phone: normalizedClientPhone,
         p_client_email: clientEmail.trim() || null,
         p_notes: appointmentNotes || null
       });
@@ -1863,13 +2015,13 @@ export default function ClientBooking({
       const newAppointment: Appointment = {
         id: firstRow.appointment_id,
         dateTime: `${selectedDate}T${selectedTime}`,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
+        clientName: normalizedClientName,
+        clientPhone: normalizedClientPhone,
         clientEmail: clientEmail.trim() || undefined,
         serviceId: selectedService.id,
         professionalId: selectedProfessional.id,
         price: selectedService.price,
-        status: config.autoApprove ? 'confirmed' : 'scheduled',
+        status: 'scheduled',
         paymentType: 'pendente',
         notes: appointmentNotes || 'Agendamento realizado pela Vitrine pública.',
         commissionPaid: false,
@@ -1909,7 +2061,7 @@ export default function ClientBooking({
       const nextWhatsappUrl = buildClientFollowUpWhatsappUrl({
         companyPhone: config.phone,
         companyName: config.name || 'estabelecimento',
-        clientName: clientName.trim(),
+        clientName: normalizedClientName,
         serviceName: selectedService.name,
         professionalName: selectedProfessional.name,
         selectedDate,
@@ -2020,8 +2172,8 @@ export default function ClientBooking({
           clientPhone={clientPhone}
           clientEmail={clientEmail}
           notes={notes}
-          onChangeClientName={setClientName}
-          onChangeClientPhone={setClientPhone}
+          onChangeClientName={handleChangeClientName}
+          onChangeClientPhone={handleChangeClientPhone}
           onChangeClientEmail={setClientEmail}
           onChangeNotes={setNotes}
           onBack={handleBackToDateTime}
