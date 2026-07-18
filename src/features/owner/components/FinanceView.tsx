@@ -2273,23 +2273,23 @@ export default function FinanceView({
       <button
         type="button"
         onClick={() => setActiveFinanceTab(tab)}
-        className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0f4c5c]/40 hover:shadow-md"
+        className="min-h-[190px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0f4c5c]/40 hover:shadow-md"
       >
-        <div className="flex items-start gap-3">
+        <div className="flex h-full items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0f4c5c]/10 text-[#0f4c5c]">
             {icon}
           </span>
 
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0f4c5c]">
               Relatório
             </p>
 
-            <h3 className="mt-1 text-base font-black text-neutral-950">
+            <h3 className="mt-1 min-h-[48px] text-[15px] font-black leading-6 text-neutral-950">
               {title}
             </h3>
 
-            <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
               {description}
             </p>
           </div>
@@ -2336,7 +2336,7 @@ export default function FinanceView({
       </div>
 
       {!activeFinanceTab && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {renderFinanceOption({
             tab: 'faturamento',
             title: 'Faturamento',
@@ -2353,22 +2353,22 @@ export default function FinanceView({
 
           {renderFinanceOption({
             tab: 'movimentacao',
-            title: 'Movimentação Financeira',
-            description: 'Entradas e saídas do período em dinheiro, PIX, débito, crédito e cortesia.',
+            title: 'Movimentação',
+            description: 'Entradas e saídas por dinheiro, PIX, débito, crédito e cortesia.',
             icon: <ArrowUpDown className="h-5 w-5" />
           })}
 
           {renderFinanceOption({
             tab: 'livroCaixa',
-            title: 'Livro Caixa — Dinheiro',
-            description: 'Controle exclusivo do caixa físico, somente com entradas e saídas em dinheiro.',
+            title: 'Livro Caixa',
+            description: 'Controle do caixa físico, somente com entradas e saídas em dinheiro.',
             icon: <WalletCards className="h-5 w-5" />
           })}
 
           {renderFinanceOption({
             tab: 'despesas',
             title: 'Despesas',
-            description: 'Cadastre despesas fixas ou avulsas, controle vencimentos e registre pagamentos.',
+            description: 'Cadastre despesas fixas ou avulsas, vencimentos e pagamentos.',
             icon: <FileText className="h-5 w-5" />
           })}
         </div>
@@ -2549,39 +2549,7 @@ export default function FinanceView({
         </PanelCard>
       )}
 
-      {activeFinanceTab === 'comissoes' && (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setShowCommissionHistory(true)}
-                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
-                >
-                  <History className="h-4 w-4" />
-                  HISTÓRICO
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePrintCommissionsA4}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
-                >
-                  Imprimir A4
-                </button>
-              </div>
-            )}
-
-            {activeFinanceTab === 'movimentacao' && (
-              <button
-                type="button"
-                onClick={handlePrintFinancialMovement}
-                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
-              >
-                <Printer className="h-4 w-4" />
-                Imprimir Movimentação
-              </button>
-            )}
-
-            {activeFinanceTab === 'despesas' && (
+      {activeFinanceTab === 'despesas' && (
               <button
                 type="button"
                 onClick={handleOpenNewExpenseTemplate}
@@ -3095,6 +3063,38 @@ export default function FinanceView({
       )}
 
       {activeFinanceTab === 'comissoes' && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setShowCommissionHistory(true)}
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  HISTÓRICO
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintCommissionsA4}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 transition hover:border-[#0f4c5c]/40 hover:bg-slate-50"
+                >
+                  Imprimir A4
+                </button>
+              </div>
+            )}
+
+            {activeFinanceTab === 'movimentacao' && (
+              <button
+                type="button"
+                onClick={handlePrintFinancialMovement}
+                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Movimentação
+              </button>
+            )}
+
+            {activeFinanceTab === 'comissoes' && (
         <PanelCard title="Comissões da Equipe">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
