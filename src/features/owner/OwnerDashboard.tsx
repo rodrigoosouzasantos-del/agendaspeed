@@ -58,6 +58,7 @@ import ProductsView from "./components/ProductsView";
 import ClientsView from "./components/ClientsView";
 import FinanceView, {
   CommissionPaymentPayload,
+  CommissionPaymentRecord,
 } from "./components/FinanceView";
 import SubscriptionView from "./components/SubscriptionView";
 import ReceiptsView, {
@@ -637,6 +638,22 @@ type SupabaseCashExpenseResponse = {
   updated_at: string;
 };
 
+type SupabaseCommissionPaymentResponse = {
+  id: string;
+  tenant_id: string;
+  professional_id: string;
+  period_start: string;
+  period_end: string;
+  calculated_commission: number;
+  extra_value: number;
+  discount_value: number;
+  amount_paid: number;
+  payment_type: PaymentType | string;
+  paid_at: string;
+  notes: string | null;
+  created_at: string;
+};
+
 function isUuid(value: string | null | undefined): boolean {
   return Boolean(
     value &&
@@ -747,6 +764,32 @@ function mapSupabaseCashExpenseToAppCashExpense(
     notes: expense.notes || "",
     paidAt: expenseDate ? `${expenseDate}T00:00` : createdAt,
     createdAt,
+  };
+}
+
+function mapSupabaseCommissionPaymentToAppRecord(params: {
+  payment: SupabaseCommissionPaymentResponse;
+  professionals: Professional[];
+}): CommissionPaymentRecord {
+  const { payment, professionals } = params;
+  const professional = professionals.find(
+    (item) => item.id === payment.professional_id,
+  );
+
+  return {
+    id: payment.id,
+    professionalId: payment.professional_id,
+    professionalName: professional?.name || "Profissional",
+    periodStart: String(payment.period_start || "").slice(0, 10),
+    periodEnd: String(payment.period_end || "").slice(0, 10),
+    calculatedCommission: Number(payment.calculated_commission) || 0,
+    extraValue: Number(payment.extra_value) || 0,
+    discountValue: Number(payment.discount_value) || 0,
+    amountPaid: Number(payment.amount_paid) || 0,
+    paymentType: normalizeReceiptPaymentType(payment.payment_type),
+    paidAt: String(payment.paid_at || "").slice(0, 10),
+    notes: payment.notes || undefined,
+    createdAt: String(payment.created_at || "").slice(0, 16),
   };
 }
 
@@ -1272,6 +1315,8 @@ export default function OwnerDashboard({
   // A fonte oficial do caixa em produção passa a ser receipts, receipt_items e cash_expenses no Supabase.
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
+  const [commissionPayments, setCommissionPayments] =
+    useState<CommissionPaymentRecord[]>([]);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -1921,6 +1966,54 @@ export default function OwnerDashboard({
     return nextProducts;
   };
 
+  const loadCommissionPaymentsFromSupabase = async (
+    showFeedback = false,
+  ): Promise<CommissionPaymentRecord[]> => {
+    if (!tenantId) {
+      setCommissionPayments([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("commission_payments")
+      .select(
+        "id,tenant_id,professional_id,period_start,period_end,calculated_commission,extra_value,discount_value,amount_paid,payment_type,paid_at,notes,created_at",
+      )
+      .eq("tenant_id", tenantId)
+      .order("paid_at", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(
+        "Erro ao carregar histórico de comissões:",
+        error.message,
+      );
+
+      if (showFeedback) {
+        showOwnerFeedback(
+          error.message ||
+            "Não foi possível carregar o histórico de comissões.",
+          "Histórico não carregado",
+        );
+      }
+
+      return [];
+    }
+
+    const rows = (Array.isArray(data) ? data : []) as
+      SupabaseCommissionPaymentResponse[];
+
+    const nextCommissionPayments = rows.map((payment) =>
+      mapSupabaseCommissionPaymentToAppRecord({
+        payment,
+        professionals,
+      }),
+    );
+
+    setCommissionPayments(nextCommissionPayments);
+    return nextCommissionPayments;
+  };
+
   const loadFinancialRecordsFromSupabase = async (
     showLoading = true,
   ): Promise<{
@@ -2125,6 +2218,18 @@ export default function OwnerDashboard({
     // Carrega caixa real quando o tenant é identificado. Supabase é a fonte oficial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
+
+
+  useEffect(() => {
+    if (!tenantId) {
+      setCommissionPayments([]);
+      return;
+    }
+
+    void loadCommissionPaymentsFromSupabase(false);
+    // Carrega o histórico de comissões quando a empresa é identificada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, professionals.length]);
 
 
   const loadSaasBilling = async () => {
@@ -4828,6 +4933,7 @@ ${professionalAccessLink}`);
     }
 
     const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+    await loadCommissionPaymentsFromSupabase(false);
 
     onUpdateState({
       ...state,
@@ -4836,6 +4942,67 @@ ${professionalAccessLink}`);
       receipts: loadedRecords.receipts,
       cashExpenses: loadedRecords.cashExpenses,
     } as unknown as typeof state);
+  };
+
+  const handleUpdateCommissionPaidAt = async (
+    paymentId: string,
+    paidAt: string,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para atualizar a comissão.",
+      );
+    }
+
+    const currentPayment = commissionPayments.find(
+      (payment) => payment.id === paymentId,
+    );
+
+    if (!currentPayment) {
+      throw new Error("Pagamento de comissão não encontrado.");
+    }
+
+    const { error: commissionUpdateError } = await supabase
+      .from("commission_payments")
+      .update({ paid_at: paidAt })
+      .eq("tenant_id", tenantId)
+      .eq("id", paymentId);
+
+    if (commissionUpdateError) {
+      throw new Error(
+        commissionUpdateError.message ||
+          "Não foi possível atualizar a data da comissão.",
+      );
+    }
+
+    const expenseDescription =
+      `Comissão paga - ${currentPayment.professionalName} ` +
+      `(${currentPayment.periodStart.split("-").reverse().join("/")} a ` +
+      `${currentPayment.periodEnd.split("-").reverse().join("/")})`;
+
+    const { error: expenseUpdateError } = await supabase
+      .from("cash_expenses")
+      .update({ expense_date: paidAt })
+      .eq("tenant_id", tenantId)
+      .eq("description", expenseDescription);
+
+    if (expenseUpdateError) {
+      await supabase
+        .from("commission_payments")
+        .update({ paid_at: currentPayment.paidAt })
+        .eq("tenant_id", tenantId)
+        .eq("id", paymentId);
+
+      throw new Error(
+        expenseUpdateError.message ||
+          "A data da comissão não foi alterada porque a despesa vinculada não pôde ser atualizada.",
+      );
+    }
+
+    await Promise.all([
+      loadCommissionPaymentsFromSupabase(false),
+      loadFinancialRecordsFromSupabase(false),
+    ]);
   };
 
   const sortedServices = sortServicesForDisplay({
@@ -5049,7 +5216,9 @@ ${professionalAccessLink}`);
               companyName={configName}
               companyAddress={configAddress}
               companyPhone={configPhone}
+              commissionPayments={commissionPayments}
               onPayCommission={handlePayCommission}
+              onUpdateCommissionPaidAt={handleUpdateCommissionPaidAt}
             />
           )}
 
