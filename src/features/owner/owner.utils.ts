@@ -194,18 +194,6 @@ export function calculateOwnerFinancialSummary(params: {
     return appointment.status === 'absent';
   }).length;
 
-  const currentMonthChairRentalValue = professionals.reduce((sum, professional) => {
-    const hasChairRental =
-      professional.remType === 'chair_rental' ||
-      professional.remType === 'mixed';
-
-    if (professional.active && hasChairRental) {
-      return sum + professional.chairRentalValue;
-    }
-
-    return sum;
-  }, 0);
-
   return {
     completedAppointments,
     todayAppointments,
@@ -214,8 +202,7 @@ export function calculateOwnerFinancialSummary(params: {
     totalReceivedMonth,
     totalCommissionsMonth,
     activeProfessionalsCount,
-    clientAbsencesCount,
-    currentMonthChairRentalValue
+    clientAbsencesCount
   };
 }
 
