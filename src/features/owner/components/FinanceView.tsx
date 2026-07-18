@@ -18,10 +18,15 @@ import {
   ArrowLeft,
   ArrowUpDown,
   BarChart3,
+  CheckCircle2,
   Coins,
+  FileText,
   Filter,
   History,
+  Pencil,
+  Plus,
   Printer,
+  Trash2,
   WalletCards
 } from 'lucide-react';
 
@@ -47,7 +52,8 @@ type FinanceInternalTab =
   | 'faturamento'
   | 'comissoes'
   | 'movimentacao'
-  | 'livroCaixa';
+  | 'livroCaixa'
+  | 'despesas';
 
 export interface CommissionPaymentPayload {
   professionalId: string;
@@ -79,6 +85,57 @@ export interface CommissionPaymentRecord {
   createdAt?: string;
 }
 
+export interface ExpenseTemplateRecord {
+  id: string;
+  description: string;
+  expectedAmount: number;
+  dueDay?: number;
+  isMonthly: boolean;
+  active: boolean;
+  notes?: string;
+}
+
+export interface ExpensePaymentRecord {
+  id: string;
+  expenseTemplateId?: string;
+  description: string;
+  competenceMonth: string;
+  dueDate?: string;
+  expectedAmount: number;
+  interestValue: number;
+  fineValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  status: 'pending' | 'paid' | 'cancelled';
+  paidAt?: string;
+  notes?: string;
+}
+
+export interface ExpenseTemplatePayload {
+  id?: string;
+  description: string;
+  expectedAmount: number;
+  dueDay?: number;
+  isMonthly: boolean;
+  notes?: string;
+}
+
+export interface ExpensePaymentPayload {
+  expenseTemplateId: string;
+  description: string;
+  competenceMonth: string;
+  dueDate?: string;
+  expectedAmount: number;
+  interestValue: number;
+  fineValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  paidAt: string;
+  notes?: string;
+}
+
 interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
@@ -89,12 +146,23 @@ interface FinanceViewProps {
   companyAddress: string;
   companyPhone: string;
   commissionPayments?: CommissionPaymentRecord[];
+  expenseTemplates?: ExpenseTemplateRecord[];
+  expensePayments?: ExpensePaymentRecord[];
   onPayCommission?: (
     payload: CommissionPaymentPayload
   ) => void | Promise<void>;
   onUpdateCommissionPaidAt?: (
     paymentId: string,
     paidAt: string
+  ) => void | Promise<void>;
+  onSaveExpenseTemplate?: (
+    payload: ExpenseTemplatePayload
+  ) => void | Promise<void>;
+  onDeleteExpenseTemplate?: (
+    expenseTemplateId: string
+  ) => void | Promise<void>;
+  onPayExpense?: (
+    payload: ExpensePaymentPayload
   ) => void | Promise<void>;
 }
 
@@ -452,8 +520,13 @@ export default function FinanceView({
   companyAddress,
   companyPhone,
   commissionPayments = [],
+  expenseTemplates = [],
+  expensePayments = [],
   onPayCommission,
-  onUpdateCommissionPaidAt
+  onUpdateCommissionPaidAt,
+  onSaveExpenseTemplate,
+  onDeleteExpenseTemplate,
+  onPayExpense
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -499,6 +572,38 @@ export default function FinanceView({
   const [editedCommissionPaidAt, setEditedCommissionPaidAt] = useState('');
   const [isUpdatingCommissionPaidAt, setIsUpdatingCommissionPaidAt] =
     useState(false);
+
+  const [editingExpenseTemplate, setEditingExpenseTemplate] =
+    useState<ExpenseTemplateRecord | null>(null);
+  const [showExpenseTemplateModal, setShowExpenseTemplateModal] =
+    useState(false);
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseExpectedAmount, setExpenseExpectedAmount] = useState(0);
+  const [expenseDueDay, setExpenseDueDay] = useState('');
+  const [expenseIsMonthly, setExpenseIsMonthly] = useState(true);
+  const [expenseTemplateNotes, setExpenseTemplateNotes] = useState('');
+  const [isSavingExpenseTemplate, setIsSavingExpenseTemplate] =
+    useState(false);
+  const [expenseTemplateToDelete, setExpenseTemplateToDelete] =
+    useState<ExpenseTemplateRecord | null>(null);
+  const [isDeletingExpenseTemplate, setIsDeletingExpenseTemplate] =
+    useState(false);
+  const [expenseToPay, setExpenseToPay] =
+    useState<ExpenseTemplateRecord | null>(null);
+  const [expensePaidAt, setExpensePaidAt] = useState(
+    formatLocalDateStr(new Date())
+  );
+  const [expensePaymentType, setExpensePaymentType] =
+    useState<PaymentType>('dinheiro');
+  const [expenseInterestValue, setExpenseInterestValue] = useState(0);
+  const [expenseFineValue, setExpenseFineValue] = useState(0);
+  const [expenseDiscountValue, setExpenseDiscountValue] = useState(0);
+  const [expensePaymentNotes, setExpensePaymentNotes] = useState('');
+  const [isPayingExpense, setIsPayingExpense] = useState(false);
+  const [expenseFeedback, setExpenseFeedback] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   const draftPeriodDays = getInclusivePeriodDays(draftPeriod);
   const periodDays = getInclusivePeriodDays(period);
@@ -1062,6 +1167,310 @@ export default function FinanceView({
 
     setPendingCommissionPrintHtml('');
     setCommissionFeedback(null);
+  };
+
+  const competenceMonth = `${period.startDate.slice(0, 7)}-01`;
+
+  const expensePaymentByTemplateId = useMemo(() => {
+    const paymentMap = new Map<string, ExpensePaymentRecord>();
+
+    expensePayments.forEach((payment) => {
+      if (
+        payment.expenseTemplateId &&
+        payment.competenceMonth === competenceMonth &&
+        payment.status !== 'cancelled'
+      ) {
+        paymentMap.set(payment.expenseTemplateId, payment);
+      }
+    });
+
+    return paymentMap;
+  }, [competenceMonth, expensePayments]);
+
+  const expenseRows = useMemo(() => {
+    return expenseTemplates
+      .filter((template) => template.active)
+      .map((template) => {
+        const payment = expensePaymentByTemplateId.get(template.id);
+        const dueDate = template.dueDay
+          ? `${competenceMonth.slice(0, 8)}${String(template.dueDay).padStart(2, '0')}`
+          : '';
+
+        return {
+          template,
+          payment,
+          dueDate
+        };
+      })
+      .sort((firstRow, secondRow) => {
+        const firstDueDay = firstRow.template.dueDay || 32;
+        const secondDueDay = secondRow.template.dueDay || 32;
+
+        if (firstDueDay !== secondDueDay) {
+          return firstDueDay - secondDueDay;
+        }
+
+        return firstRow.template.description.localeCompare(
+          secondRow.template.description,
+          'pt-BR'
+        );
+      });
+  }, [
+    competenceMonth,
+    expensePaymentByTemplateId,
+    expenseTemplates
+  ]);
+
+  const expensePaymentTotal = expenseToPay
+    ? Math.max(
+        0,
+        expenseToPay.expectedAmount +
+          expenseInterestValue +
+          expenseFineValue -
+          expenseDiscountValue
+      )
+    : 0;
+
+  const resetExpenseTemplateForm = () => {
+    setEditingExpenseTemplate(null);
+    setShowExpenseTemplateModal(false);
+    setExpenseDescription('');
+    setExpenseExpectedAmount(0);
+    setExpenseDueDay('');
+    setExpenseIsMonthly(true);
+    setExpenseTemplateNotes('');
+  };
+
+  const handleOpenNewExpenseTemplate = () => {
+    resetExpenseTemplateForm();
+    setShowExpenseTemplateModal(true);
+  };
+
+  const handleOpenEditExpenseTemplate = (
+    template: ExpenseTemplateRecord
+  ) => {
+    setEditingExpenseTemplate(template);
+    setExpenseDescription(template.description);
+    setExpenseExpectedAmount(template.expectedAmount);
+    setExpenseDueDay(
+      template.dueDay ? String(template.dueDay) : ''
+    );
+    setExpenseIsMonthly(template.isMonthly);
+    setExpenseTemplateNotes(template.notes || '');
+    setShowExpenseTemplateModal(true);
+  };
+
+  const handleSaveExpenseTemplate = async () => {
+    if (isSavingExpenseTemplate) {
+      return;
+    }
+
+    const normalizedDescription = expenseDescription.trim();
+
+    if (!normalizedDescription) {
+      setExpenseFeedback({
+        title: 'Descrição obrigatória',
+        message: 'Informe o nome da despesa.'
+      });
+      return;
+    }
+
+    if (expenseExpectedAmount < 0) {
+      setExpenseFeedback({
+        title: 'Valor inválido',
+        message: 'O valor previsto da despesa não pode ser negativo.'
+      });
+      return;
+    }
+
+    const normalizedDueDay = expenseDueDay
+      ? Number(expenseDueDay)
+      : undefined;
+
+    if (
+      normalizedDueDay !== undefined &&
+      (normalizedDueDay < 1 || normalizedDueDay > 31)
+    ) {
+      setExpenseFeedback({
+        title: 'Vencimento inválido',
+        message: 'O dia do vencimento deve estar entre 1 e 31.'
+      });
+      return;
+    }
+
+    if (!onSaveExpenseTemplate) {
+      setExpenseFeedback({
+        title: 'Integração pendente',
+        message:
+          'O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    setIsSavingExpenseTemplate(true);
+
+    try {
+      await onSaveExpenseTemplate({
+        id: editingExpenseTemplate?.id,
+        description: normalizedDescription,
+        expectedAmount: expenseExpectedAmount,
+        dueDay: normalizedDueDay,
+        isMonthly: expenseIsMonthly,
+        notes: expenseTemplateNotes.trim() || undefined
+      });
+
+      resetExpenseTemplateForm();
+      setExpenseFeedback({
+        title: editingExpenseTemplate
+          ? 'Despesa alterada'
+          : 'Despesa incluída',
+        message: 'O cadastro da despesa foi salvo com sucesso.'
+      });
+    } catch (error) {
+      setExpenseFeedback({
+        title: 'Despesa não salva',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível salvar a despesa.'
+      });
+    } finally {
+      setIsSavingExpenseTemplate(false);
+    }
+  };
+
+  const handleConfirmDeleteExpenseTemplate = async () => {
+    if (
+      !expenseTemplateToDelete ||
+      isDeletingExpenseTemplate
+    ) {
+      return;
+    }
+
+    if (!onDeleteExpenseTemplate) {
+      setExpenseFeedback({
+        title: 'Integração pendente',
+        message:
+          'A exclusão ainda precisa ser conectada ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    setIsDeletingExpenseTemplate(true);
+
+    try {
+      await onDeleteExpenseTemplate(expenseTemplateToDelete.id);
+      setExpenseTemplateToDelete(null);
+      setExpenseFeedback({
+        title: 'Despesa excluída',
+        message: 'O cadastro foi removido com sucesso.'
+      });
+    } catch (error) {
+      setExpenseFeedback({
+        title: 'Despesa não excluída',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível excluir a despesa.'
+      });
+    } finally {
+      setIsDeletingExpenseTemplate(false);
+    }
+  };
+
+  const resetExpensePaymentForm = () => {
+    setExpenseToPay(null);
+    setExpensePaidAt(formatLocalDateStr(new Date()));
+    setExpensePaymentType('dinheiro');
+    setExpenseInterestValue(0);
+    setExpenseFineValue(0);
+    setExpenseDiscountValue(0);
+    setExpensePaymentNotes('');
+  };
+
+  const handleOpenExpensePayment = (
+    template: ExpenseTemplateRecord
+  ) => {
+    setExpenseToPay(template);
+    setExpensePaidAt(formatLocalDateStr(new Date()));
+    setExpensePaymentType('dinheiro');
+    setExpenseInterestValue(0);
+    setExpenseFineValue(0);
+    setExpenseDiscountValue(0);
+    setExpensePaymentNotes('');
+  };
+
+  const handleConfirmExpensePayment = async () => {
+    if (!expenseToPay || isPayingExpense) {
+      return;
+    }
+
+    if (!expensePaidAt) {
+      setExpenseFeedback({
+        title: 'Data obrigatória',
+        message: 'Informe a data do pagamento.'
+      });
+      return;
+    }
+
+    if (expensePaymentTotal <= 0) {
+      setExpenseFeedback({
+        title: 'Valor inválido',
+        message: 'O valor final da despesa precisa ser maior que zero.'
+      });
+      return;
+    }
+
+    if (!onPayExpense) {
+      setExpenseFeedback({
+        title: 'Integração pendente',
+        message:
+          'O pagamento está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    const dueDate = expenseToPay.dueDay
+      ? `${competenceMonth.slice(0, 8)}${String(
+          Math.min(expenseToPay.dueDay, 28)
+        ).padStart(2, '0')}`
+      : undefined;
+
+    setIsPayingExpense(true);
+
+    try {
+      await onPayExpense({
+        expenseTemplateId: expenseToPay.id,
+        description: expenseToPay.description,
+        competenceMonth,
+        dueDate,
+        expectedAmount: expenseToPay.expectedAmount,
+        interestValue: expenseInterestValue,
+        fineValue: expenseFineValue,
+        discountValue: expenseDiscountValue,
+        amountPaid: expensePaymentTotal,
+        paymentType: expensePaymentType,
+        paidAt: expensePaidAt,
+        notes: expensePaymentNotes.trim() || undefined
+      });
+
+      resetExpensePaymentForm();
+      setExpenseFeedback({
+        title: 'Despesa paga',
+        message:
+          'O pagamento foi registrado e passará a alimentar os relatórios financeiros.'
+      });
+    } catch (error) {
+      setExpenseFeedback({
+        title: 'Pagamento não concluído',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível registrar o pagamento da despesa.'
+      });
+    } finally {
+      setIsPayingExpense(false);
+    }
   };
 
   const financialMovementRows = useMemo<FinancialMovementRow[]>(() => {
@@ -1927,7 +2336,7 @@ export default function FinanceView({
       </div>
 
       {!activeFinanceTab && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           {renderFinanceOption({
             tab: 'faturamento',
             title: 'Faturamento',
@@ -1954,6 +2363,13 @@ export default function FinanceView({
             title: 'Livro Caixa — Dinheiro',
             description: 'Controle exclusivo do caixa físico, somente com entradas e saídas em dinheiro.',
             icon: <WalletCards className="h-5 w-5" />
+          })}
+
+          {renderFinanceOption({
+            tab: 'despesas',
+            title: 'Despesas',
+            description: 'Cadastre despesas fixas ou avulsas, controle vencimentos e registre pagamentos.',
+            icon: <FileText className="h-5 w-5" />
           })}
         </div>
       )}
@@ -2014,7 +2430,126 @@ export default function FinanceView({
               </button>
             )}
 
-            {activeFinanceTab === 'comissoes' && (
+            {activeFinanceTab === 'despesas' && (
+        <PanelCard title="Despesas do Mês">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3.5">Despesa</th>
+                  <th className="px-4 py-3.5 text-right">Valor previsto</th>
+                  <th className="px-4 py-3.5 text-center">Vencimento</th>
+                  <th className="px-4 py-3.5 text-center">Recorrência</th>
+                  <th className="px-4 py-3.5 text-center">Status</th>
+                  <th className="px-4 py-3.5">Observações</th>
+                  <th className="px-4 py-3.5 text-right">Ações</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {expenseRows.map(({ template, payment, dueDate }) => {
+                  const isPaid = payment?.status === 'paid';
+
+                  return (
+                    <tr key={template.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3.5 font-black text-slate-900">
+                        {template.description}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
+                        {formatCurrency(template.expectedAmount)}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center font-bold text-slate-700">
+                        {dueDate
+                          ? formatDateBr(dueDate)
+                          : 'Sem vencimento'}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${
+                          template.isMonthly
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {template.isMonthly ? 'Mensal' : 'Avulsa'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${
+                          isPaid
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {isPaid ? 'Paga' : 'Pendente'}
+                        </span>
+                      </td>
+
+                      <td className="max-w-xs px-4 py-3.5 font-semibold text-slate-500">
+                        {template.notes || '-'}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditExpenseTemplate(template)}
+                            disabled={isPaid}
+                            className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Alterar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setExpenseTemplateToDelete(template)}
+                            disabled={isPaid}
+                            className="rounded-xl border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+
+                          {isPaid ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              PAGA
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenExpensePayment(template)}
+                              className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-[10px] font-black text-white hover:bg-[#123945]"
+                            >
+                              PAGAR
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {expenseRows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                      Nenhuma despesa cadastrada para este mês.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </PanelCard>
+      )}
+
+      {activeFinanceTab === 'comissoes' && (
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
@@ -2043,6 +2578,17 @@ export default function FinanceView({
               >
                 <Printer className="h-4 w-4" />
                 Imprimir Movimentação
+              </button>
+            )}
+
+            {activeFinanceTab === 'despesas' && (
+              <button
+                type="button"
+                onClick={handleOpenNewExpenseTemplate}
+                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                INCLUIR DESPESA
               </button>
             )}
 
@@ -2669,6 +3215,378 @@ export default function FinanceView({
             </table>
           </div>
         </PanelCard>
+      )}
+
+      {showExpenseTemplateModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#0f4c5c]" />
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
+                    Despesas
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    {editingExpenseTemplate
+                      ? 'Alterar despesa'
+                      : 'Incluir despesa'}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetExpenseTemplateForm}
+                  disabled={isSavingExpenseTemplate}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Descrição
+                  </span>
+                  <input
+                    type="text"
+                    value={expenseDescription}
+                    onChange={(event) =>
+                      setExpenseDescription(event.target.value.toUpperCase())
+                    }
+                    placeholder="Ex.: ENERGIA"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Valor previsto
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseExpectedAmount)}
+                    onChange={(event) =>
+                      setExpenseExpectedAmount(
+                        parseCurrencyInput(event.target.value)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Dia do vencimento
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={expenseDueDay}
+                    onChange={(event) => setExpenseDueDay(event.target.value)}
+                    placeholder="Ex.: 10"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <input
+                  type="checkbox"
+                  checked={expenseIsMonthly}
+                  onChange={(event) =>
+                    setExpenseIsMonthly(event.target.checked)
+                  }
+                  className="h-4 w-4 accent-[#0f4c5c]"
+                />
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    Repetir mensalmente
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-500">
+                    A despesa será preparada automaticamente nos próximos meses.
+                  </p>
+                </div>
+              </label>
+
+              <label className="mt-3 block space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-500">
+                  Observações
+                </span>
+                <textarea
+                  value={expenseTemplateNotes}
+                  onChange={(event) =>
+                    setExpenseTemplateNotes(event.target.value)
+                  }
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
+                />
+              </label>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={resetExpenseTemplateForm}
+                  disabled={isSavingExpenseTemplate}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveExpenseTemplate}
+                  disabled={isSavingExpenseTemplate}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
+                >
+                  {isSavingExpenseTemplate ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expenseToPay && (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#0f4c5c]" />
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
+                    Pagamento de despesa
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    {expenseToPay.description}
+                  </h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Competência {formatDateBr(competenceMonth)}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetExpensePaymentForm}
+                  disabled={isPayingExpense}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Data do pagamento
+                  </span>
+                  <input
+                    type="date"
+                    value={expensePaidAt}
+                    onChange={(event) => setExpensePaidAt(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Forma de pagamento
+                  </span>
+                  <select
+                    value={expensePaymentType}
+                    onChange={(event) =>
+                      setExpensePaymentType(event.target.value as PaymentType)
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  >
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="pix">PIX</option>
+                    <option value="debito">Débito</option>
+                    <option value="credito">Crédito</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Valor previsto
+                  </span>
+                  <input
+                    type="text"
+                    value={formatCurrencyInput(expenseToPay.expectedAmount)}
+                    disabled
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-500"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Juros
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseInterestValue)}
+                    onChange={(event) =>
+                      setExpenseInterestValue(
+                        parseCurrencyInput(event.target.value)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Multa
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseFineValue)}
+                    onChange={(event) =>
+                      setExpenseFineValue(
+                        parseCurrencyInput(event.target.value)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Desconto
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseDiscountValue)}
+                    onChange={(event) =>
+                      setExpenseDiscountValue(
+                        parseCurrencyInput(event.target.value)
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 block space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-500">
+                  Observações
+                </span>
+                <textarea
+                  value={expensePaymentNotes}
+                  onChange={(event) =>
+                    setExpensePaymentNotes(event.target.value)
+                  }
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
+                />
+              </label>
+
+              <div className="mt-4 rounded-2xl border border-[#0f4c5c]/25 bg-[#0f4c5c]/5 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-black uppercase text-[#0f4c5c]">
+                    Total a pagar
+                  </span>
+                  <strong className="text-xl font-black text-[#0f4c5c]">
+                    {formatCurrency(expensePaymentTotal)}
+                  </strong>
+                </div>
+                <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                  Valor previsto + juros + multa - desconto.
+                </p>
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={resetExpensePaymentForm}
+                  disabled={isPayingExpense}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmExpensePayment}
+                  disabled={isPayingExpense}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
+                >
+                  {isPayingExpense ? 'Salvando...' : 'Confirmar pagamento'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expenseTemplateToDelete && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-red-500" />
+
+            <div className="p-5">
+              <h2 className="text-lg font-black text-slate-950">
+                Excluir despesa?
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                O cadastro “{expenseTemplateToDelete.description}” será removido.
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpenseTemplateToDelete(null)}
+                  disabled={isDeletingExpenseTemplate}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteExpenseTemplate}
+                  disabled={isDeletingExpenseTemplate}
+                  className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isDeletingExpenseTemplate ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expenseFeedback && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#E0A96D]" />
+            <div className="p-5">
+              <h2 className="text-lg font-black text-slate-950">
+                {expenseFeedback.title}
+              </h2>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                {expenseFeedback.message}
+              </p>
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setExpenseFeedback(null)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showCommissionHistory && (

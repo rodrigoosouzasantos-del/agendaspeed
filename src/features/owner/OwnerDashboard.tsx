@@ -59,6 +59,10 @@ import ClientsView from "./components/ClientsView";
 import FinanceView, {
   CommissionPaymentPayload,
   CommissionPaymentRecord,
+  ExpensePaymentPayload,
+  ExpensePaymentRecord,
+  ExpenseTemplatePayload,
+  ExpenseTemplateRecord,
 } from "./components/FinanceView";
 import SubscriptionView from "./components/SubscriptionView";
 import ReceiptsView, {
@@ -654,6 +658,39 @@ type SupabaseCommissionPaymentResponse = {
   created_at: string;
 };
 
+type SupabaseExpenseTemplateResponse = {
+  id: string;
+  tenant_id: string;
+  description: string;
+  expected_amount: number;
+  due_day: number | null;
+  is_monthly: boolean;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type SupabaseExpensePaymentResponse = {
+  id: string;
+  tenant_id: string;
+  expense_template_id: string | null;
+  description: string;
+  competence_month: string;
+  due_date: string | null;
+  expected_amount: number;
+  interest_value: number;
+  fine_value: number;
+  discount_value: number;
+  amount_paid: number;
+  payment_type: PaymentType | string;
+  status: string;
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function isUuid(value: string | null | undefined): boolean {
   return Boolean(
     value &&
@@ -790,6 +827,55 @@ function mapSupabaseCommissionPaymentToAppRecord(params: {
     paidAt: String(payment.paid_at || "").slice(0, 10),
     notes: payment.notes || undefined,
     createdAt: String(payment.created_at || "").slice(0, 16),
+  };
+}
+
+function mapSupabaseExpenseTemplateToAppRecord(
+  template: SupabaseExpenseTemplateResponse,
+): ExpenseTemplateRecord {
+  return {
+    id: template.id,
+    description: template.description || "Despesa",
+    expectedAmount: Number(template.expected_amount) || 0,
+    dueDay:
+      template.due_day === null || template.due_day === undefined
+        ? undefined
+        : Number(template.due_day),
+    isMonthly: template.is_monthly === true,
+    active: template.active !== false,
+    notes: template.notes || undefined,
+  };
+}
+
+function mapSupabaseExpensePaymentToAppRecord(
+  payment: SupabaseExpensePaymentResponse,
+): ExpensePaymentRecord {
+  const normalizedStatus =
+    payment.status === "paid"
+      ? "paid"
+      : payment.status === "cancelled"
+        ? "cancelled"
+        : "pending";
+
+  return {
+    id: payment.id,
+    expenseTemplateId: payment.expense_template_id || undefined,
+    description: payment.description || "Despesa",
+    competenceMonth: String(payment.competence_month || "").slice(0, 10),
+    dueDate: payment.due_date
+      ? String(payment.due_date).slice(0, 10)
+      : undefined,
+    expectedAmount: Number(payment.expected_amount) || 0,
+    interestValue: Number(payment.interest_value) || 0,
+    fineValue: Number(payment.fine_value) || 0,
+    discountValue: Number(payment.discount_value) || 0,
+    amountPaid: Number(payment.amount_paid) || 0,
+    paymentType: normalizeReceiptPaymentType(payment.payment_type),
+    status: normalizedStatus,
+    paidAt: payment.paid_at
+      ? String(payment.paid_at).slice(0, 10)
+      : undefined,
+    notes: payment.notes || undefined,
   };
 }
 
@@ -1317,6 +1403,10 @@ export default function OwnerDashboard({
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
   const [commissionPayments, setCommissionPayments] =
     useState<CommissionPaymentRecord[]>([]);
+  const [expenseTemplates, setExpenseTemplates] =
+    useState<ExpenseTemplateRecord[]>([]);
+  const [expensePayments, setExpensePayments] =
+    useState<ExpensePaymentRecord[]>([]);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -2014,6 +2104,82 @@ export default function OwnerDashboard({
     return nextCommissionPayments;
   };
 
+  const loadExpenseRecordsFromSupabase = async (
+    showFeedback = false,
+  ): Promise<{
+    templates: ExpenseTemplateRecord[];
+    payments: ExpensePaymentRecord[];
+  }> => {
+    if (!tenantId) {
+      setExpenseTemplates([]);
+      setExpensePayments([]);
+      return {
+        templates: [],
+        payments: [],
+      };
+    }
+
+    const [templatesResult, paymentsResult] = await Promise.all([
+      supabase
+        .from("expense_templates")
+        .select(
+          "id,tenant_id,description,expected_amount,due_day,is_monthly,active,notes,created_at,updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .order("due_day", { ascending: true, nullsFirst: false })
+        .order("description", { ascending: true }),
+      supabase
+        .from("expense_payments")
+        .select(
+          "id,tenant_id,expense_template_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .order("competence_month", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (templatesResult.error || paymentsResult.error) {
+      const message =
+        templatesResult.error?.message ||
+        paymentsResult.error?.message ||
+        "Não foi possível carregar as despesas.";
+
+      console.error("Erro ao carregar módulo de despesas:", message);
+
+      if (showFeedback) {
+        showOwnerFeedback(message, "Despesas não carregadas");
+      }
+
+      return {
+        templates: expenseTemplates,
+        payments: expensePayments,
+      };
+    }
+
+    const templateRows = (
+      Array.isArray(templatesResult.data) ? templatesResult.data : []
+    ) as SupabaseExpenseTemplateResponse[];
+
+    const paymentRows = (
+      Array.isArray(paymentsResult.data) ? paymentsResult.data : []
+    ) as SupabaseExpensePaymentResponse[];
+
+    const nextTemplates = templateRows.map(
+      mapSupabaseExpenseTemplateToAppRecord,
+    );
+    const nextPayments = paymentRows.map(
+      mapSupabaseExpensePaymentToAppRecord,
+    );
+
+    setExpenseTemplates(nextTemplates);
+    setExpensePayments(nextPayments);
+
+    return {
+      templates: nextTemplates,
+      payments: nextPayments,
+    };
+  };
+
   const loadFinancialRecordsFromSupabase = async (
     showLoading = true,
   ): Promise<{
@@ -2230,6 +2396,19 @@ export default function OwnerDashboard({
     // Carrega o histórico de comissões quando a empresa é identificada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, professionals.length]);
+
+
+  useEffect(() => {
+    if (!tenantId) {
+      setExpenseTemplates([]);
+      setExpensePayments([]);
+      return;
+    }
+
+    void loadExpenseRecordsFromSupabase(false);
+    // Carrega os cadastros e pagamentos de despesas quando o tenant é identificado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
 
   const loadSaasBilling = async () => {
@@ -5005,6 +5184,269 @@ ${professionalAccessLink}`);
     ]);
   };
 
+  const handleSaveExpenseTemplate = async (
+    payload: ExpenseTemplatePayload,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para salvar a despesa.",
+      );
+    }
+
+    const normalizedPayload = {
+      tenant_id: tenantId,
+      description: payload.description.trim().toUpperCase(),
+      expected_amount: Math.max(0, Number(payload.expectedAmount) || 0),
+      due_day:
+        payload.dueDay === undefined || payload.dueDay === null
+          ? null
+          : Math.min(31, Math.max(1, Number(payload.dueDay) || 1)),
+      is_monthly: payload.isMonthly === true,
+      active: true,
+      notes: payload.notes || null,
+    };
+
+    const query = payload.id
+      ? supabase
+          .from("expense_templates")
+          .update(normalizedPayload)
+          .eq("tenant_id", tenantId)
+          .eq("id", payload.id)
+      : supabase.from("expense_templates").insert(normalizedPayload);
+
+    const { data, error } = await query
+      .select(
+        "id,tenant_id,description,expected_amount,due_day,is_monthly,active,notes,created_at,updated_at",
+      )
+      .limit(1);
+
+    if (error) {
+      throw new Error(
+        error.message || "Não foi possível salvar a despesa.",
+      );
+    }
+
+    const savedRow = (
+      Array.isArray(data) ? data[0] : null
+    ) as SupabaseExpenseTemplateResponse | null;
+
+    if (!savedRow?.id) {
+      await loadExpenseRecordsFromSupabase(false);
+      throw new Error(
+        "A despesa foi processada, mas o registro atualizado não retornou.",
+      );
+    }
+
+    const savedTemplate = mapSupabaseExpenseTemplateToAppRecord(savedRow);
+
+    setExpenseTemplates((currentTemplates) => {
+      const exists = currentTemplates.some(
+        (template) => template.id === savedTemplate.id,
+      );
+
+      const nextTemplates = exists
+        ? currentTemplates.map((template) =>
+            template.id === savedTemplate.id
+              ? savedTemplate
+              : template,
+          )
+        : [...currentTemplates, savedTemplate];
+
+      return nextTemplates.sort((firstTemplate, secondTemplate) => {
+        const firstDueDay = firstTemplate.dueDay || 32;
+        const secondDueDay = secondTemplate.dueDay || 32;
+
+        if (firstDueDay !== secondDueDay) {
+          return firstDueDay - secondDueDay;
+        }
+
+        return firstTemplate.description.localeCompare(
+          secondTemplate.description,
+          "pt-BR",
+        );
+      });
+    });
+  };
+
+  const handleDeleteExpenseTemplate = async (
+    expenseTemplateId: string,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para excluir a despesa.",
+      );
+    }
+
+    const hasPaymentHistory = expensePayments.some(
+      (payment) =>
+        payment.expenseTemplateId === expenseTemplateId &&
+        payment.status === "paid",
+    );
+
+    if (hasPaymentHistory) {
+      throw new Error(
+        "Esta despesa já possui pagamento registrado e não pode ser excluída.",
+      );
+    }
+
+    const { error } = await supabase
+      .from("expense_templates")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("id", expenseTemplateId);
+
+    if (error) {
+      throw new Error(
+        error.message ||
+          "Não foi possível excluir a despesa. Verifique se existe alguma competência vinculada.",
+      );
+    }
+
+    setExpenseTemplates((currentTemplates) =>
+      currentTemplates.filter(
+        (template) => template.id !== expenseTemplateId,
+      ),
+    );
+  };
+
+  const handlePayExpense = async (
+    payload: ExpensePaymentPayload,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para pagar a despesa.",
+      );
+    }
+
+    const expectedAmountPaid = Math.max(
+      0,
+      Number(payload.expectedAmount) +
+        Number(payload.interestValue) +
+        Number(payload.fineValue) -
+        Number(payload.discountValue),
+    );
+
+    if (Math.abs(expectedAmountPaid - Number(payload.amountPaid)) > 0.01) {
+      throw new Error(
+        "O valor final não corresponde ao cálculo da despesa.",
+      );
+    }
+
+    const { data: existingPayments, error: existingPaymentError } =
+      await supabase
+        .from("expense_payments")
+        .select("id,status")
+        .eq("tenant_id", tenantId)
+        .eq("expense_template_id", payload.expenseTemplateId)
+        .eq("competence_month", payload.competenceMonth)
+        .neq("status", "cancelled")
+        .limit(1);
+
+    if (existingPaymentError) {
+      throw new Error(
+        existingPaymentError.message ||
+          "Não foi possível verificar pagamentos anteriores.",
+      );
+    }
+
+    if (
+      Array.isArray(existingPayments) &&
+      existingPayments.length > 0
+    ) {
+      throw new Error(
+        "Esta despesa já possui um registro nesta competência.",
+      );
+    }
+
+    const { data: paymentData, error: paymentError } = await supabase
+      .from("expense_payments")
+      .insert({
+        tenant_id: tenantId,
+        expense_template_id: payload.expenseTemplateId,
+        description: payload.description,
+        competence_month: payload.competenceMonth,
+        due_date: payload.dueDate || null,
+        expected_amount: Number(payload.expectedAmount) || 0,
+        interest_value: Number(payload.interestValue) || 0,
+        fine_value: Number(payload.fineValue) || 0,
+        discount_value: Number(payload.discountValue) || 0,
+        amount_paid: Number(payload.amountPaid) || 0,
+        payment_type: payload.paymentType,
+        status: "paid",
+        paid_at: payload.paidAt,
+        notes: payload.notes || null,
+      })
+      .select(
+        "id,tenant_id,expense_template_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+      )
+      .limit(1);
+
+    if (paymentError) {
+      throw new Error(
+        paymentError.message ||
+          "Não foi possível registrar o pagamento da despesa.",
+      );
+    }
+
+    const savedPaymentRow = (
+      Array.isArray(paymentData) ? paymentData[0] : null
+    ) as SupabaseExpensePaymentResponse | null;
+
+    if (!savedPaymentRow?.id) {
+      throw new Error(
+        "O pagamento foi processado, mas o registro não retornou.",
+      );
+    }
+
+    const expenseDescription =
+      `${payload.description} - competência ` +
+      `${payload.competenceMonth.slice(0, 7).split("-").reverse().join("/")}`;
+
+    const { error: cashExpenseError } = await supabase
+      .from("cash_expenses")
+      .insert({
+        tenant_id: tenantId,
+        description: expenseDescription,
+        amount: Number(payload.amountPaid) || 0,
+        payment_type: payload.paymentType,
+        expense_date: payload.paidAt,
+        notes: payload.notes || null,
+      });
+
+    if (cashExpenseError) {
+      await supabase
+        .from("expense_payments")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", savedPaymentRow.id);
+
+      throw new Error(
+        cashExpenseError.message ||
+          "O pagamento não foi concluído porque não foi possível alimentar os relatórios financeiros.",
+      );
+    }
+
+    const savedPayment =
+      mapSupabaseExpensePaymentToAppRecord(savedPaymentRow);
+
+    setExpensePayments((currentPayments) => [
+      savedPayment,
+      ...currentPayments.filter(
+        (payment) => payment.id !== savedPayment.id,
+      ),
+    ]);
+
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+
+    onUpdateState({
+      ...state,
+      appointments,
+      clients,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
+    } as unknown as typeof state);
+  };
+
   const sortedServices = sortServicesForDisplay({
     services,
     categoryOrders: serviceCategoryOrders,
@@ -5217,8 +5659,13 @@ ${professionalAccessLink}`);
               companyAddress={configAddress}
               companyPhone={configPhone}
               commissionPayments={commissionPayments}
+              expenseTemplates={expenseTemplates}
+              expensePayments={expensePayments}
               onPayCommission={handlePayCommission}
               onUpdateCommissionPaidAt={handleUpdateCommissionPaidAt}
+              onSaveExpenseTemplate={handleSaveExpenseTemplate}
+              onDeleteExpenseTemplate={handleDeleteExpenseTemplate}
+              onPayExpense={handlePayExpense}
             />
           )}
 
