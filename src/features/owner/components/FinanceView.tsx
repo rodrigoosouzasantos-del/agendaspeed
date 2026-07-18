@@ -2430,7 +2430,60 @@ export default function FinanceView({
               </button>
             )}
 
-            {activeFinanceTab === 'despesas' && (
+      {activeFinanceTab === 'despesas' && (
+              <button
+                type="button"
+                onClick={handleOpenNewExpenseTemplate}
+                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                INCLUIR DESPESA
+              </button>
+            )}
+
+            {activeFinanceTab === 'livroCaixa' && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Saldo inicial
+                  </span>
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(initialCashBalance)}
+                    onChange={(event) => handleChangeInitialCashBalance(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black outline-none focus:border-[#0f4c5c] sm:w-40"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handlePrintCashBook}
+                  className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Imprimir Caixa em Dinheiro
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isInvalidDraftPeriod && (
+            <p className="px-4 pb-3 text-xs font-bold text-red-600">
+              A data inicial não pode ser maior que a data final.
+            </p>
+          )}
+
+          {!isInvalidDraftPeriod && isDraftPeriodTooLong && (
+            <p className="px-4 pb-3 text-xs font-bold text-red-600">
+              O período máximo permitido é de 31 dias corridos.
+            </p>
+          )}
+        </div>
+      )}
+
+      {activeFinanceTab === 'despesas' && (
         <PanelCard title="Despesas do Mês">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -2549,58 +2602,6 @@ export default function FinanceView({
         </PanelCard>
       )}
 
-      {activeFinanceTab === 'despesas' && (
-              <button
-                type="button"
-                onClick={handleOpenNewExpenseTemplate}
-                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                INCLUIR DESPESA
-              </button>
-            )}
-
-            {activeFinanceTab === 'livroCaixa' && (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <label className="space-y-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    Saldo inicial
-                  </span>
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrencyInput(initialCashBalance)}
-                    onChange={(event) => handleChangeInitialCashBalance(event.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black outline-none focus:border-[#0f4c5c] sm:w-40"
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={handlePrintCashBook}
-                  className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
-                >
-                  <Printer className="h-4 w-4" />
-                  Imprimir Caixa em Dinheiro
-                </button>
-              </div>
-            )}
-          </div>
-
-          {isInvalidDraftPeriod && (
-            <p className="px-4 pb-3 text-xs font-bold text-red-600">
-              A data inicial não pode ser maior que a data final.
-            </p>
-          )}
-
-          {!isInvalidDraftPeriod && isDraftPeriodTooLong && (
-            <p className="px-4 pb-3 text-xs font-bold text-red-600">
-              O período máximo permitido é de 31 dias corridos.
-            </p>
-          )}
-        </div>
-      )}
 
       {activeFinanceTab === 'faturamento' && (
         <div className="space-y-3">
