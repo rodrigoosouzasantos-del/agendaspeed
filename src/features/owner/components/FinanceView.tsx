@@ -2046,120 +2046,7 @@ export default function FinanceView({
               </button>
             )}
 
-            {activeFinanceTab === 'movimentacao' && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Total de entradas
-              </p>
-              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
-                {formatCurrency(financialMovementIncomeTotal)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Total de saídas
-              </p>
-              <p className="mt-1 text-xl font-black text-red-600">
-                -{formatCurrency(financialMovementExpenseTotal).replace('R$', '').trim()}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-4 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f4c5c]">
-                Saldo do período
-              </p>
-              <p className={`mt-1 text-xl font-black ${
-                financialMovementBalance < 0
-                  ? 'text-red-600'
-                  : 'text-[#0f4c5c]'
-              }`}>
-                {formatCurrency(financialMovementBalance)}
-              </p>
-            </div>
-          </div>
-
-          <PanelCard title="Movimentação Financeira">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Data</th>
-                    <th className="px-4 py-3">Tipo</th>
-                    <th className="px-4 py-3">Descrição</th>
-                    <th className="px-4 py-3">Forma</th>
-                    <th className="px-4 py-3 text-right">Entrada</th>
-                    <th className="px-4 py-3 text-right">Saída</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-                  {financialMovementRows.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-bold text-slate-900">
-                        {formatDateBr(row.date)}
-                      </td>
-                      <td className="px-4 py-3 font-bold text-slate-700">
-                        {row.type === 'despesa'
-                          ? 'Saída'
-                          : row.type === 'cortesia'
-                            ? 'Cortesia'
-                            : 'Entrada'}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-slate-600">
-                        {row.description}
-                      </td>
-                      <td className="px-4 py-3 font-bold text-slate-700">
-                        {getPaymentLabel(row.paymentType)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-[#0f4c5c]">
-                        {row.entryValue > 0
-                          ? formatCurrency(row.entryValue)
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-red-600">
-                        {row.exitValue > 0
-                          ? formatCurrency(row.exitValue)
-                          : '-'}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {financialMovementRows.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        Nenhuma movimentação financeira neste período.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </PanelCard>
-
-          <PanelCard title="Entradas por Forma de Pagamento">
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-5">
-              {financialMovementPaymentTotals.map((row) => (
-                <div
-                  key={row.paymentType}
-                  className="border-b border-slate-100 p-4 sm:border-r"
-                >
-                  <p className="text-[10px] font-black uppercase text-slate-400">
-                    {getPaymentLabel(row.paymentType)}
-                  </p>
-                  <p className="mt-1 text-lg font-black text-[#0f4c5c]">
-                    {formatCurrency(row.total)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </PanelCard>
-        </div>
-      )}
-
-      {activeFinanceTab === 'livroCaixa' && (
+            {activeFinanceTab === 'livroCaixa' && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <label className="space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -2457,6 +2344,119 @@ export default function FinanceView({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeFinanceTab === 'movimentacao' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Total de entradas
+              </p>
+              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                {formatCurrency(financialMovementIncomeTotal)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Total de saídas
+              </p>
+              <p className="mt-1 text-xl font-black text-red-600">
+                -{formatCurrency(financialMovementExpenseTotal).replace('R$', '').trim()}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f4c5c]">
+                Saldo do período
+              </p>
+              <p className={`mt-1 text-xl font-black ${
+                financialMovementBalance < 0
+                  ? 'text-red-600'
+                  : 'text-[#0f4c5c]'
+              }`}>
+                {formatCurrency(financialMovementBalance)}
+              </p>
+            </div>
+          </div>
+
+          <PanelCard title="Movimentação Financeira">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Descrição</th>
+                    <th className="px-4 py-3">Forma</th>
+                    <th className="px-4 py-3 text-right">Entrada</th>
+                    <th className="px-4 py-3 text-right">Saída</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {financialMovementRows.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-bold text-slate-900">
+                        {formatDateBr(row.date)}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">
+                        {row.type === 'despesa'
+                          ? 'Saída'
+                          : row.type === 'cortesia'
+                            ? 'Cortesia'
+                            : 'Entrada'}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">
+                        {row.description}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">
+                        {getPaymentLabel(row.paymentType)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-[#0f4c5c]">
+                        {row.entryValue > 0
+                          ? formatCurrency(row.entryValue)
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-red-600">
+                        {row.exitValue > 0
+                          ? formatCurrency(row.exitValue)
+                          : '-'}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {financialMovementRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        Nenhuma movimentação financeira neste período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </PanelCard>
+
+          <PanelCard title="Entradas por Forma de Pagamento">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-5">
+              {financialMovementPaymentTotals.map((row) => (
+                <div
+                  key={row.paymentType}
+                  className="border-b border-slate-100 p-4 sm:border-r"
+                >
+                  <p className="text-[10px] font-black uppercase text-slate-400">
+                    {getPaymentLabel(row.paymentType)}
+                  </p>
+                  <p className="mt-1 text-lg font-black text-[#0f4c5c]">
+                    {formatCurrency(row.total)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </PanelCard>
         </div>
       )}
 
