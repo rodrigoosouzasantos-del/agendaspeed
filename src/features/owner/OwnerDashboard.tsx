@@ -56,7 +56,9 @@ import ProfessionalsView from "./components/ProfessionalsView";
 import ServicesView, { ServiceActionResult } from "./components/ServicesView";
 import ProductsView from "./components/ProductsView";
 import ClientsView from "./components/ClientsView";
-import FinanceView from "./components/FinanceView";
+import FinanceView, {
+  CommissionPaymentPayload,
+} from "./components/FinanceView";
 import SubscriptionView from "./components/SubscriptionView";
 import ReceiptsView, {
   ReceiptDraftItem,
@@ -4641,6 +4643,201 @@ ${professionalAccessLink}`);
     } as unknown as typeof state);
   };
 
+  const handlePayCommission = async (
+    payload: CommissionPaymentPayload,
+  ): Promise<void> => {
+    const failCommissionPayment = (message: string): never => {
+      showOwnerFeedback(message, "Comissão não paga");
+      throw new Error(message);
+    };
+
+    if (!tenantId) {
+      failCommissionPayment(
+        "Não foi possível identificar a empresa para registrar a comissão.",
+      );
+    }
+
+    if (!isValidUuid(payload.professionalId)) {
+      failCommissionPayment(
+        "O profissional selecionado não possui um cadastro válido no Supabase.",
+      );
+    }
+
+    const periodStart = new Date(`${payload.periodStart}T00:00:00Z`);
+    const periodEnd = new Date(`${payload.periodEnd}T00:00:00Z`);
+
+    if (
+      Number.isNaN(periodStart.getTime()) ||
+      Number.isNaN(periodEnd.getTime()) ||
+      periodEnd < periodStart
+    ) {
+      failCommissionPayment("O período informado para a comissão é inválido.");
+    }
+
+    const periodDifferenceInDays = Math.round(
+      (periodEnd.getTime() - periodStart.getTime()) / 86400000,
+    );
+
+    if (periodDifferenceInDays > 31) {
+      failCommissionPayment(
+        "O período máximo permitido para comissão é de 31 dias.",
+      );
+    }
+
+    const normalizedCalculatedCommission = Math.max(
+      0,
+      Number(payload.calculatedCommission) || 0,
+    );
+    const normalizedExtraValue = Math.max(
+      0,
+      Number(payload.extraValue) || 0,
+    );
+    const normalizedDiscountValue = Math.max(
+      0,
+      Number(payload.discountValue) || 0,
+    );
+    const normalizedAmountPaid = Math.max(
+      0,
+      Number(payload.amountPaid) || 0,
+    );
+
+    const expectedAmountPaid = Math.max(
+      0,
+      normalizedCalculatedCommission +
+        normalizedExtraValue -
+        normalizedDiscountValue,
+    );
+
+    if (Math.abs(normalizedAmountPaid - expectedAmountPaid) > 0.01) {
+      failCommissionPayment(
+        "O valor final da comissão não corresponde ao cálculo de comissão, extra e desconto.",
+      );
+    }
+
+    if (normalizedAmountPaid <= 0) {
+      failCommissionPayment(
+        "O valor final da comissão precisa ser maior que zero.",
+      );
+    }
+
+    const { data: overlappingPayments, error: overlapError } = await supabase
+      .from("commission_payments")
+      .select("id,period_start,period_end,amount_paid,paid_at")
+      .eq("tenant_id", tenantId)
+      .eq("professional_id", payload.professionalId)
+      .lte("period_start", payload.periodEnd)
+      .gte("period_end", payload.periodStart)
+      .limit(1);
+
+    if (overlapError) {
+      failCommissionPayment(
+        overlapError.message ||
+          "Não foi possível verificar pagamentos anteriores de comissão.",
+      );
+    }
+
+    const overlappingPayment = Array.isArray(overlappingPayments)
+      ? overlappingPayments[0]
+      : null;
+
+    if (overlappingPayment) {
+      const formattedStart = String(
+        overlappingPayment.period_start || "",
+      )
+        .split("-")
+        .reverse()
+        .join("/");
+      const formattedEnd = String(
+        overlappingPayment.period_end || "",
+      )
+        .split("-")
+        .reverse()
+        .join("/");
+
+      failCommissionPayment(
+        `Este profissional já possui comissão paga em período sobreposto (${formattedStart} a ${formattedEnd}). O período já pago permanece fechado.`,
+      );
+    }
+
+    const { data: commissionData, error: commissionError } = await supabase
+      .from("commission_payments")
+      .insert({
+        tenant_id: tenantId,
+        professional_id: payload.professionalId,
+        period_start: payload.periodStart,
+        period_end: payload.periodEnd,
+        calculated_commission: normalizedCalculatedCommission,
+        extra_value: normalizedExtraValue,
+        discount_value: normalizedDiscountValue,
+        amount_paid: normalizedAmountPaid,
+        payment_type: payload.paymentType,
+        paid_at: payload.paidAt,
+        notes: payload.notes || null,
+      })
+      .select("id")
+      .limit(1);
+
+    if (commissionError) {
+      failCommissionPayment(
+        commissionError.message ||
+          "Não foi possível registrar o pagamento da comissão.",
+      );
+    }
+
+    const savedCommissionPayment = Array.isArray(commissionData)
+      ? commissionData[0]
+      : null;
+
+    const savedCommissionPaymentId = savedCommissionPayment?.id;
+
+    if (!savedCommissionPaymentId) {
+      failCommissionPayment(
+        "A comissão foi processada, mas o registro não retornou do Supabase.",
+      );
+    }
+
+    const expenseDescription =
+      `Comissão paga - ${payload.professionalName} ` +
+      `(${payload.periodStart.split("-").reverse().join("/")} a ` +
+      `${payload.periodEnd.split("-").reverse().join("/")})`;
+
+    const { error: expenseError } = await supabase
+      .from("cash_expenses")
+      .insert({
+        tenant_id: tenantId,
+        description: expenseDescription,
+        amount: normalizedAmountPaid,
+        payment_type: payload.paymentType,
+        expense_date: payload.paidAt,
+        notes:
+          payload.notes ||
+          `Pagamento de comissão referente ao período de ${payload.periodStart} a ${payload.periodEnd}.`,
+      });
+
+    if (expenseError) {
+      await supabase
+        .from("commission_payments")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", savedCommissionPaymentId);
+
+      failCommissionPayment(
+        expenseError.message ||
+          "A comissão não foi concluída porque a despesa financeira não pôde ser registrada.",
+      );
+    }
+
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+
+    onUpdateState({
+      ...state,
+      appointments,
+      clients,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
+    } as unknown as typeof state);
+  };
+
   const sortedServices = sortServicesForDisplay({
     services,
     categoryOrders: serviceCategoryOrders,
@@ -4852,6 +5049,7 @@ ${professionalAccessLink}`);
               companyName={configName}
               companyAddress={configAddress}
               companyPhone={configPhone}
+              onPayCommission={handlePayCommission}
             />
           )}
 

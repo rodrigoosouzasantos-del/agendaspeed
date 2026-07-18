@@ -9,6 +9,7 @@
  */
 
 import React, {
+  useEffect,
   useMemo,
   useState
 } from 'react';
@@ -18,6 +19,7 @@ import {
   BarChart3,
   Coins,
   Filter,
+  History,
   Printer,
   WalletCards
 } from 'lucide-react';
@@ -56,6 +58,22 @@ export interface CommissionPaymentPayload {
   notes?: string;
 }
 
+export interface CommissionPaymentRecord {
+  id: string;
+  professionalId: string;
+  professionalName: string;
+  periodStart: string;
+  periodEnd: string;
+  calculatedCommission: number;
+  extraValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  paidAt: string;
+  notes?: string;
+  createdAt?: string;
+}
+
 interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
@@ -65,8 +83,13 @@ interface FinanceViewProps {
   companyName: string;
   companyAddress: string;
   companyPhone: string;
+  commissionPayments?: CommissionPaymentRecord[];
   onPayCommission?: (
     payload: CommissionPaymentPayload
+  ) => void | Promise<void>;
+  onUpdateCommissionPaidAt?: (
+    paymentId: string,
+    paidAt: string
   ) => void | Promise<void>;
 }
 
@@ -118,6 +141,27 @@ function formatDateBr(dateStr: string): string {
   }
 
   return dateStr.split('-').reverse().join('/');
+}
+
+function getInclusivePeriodDays(period: FinancePeriod): number {
+  if (!period.startDate || !period.endDate) {
+    return 0;
+  }
+
+  const startDate = new Date(`${period.startDate}T00:00:00Z`);
+  const endDate = new Date(`${period.endDate}T00:00:00Z`);
+
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    endDate < startDate
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    (endDate.getTime() - startDate.getTime()) / 86400000
+  ) + 1;
 }
 
 function formatEmissionDate(): string {
@@ -392,7 +436,9 @@ export default function FinanceView({
   companyName,
   companyAddress,
   companyPhone,
-  onPayCommission
+  commissionPayments = [],
+  onPayCommission,
+  onUpdateCommissionPaidAt
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -432,16 +478,34 @@ export default function FinanceView({
   const [pendingCommissionPrintHtml, setPendingCommissionPrintHtml] =
     useState('');
 
+  const [showCommissionHistory, setShowCommissionHistory] = useState(false);
+  const [editingPaidCommission, setEditingPaidCommission] =
+    useState<CommissionPaymentRecord | null>(null);
+  const [editedCommissionPaidAt, setEditedCommissionPaidAt] = useState('');
+  const [isUpdatingCommissionPaidAt, setIsUpdatingCommissionPaidAt] =
+    useState(false);
+
+  const draftPeriodDays = getInclusivePeriodDays(draftPeriod);
+  const periodDays = getInclusivePeriodDays(period);
+
   const isInvalidDraftPeriod =
     Boolean(draftPeriod.startDate && draftPeriod.endDate) &&
     draftPeriod.startDate > draftPeriod.endDate;
+
+  const isDraftPeriodTooLong =
+    Boolean(draftPeriod.startDate && draftPeriod.endDate) &&
+    draftPeriodDays > 31;
 
   const isInvalidPeriod =
     Boolean(period.startDate && period.endDate) &&
     period.startDate > period.endDate;
 
+  const isPeriodTooLong =
+    Boolean(period.startDate && period.endDate) &&
+    periodDays > 31;
+
   const filteredAppointments = useMemo(() => {
-    if (isInvalidPeriod) {
+    if (isInvalidPeriod || isPeriodTooLong) {
       return [];
     }
 
@@ -460,11 +524,12 @@ export default function FinanceView({
   }, [
     completedAppointments,
     isInvalidPeriod,
+    isPeriodTooLong,
     period
   ]);
 
   const filteredCashExpenses = useMemo(() => {
-    if (isInvalidPeriod) {
+    if (isInvalidPeriod || isPeriodTooLong) {
       return [];
     }
 
@@ -480,6 +545,7 @@ export default function FinanceView({
   }, [
     cashExpenses,
     isInvalidPeriod,
+    isPeriodTooLong,
     period
   ]);
 
@@ -590,7 +656,7 @@ export default function FinanceView({
   ]);
 
   const filteredReceipts = useMemo(() => {
-    if (isInvalidPeriod) {
+    if (isInvalidPeriod || isPeriodTooLong) {
       return [];
     }
 
@@ -715,6 +781,35 @@ export default function FinanceView({
     services
   ]);
 
+  const filteredCommissionPayments = useMemo(() => {
+    return commissionPayments
+      .filter((payment) => {
+        return (
+          payment.periodStart >= period.startDate &&
+          payment.periodEnd <= period.endDate
+        );
+      })
+      .sort((firstPayment, secondPayment) => {
+        return secondPayment.paidAt.localeCompare(firstPayment.paidAt);
+      });
+  }, [commissionPayments, period]);
+
+  const commissionPaymentByProfessionalId = useMemo(() => {
+    const paymentMap = new Map<string, CommissionPaymentRecord>();
+
+    commissionPayments.forEach((payment) => {
+      const overlapsSelectedPeriod =
+        payment.periodStart <= period.endDate &&
+        payment.periodEnd >= period.startDate;
+
+      if (overlapsSelectedPeriod && !paymentMap.has(payment.professionalId)) {
+        paymentMap.set(payment.professionalId, payment);
+      }
+    });
+
+    return paymentMap;
+  }, [commissionPayments, period]);
+
   const commissionAmountToPay = selectedCommissionRow
     ? Math.max(
         0,
@@ -740,6 +835,58 @@ export default function FinanceView({
     setCommissionExtraValue(0);
     setCommissionDiscountValue(0);
     setCommissionNotes('');
+  };
+
+  const handleOpenPaidCommission = (
+    payment: CommissionPaymentRecord
+  ) => {
+    setEditingPaidCommission(payment);
+    setEditedCommissionPaidAt(payment.paidAt);
+  };
+
+  const handleConfirmCommissionPaidAtUpdate = async () => {
+    if (
+      !editingPaidCommission ||
+      !editedCommissionPaidAt ||
+      isUpdatingCommissionPaidAt
+    ) {
+      return;
+    }
+
+    if (!onUpdateCommissionPaidAt) {
+      setCommissionFeedback({
+        title: 'Integração pendente',
+        message:
+          'A alteração da data ainda precisa ser conectada ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    setIsUpdatingCommissionPaidAt(true);
+
+    try {
+      await onUpdateCommissionPaidAt(
+        editingPaidCommission.id,
+        editedCommissionPaidAt
+      );
+
+      setEditingPaidCommission(null);
+      setEditedCommissionPaidAt('');
+      setCommissionFeedback({
+        title: 'Data atualizada',
+        message: 'A data do pagamento da comissão foi atualizada com sucesso.'
+      });
+    } catch (error) {
+      setCommissionFeedback({
+        title: 'Data não atualizada',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível atualizar a data do pagamento.'
+      });
+    } finally {
+      setIsUpdatingCommissionPaidAt(false);
+    }
   };
 
   const buildCommissionPaymentPrintHtml = (
@@ -962,7 +1109,7 @@ export default function FinanceView({
   };
 
   const handleApplyPeriodFilter = () => {
-    if (isInvalidDraftPeriod) {
+    if (isInvalidDraftPeriod || isDraftPeriodTooLong) {
       return;
     }
 
@@ -1108,6 +1255,144 @@ export default function FinanceView({
             <span>Data: ____/____/________</span>
           </div>
         </div>
+      `
+    });
+  };
+
+  const handlePrintCommissionHistory = () => {
+    const rowsHtml = filteredCommissionPayments.map((payment) => {
+      return `
+        <tr>
+          <td>${formatDateBr(payment.paidAt)}</td>
+          <td>${escapeHtml(payment.professionalName)}</td>
+          <td>${formatDateBr(payment.periodStart)} a ${formatDateBr(payment.periodEnd)}</td>
+          <td class="right">${formatCurrency(payment.calculatedCommission)}</td>
+          <td class="right">${formatCurrency(payment.extraValue)}</td>
+          <td class="right">${formatCurrency(payment.discountValue)}</td>
+          <td class="right">${formatCurrency(payment.amountPaid)}</td>
+          <td>${escapeHtml(getPaymentLabel(payment.paymentType))}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const totalCalculated = filteredCommissionPayments.reduce(
+      (sum, payment) => sum + payment.calculatedCommission,
+      0
+    );
+    const totalExtra = filteredCommissionPayments.reduce(
+      (sum, payment) => sum + payment.extraValue,
+      0
+    );
+    const totalDiscount = filteredCommissionPayments.reduce(
+      (sum, payment) => sum + payment.discountValue,
+      0
+    );
+    const totalPaid = filteredCommissionPayments.reduce(
+      (sum, payment) => sum + payment.amountPaid,
+      0
+    );
+
+    buildPrintWindow({
+      title: 'Histórico de Comissões',
+      body: `
+        ${buildEstablishmentPrintHeader({
+          companyName,
+          companyAddress,
+          companyPhone,
+          reportTitle: 'Histórico de Comissões Pagas',
+          period
+        })}
+
+        <table>
+          <thead>
+            <tr>
+              <th>Pagamento</th>
+              <th>Profissional</th>
+              <th>Período</th>
+              <th class="right">Comissão</th>
+              <th class="right">Extra</th>
+              <th class="right">Desconto</th>
+              <th class="right">Total pago</th>
+              <th>Forma</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="text-align:center;color:#64748b;">Nenhuma comissão paga no período.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Comissões calculadas</span>
+            <span>${formatCurrency(totalCalculated)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Extras</span>
+            <span>${formatCurrency(totalExtra)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Descontos</span>
+            <span>${formatCurrency(totalDiscount)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Total pago</span>
+            <span>${formatCurrency(totalPaid)}</span>
+          </div>
+        </div>
+      `
+    });
+  };
+
+  const handlePrintCommissionPaymentIndividual = (
+    payment: CommissionPaymentRecord
+  ) => {
+    buildPrintWindow({
+      title: `Comissão - ${payment.professionalName}`,
+      thermal: true,
+      body: `
+        ${buildEstablishmentPrintHeader({
+          companyName,
+          companyAddress,
+          companyPhone,
+          reportTitle: 'Comprovante Individual de Comissão',
+          period: {
+            startDate: payment.periodStart,
+            endDate: payment.periodEnd
+          }
+        })}
+
+        <table>
+          <tbody>
+            <tr>
+              <th>Profissional</th>
+              <td>${escapeHtml(payment.professionalName)}</td>
+            </tr>
+            <tr>
+              <th>Data do pagamento</th>
+              <td>${formatDateBr(payment.paidAt)}</td>
+            </tr>
+            <tr>
+              <th>Forma</th>
+              <td>${escapeHtml(getPaymentLabel(payment.paymentType))}</td>
+            </tr>
+            <tr>
+              <th>Comissão</th>
+              <td>${formatCurrency(payment.calculatedCommission)}</td>
+            </tr>
+            <tr>
+              <th>Extra</th>
+              <td>${formatCurrency(payment.extraValue)}</td>
+            </tr>
+            <tr>
+              <th>Desconto</th>
+              <td>${formatCurrency(payment.discountValue)}</td>
+            </tr>
+            <tr>
+              <th>Total pago</th>
+              <td><strong>${formatCurrency(payment.amountPaid)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
       `
     });
   };
@@ -1479,9 +1764,9 @@ export default function FinanceView({
               <button
                 type="button"
                 onClick={handleApplyPeriodFilter}
-                disabled={isInvalidDraftPeriod}
+                disabled={isInvalidDraftPeriod || isDraftPeriodTooLong}
                 className={`h-10 rounded-xl px-4 text-xs font-black transition flex items-center justify-center gap-2 ${
-                  isInvalidDraftPeriod
+                  isInvalidDraftPeriod || isDraftPeriodTooLong
                     ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                     : 'bg-[#0f4c5c] text-white hover:bg-[#123945]'
                 }`}
@@ -1506,10 +1791,11 @@ export default function FinanceView({
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  onClick={handlePrintCommissionsThermal}
-                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945]"
+                  onClick={() => setShowCommissionHistory(true)}
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
                 >
-                  Imprimir Filipeta
+                  <History className="h-4 w-4" />
+                  HISTÓRICO
                 </button>
 
                 <button
@@ -1553,6 +1839,12 @@ export default function FinanceView({
           {isInvalidDraftPeriod && (
             <p className="px-4 pb-3 text-xs font-bold text-red-600">
               A data inicial não pode ser maior que a data final.
+            </p>
+          )}
+
+          {!isInvalidDraftPeriod && isDraftPeriodTooLong && (
+            <p className="px-4 pb-3 text-xs font-bold text-red-600">
+              O período máximo permitido é de 31 dias corridos.
             </p>
           )}
         </div>
@@ -1921,7 +2213,11 @@ export default function FinanceView({
               </thead>
 
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                {commissionRows.map((row) => (
+                {commissionRows.map((row) => {
+                  const paidCommission =
+                    commissionPaymentByProfessionalId.get(row.professional.id);
+
+                  return (
                   <tr
                     id={`row-fin-comm-${row.professional.id}`}
                     key={row.professional.id}
@@ -1974,18 +2270,29 @@ export default function FinanceView({
                           Imprimir
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCommissionPayment(row)}
-                          disabled={row.commissionValue <= 0}
-                          className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-[10px] font-black text-white transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:bg-slate-300"
-                        >
-                          Pagar comissão
-                        </button>
+                        {paidCommission ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPaidCommission(paidCommission)}
+                            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            Comissão paga
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCommissionPayment(row)}
+                            disabled={row.commissionValue <= 0}
+                            className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-[10px] font-black text-white transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            Pagar comissão
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
 
                 {professionals.length === 0 && (
                   <tr>
@@ -2011,6 +2318,179 @@ export default function FinanceView({
             </table>
           </div>
         </PanelCard>
+      )}
+
+      {showCommissionHistory && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-[#0f4c5c]" />
+
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
+                  Comissões
+                </p>
+                <h2 className="text-xl font-black text-slate-950">
+                  Histórico de pagamentos
+                </h2>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintCommissionHistory}
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white hover:bg-[#123945]"
+                >
+                  HISTÓRICO
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCommissionHistory(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Pagamento</th>
+                    <th className="px-4 py-3">Profissional</th>
+                    <th className="px-4 py-3">Período</th>
+                    <th className="px-4 py-3 text-right">Comissão</th>
+                    <th className="px-4 py-3 text-right">Extra</th>
+                    <th className="px-4 py-3 text-right">Desconto</th>
+                    <th className="px-4 py-3 text-right">Total pago</th>
+                    <th className="px-4 py-3">Forma</th>
+                    <th className="px-4 py-3 text-right">Ação</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCommissionPayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-bold">
+                        {formatDateBr(payment.paidAt)}
+                      </td>
+                      <td className="px-4 py-3 font-black text-slate-900">
+                        {payment.professionalName}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">
+                        {formatDateBr(payment.periodStart)} a {formatDateBr(payment.periodEnd)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold">
+                        {formatCurrency(payment.calculatedCommission)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold">
+                        {formatCurrency(payment.extraValue)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold">
+                        {formatCurrency(payment.discountValue)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-[#0f4c5c]">
+                        {formatCurrency(payment.amountPaid)}
+                      </td>
+                      <td className="px-4 py-3 font-bold">
+                        {getPaymentLabel(payment.paymentType)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintCommissionPaymentIndividual(payment)}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 hover:bg-slate-50"
+                        >
+                          INDIVIDUAL
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredCommissionPayments.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        Nenhuma comissão paga no período selecionado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPaidCommission && (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-emerald-600" />
+
+            <div className="p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+                Comissão paga
+              </p>
+
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                {editingPaidCommission.professionalName}
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                Período fechado: {formatDateBr(editingPaidCommission.periodStart)} a {formatDateBr(editingPaidCommission.periodEnd)}
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase text-slate-400">
+                  Valor pago
+                </p>
+                <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                  {formatCurrency(editingPaidCommission.amountPaid)}
+                </p>
+              </div>
+
+              <label className="mt-4 block space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-500">
+                  Data do pagamento
+                </span>
+                <input
+                  type="date"
+                  value={editedCommissionPaidAt}
+                  onChange={(event) => setEditedCommissionPaidAt(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                />
+              </label>
+
+              <p className="mt-2 text-[11px] font-semibold text-slate-500">
+                Somente a data do pagamento pode ser alterada. O período e os valores permanecem congelados.
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPaidCommission(null);
+                    setEditedCommissionPaidAt('');
+                  }}
+                  disabled={isUpdatingCommissionPaidAt}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmCommissionPaidAtUpdate}
+                  disabled={isUpdatingCommissionPaidAt}
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
+                >
+                  {isUpdatingCommissionPaidAt ? 'Salvando...' : 'Salvar nova data'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {selectedCommissionRow && (
@@ -2107,13 +2587,12 @@ export default function FinanceView({
                     Extra
                   </span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={commissionExtraValue}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(commissionExtraValue)}
                     onChange={(event) =>
                       setCommissionExtraValue(
-                        Math.max(0, Number(event.target.value) || 0)
+                        parseCurrencyInput(event.target.value)
                       )
                     }
                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
@@ -2125,13 +2604,12 @@ export default function FinanceView({
                     Desconto
                   </span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={commissionDiscountValue}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(commissionDiscountValue)}
                     onChange={(event) =>
                       setCommissionDiscountValue(
-                        Math.max(0, Number(event.target.value) || 0)
+                        parseCurrencyInput(event.target.value)
                       )
                     }
                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
