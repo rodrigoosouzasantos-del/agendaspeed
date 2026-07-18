@@ -90,6 +90,7 @@ export interface ExpenseTemplateRecord {
   description: string;
   expectedAmount: number;
   dueDay?: number;
+  dueDate?: string;
   isMonthly: boolean;
   active: boolean;
   notes?: string;
@@ -117,6 +118,7 @@ export interface ExpenseTemplatePayload {
   description: string;
   expectedAmount: number;
   dueDay?: number;
+  dueDate?: string;
   isMonthly: boolean;
   notes?: string;
 }
@@ -178,6 +180,9 @@ interface FinanceViewProps {
   ) => void | Promise<void>;
   onUpdateExpensePayment?: (
     payload: ExpensePaymentUpdatePayload
+  ) => void | Promise<void>;
+  onDeleteExpensePayment?: (
+    paymentId: string
   ) => void | Promise<void>;
 }
 
@@ -542,7 +547,8 @@ export default function FinanceView({
   onSaveExpenseTemplate,
   onDeleteExpenseTemplate,
   onPayExpense,
-  onUpdateExpensePayment
+  onUpdateExpensePayment,
+  onDeleteExpensePayment
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -596,6 +602,7 @@ export default function FinanceView({
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseExpectedAmount, setExpenseExpectedAmount] = useState(0);
   const [expenseDueDay, setExpenseDueDay] = useState('');
+  const [expenseDueDate, setExpenseDueDate] = useState('');
   const [expenseIsMonthly, setExpenseIsMonthly] = useState(true);
   const [expenseTemplateNotes, setExpenseTemplateNotes] = useState('');
   const [isSavingExpenseTemplate, setIsSavingExpenseTemplate] =
@@ -619,6 +626,10 @@ export default function FinanceView({
   const [editingExpensePayment, setEditingExpensePayment] =
     useState<ExpensePaymentRecord | null>(null);
   const [isUpdatingExpensePayment, setIsUpdatingExpensePayment] =
+    useState(false);
+  const [expensePaymentToDelete, setExpensePaymentToDelete] =
+    useState<ExpensePaymentRecord | null>(null);
+  const [isDeletingExpensePayment, setIsDeletingExpensePayment] =
     useState(false);
   const [expenseFeedback, setExpenseFeedback] = useState<{
     title: string;
@@ -1212,9 +1223,13 @@ export default function FinanceView({
       .filter((template) => template.active)
       .map((template) => {
         const payment = expensePaymentByTemplateId.get(template.id);
-        const dueDate = template.dueDay
-          ? `${competenceMonth.slice(0, 8)}${String(template.dueDay).padStart(2, '0')}`
-          : '';
+        const dueDate = template.isMonthly
+          ? (
+              template.dueDay
+                ? `${competenceMonth.slice(0, 8)}${String(template.dueDay).padStart(2, '0')}`
+                : ''
+            )
+          : (template.dueDate || '');
 
         return {
           template,
@@ -1257,6 +1272,7 @@ export default function FinanceView({
     setExpenseDescription('');
     setExpenseExpectedAmount(0);
     setExpenseDueDay('');
+    setExpenseDueDate('');
     setExpenseIsMonthly(true);
     setExpenseTemplateNotes('');
   };
@@ -1275,6 +1291,7 @@ export default function FinanceView({
     setExpenseDueDay(
       template.dueDay ? String(template.dueDay) : ''
     );
+    setExpenseDueDate(template.dueDate || '');
     setExpenseIsMonthly(template.isMonthly);
     setExpenseTemplateNotes(template.notes || '');
     setShowExpenseTemplateModal(true);
@@ -1303,17 +1320,32 @@ export default function FinanceView({
       return;
     }
 
-    const normalizedDueDay = expenseDueDay
-      ? Number(expenseDueDay)
-      : undefined;
+    const normalizedDueDay =
+      expenseIsMonthly && expenseDueDay
+        ? Number(expenseDueDay)
+        : undefined;
+
+    const normalizedDueDate =
+      !expenseIsMonthly && expenseDueDate
+        ? expenseDueDate
+        : undefined;
 
     if (
+      expenseIsMonthly &&
       normalizedDueDay !== undefined &&
       (normalizedDueDay < 1 || normalizedDueDay > 31)
     ) {
       setExpenseFeedback({
         title: 'Vencimento inválido',
         message: 'O dia do vencimento deve estar entre 1 e 31.'
+      });
+      return;
+    }
+
+    if (!expenseIsMonthly && !normalizedDueDate) {
+      setExpenseFeedback({
+        title: 'Data obrigatória',
+        message: 'Informe a data completa da despesa eventual.'
       });
       return;
     }
@@ -1335,6 +1367,7 @@ export default function FinanceView({
         description: normalizedDescription,
         expectedAmount: expenseExpectedAmount,
         dueDay: normalizedDueDay,
+        dueDate: normalizedDueDate,
         isMonthly: expenseIsMonthly,
         notes: expenseTemplateNotes.trim() || undefined
       });
@@ -1450,11 +1483,15 @@ export default function FinanceView({
       return;
     }
 
-    const dueDate = expenseToPay.dueDay
-      ? `${competenceMonth.slice(0, 8)}${String(
-          Math.min(expenseToPay.dueDay, 28)
-        ).padStart(2, '0')}`
-      : undefined;
+    const dueDate = expenseToPay.isMonthly
+      ? (
+          expenseToPay.dueDay
+            ? `${competenceMonth.slice(0, 8)}${String(
+                Math.min(expenseToPay.dueDay, 28)
+              ).padStart(2, '0')}`
+            : undefined
+        )
+      : expenseToPay.dueDate;
 
     setIsPayingExpense(true);
 
@@ -1573,6 +1610,42 @@ export default function FinanceView({
       });
     } finally {
       setIsUpdatingExpensePayment(false);
+    }
+  };
+
+  const handleConfirmDeleteExpensePayment = async () => {
+    if (!expensePaymentToDelete || isDeletingExpensePayment) {
+      return;
+    }
+
+    if (!onDeleteExpensePayment) {
+      setExpenseFeedback({
+        title: 'Integração pendente',
+        message:
+          'A exclusão do lançamento ainda precisa ser conectada ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    setIsDeletingExpensePayment(true);
+
+    try {
+      await onDeleteExpensePayment(expensePaymentToDelete.id);
+      setExpensePaymentToDelete(null);
+      setExpenseFeedback({
+        title: 'Lançamento excluído',
+        message: 'O lançamento foi excluído com sucesso!'
+      });
+    } catch (error) {
+      setExpenseFeedback({
+        title: 'Lançamento não excluído',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível excluir o lançamento.'
+      });
+    } finally {
+      setIsDeletingExpensePayment(false);
     }
   };
 
@@ -2666,10 +2739,16 @@ export default function FinanceView({
 
                           <button
                             type="button"
-                            onClick={() => setExpenseTemplateToDelete(template)}
-                            disabled={isPaid}
-                            className="rounded-xl border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Excluir"
+                            onClick={() => {
+                              if (isPaid && payment) {
+                                setExpensePaymentToDelete(payment);
+                                return;
+                              }
+
+                              setExpenseTemplateToDelete(template);
+                            }}
+                            className="rounded-xl border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50"
+                            title={isPaid ? 'Excluir lançamento pago' : 'Excluir cadastro'}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -3392,29 +3471,50 @@ export default function FinanceView({
                   />
                 </label>
 
-                <label className="space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">
-                    Dia do vencimento
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    value={expenseDueDay}
-                    onChange={(event) => setExpenseDueDay(event.target.value)}
-                    placeholder="Ex.: 10"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                  />
-                </label>
+                {expenseIsMonthly ? (
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">
+                      Dia do vencimento
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={expenseDueDay}
+                      onChange={(event) => setExpenseDueDay(event.target.value)}
+                      placeholder="Ex.: 10"
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    />
+                  </label>
+                ) : (
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">
+                      Data da despesa
+                    </span>
+                    <input
+                      type="date"
+                      value={expenseDueDate}
+                      onChange={(event) => setExpenseDueDate(event.target.value)}
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    />
+                  </label>
+                )}
               </div>
 
               <label className="mt-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <input
                   type="checkbox"
                   checked={expenseIsMonthly}
-                  onChange={(event) =>
-                    setExpenseIsMonthly(event.target.checked)
-                  }
+                  onChange={(event) => {
+                    const nextIsMonthly = event.target.checked;
+                    setExpenseIsMonthly(nextIsMonthly);
+
+                    if (nextIsMonthly) {
+                      setExpenseDueDate('');
+                    } else {
+                      setExpenseDueDay('');
+                    }
+                  }}
                   className="h-4 w-4 accent-[#0f4c5c]"
                 />
                 <div>
@@ -3813,6 +3913,44 @@ export default function FinanceView({
                   className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
                 >
                   {isUpdatingExpensePayment ? 'Salvando...' : 'Salvar alteração'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expensePaymentToDelete && (
+        <div className="fixed inset-0 z-[132] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-red-600" />
+
+            <div className="p-5">
+              <h2 className="text-lg font-black text-slate-950">
+                Excluir lançamento pago?
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                O pagamento de “{expensePaymentToDelete.description}” será excluído e retirado dos relatórios financeiros.
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpensePaymentToDelete(null)}
+                  disabled={isDeletingExpensePayment}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteExpensePayment}
+                  disabled={isDeletingExpensePayment}
+                  className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isDeletingExpensePayment ? 'Excluindo...' : 'Excluir lançamento'}
                 </button>
               </div>
             </div>

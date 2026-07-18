@@ -665,6 +665,7 @@ type SupabaseExpenseTemplateResponse = {
   description: string;
   expected_amount: number;
   due_day: number | null;
+  due_date: string | null;
   is_monthly: boolean;
   active: boolean;
   notes: string | null;
@@ -676,6 +677,7 @@ type SupabaseExpensePaymentResponse = {
   id: string;
   tenant_id: string;
   expense_template_id: string | null;
+  cash_expense_id: string | null;
   description: string;
   competence_month: string;
   due_date: string | null;
@@ -842,6 +844,9 @@ function mapSupabaseExpenseTemplateToAppRecord(
       template.due_day === null || template.due_day === undefined
         ? undefined
         : Number(template.due_day),
+    dueDate: template.due_date
+      ? String(template.due_date).slice(0, 10)
+      : undefined,
     isMonthly: template.is_monthly === true,
     active: template.active !== false,
     notes: template.notes || undefined,
@@ -2124,7 +2129,7 @@ export default function OwnerDashboard({
       supabase
         .from("expense_templates")
         .select(
-          "id,tenant_id,description,expected_amount,due_day,is_monthly,active,notes,created_at,updated_at",
+          "id,tenant_id,description,expected_amount,due_day,due_date,is_monthly,active,notes,created_at,updated_at",
         )
         .eq("tenant_id", tenantId)
         .order("due_day", { ascending: true, nullsFirst: false })
@@ -2132,7 +2137,7 @@ export default function OwnerDashboard({
       supabase
         .from("expense_payments")
         .select(
-          "id,tenant_id,expense_template_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+          "id,tenant_id,expense_template_id,cash_expense_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
         )
         .eq("tenant_id", tenantId)
         .order("competence_month", { ascending: false })
@@ -5199,9 +5204,15 @@ ${professionalAccessLink}`);
       description: payload.description.trim().toUpperCase(),
       expected_amount: Math.max(0, Number(payload.expectedAmount) || 0),
       due_day:
-        payload.dueDay === undefined || payload.dueDay === null
-          ? null
-          : Math.min(31, Math.max(1, Number(payload.dueDay) || 1)),
+        payload.isMonthly &&
+        payload.dueDay !== undefined &&
+        payload.dueDay !== null
+          ? Math.min(31, Math.max(1, Number(payload.dueDay) || 1))
+          : null,
+      due_date:
+        !payload.isMonthly && payload.dueDate
+          ? payload.dueDate
+          : null,
       is_monthly: payload.isMonthly === true,
       active: true,
       notes: payload.notes || null,
@@ -5217,7 +5228,7 @@ ${professionalAccessLink}`);
 
     const { data, error } = await query
       .select(
-        "id,tenant_id,description,expected_amount,due_day,is_monthly,active,notes,created_at,updated_at",
+        "id,tenant_id,description,expected_amount,due_day,due_date,is_monthly,active,notes,created_at,updated_at",
       )
       .limit(1);
 
@@ -5403,7 +5414,7 @@ ${professionalAccessLink}`);
       `${payload.description} - competência ` +
       `${payload.competenceMonth.slice(0, 7).split("-").reverse().join("/")}`;
 
-    const { error: cashExpenseError } = await supabase
+    const { data: cashExpenseData, error: cashExpenseError } = await supabase
       .from("cash_expenses")
       .insert({
         tenant_id: tenantId,
@@ -5412,7 +5423,9 @@ ${professionalAccessLink}`);
         payment_type: payload.paymentType,
         expense_date: payload.paidAt,
         notes: payload.notes || null,
-      });
+      })
+      .select("id")
+      .limit(1);
 
     if (cashExpenseError) {
       await supabase
@@ -5427,8 +5440,74 @@ ${professionalAccessLink}`);
       );
     }
 
+    const savedCashExpenseId = Array.isArray(cashExpenseData)
+      ? cashExpenseData[0]?.id
+      : null;
+
+    if (!savedCashExpenseId) {
+      await supabase
+        .from("cash_expenses")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("description", expenseDescription)
+        .eq("amount", Number(payload.amountPaid) || 0)
+        .eq("payment_type", payload.paymentType)
+        .eq("expense_date", payload.paidAt);
+
+      await supabase
+        .from("expense_payments")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", savedPaymentRow.id);
+
+      throw new Error(
+        "O pagamento não foi concluído porque o lançamento financeiro não retornou do Supabase.",
+      );
+    }
+
+    const { data: linkedPaymentData, error: linkPaymentError } = await supabase
+      .from("expense_payments")
+      .update({
+        cash_expense_id: savedCashExpenseId,
+      })
+      .eq("tenant_id", tenantId)
+      .eq("id", savedPaymentRow.id)
+      .select(
+        "id,tenant_id,expense_template_id,cash_expense_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+      )
+      .limit(1);
+
+    if (linkPaymentError) {
+      await supabase
+        .from("cash_expenses")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", savedCashExpenseId);
+
+      await supabase
+        .from("expense_payments")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", savedPaymentRow.id);
+
+      throw new Error(
+        linkPaymentError.message ||
+          "O pagamento não foi concluído porque não foi possível vincular o lançamento financeiro.",
+      );
+    }
+
+    const linkedPaymentRow = (
+      Array.isArray(linkedPaymentData) ? linkedPaymentData[0] : null
+    ) as SupabaseExpensePaymentResponse | null;
+
+    if (!linkedPaymentRow?.id) {
+      throw new Error(
+        "O pagamento foi salvo, mas o vínculo financeiro não retornou.",
+      );
+    }
+
     const savedPayment =
-      mapSupabaseExpensePaymentToAppRecord(savedPaymentRow);
+      mapSupabaseExpensePaymentToAppRecord(linkedPaymentRow);
 
     setExpensePayments((currentPayments) => [
       savedPayment,
@@ -5535,7 +5614,7 @@ ${professionalAccessLink}`);
         .eq("tenant_id", tenantId)
         .eq("id", payload.paymentId)
         .select(
-          "id,tenant_id,expense_template_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+          "id,tenant_id,expense_template_id,cash_expense_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
         )
         .limit(1);
 
@@ -5615,6 +5694,60 @@ ${professionalAccessLink}`);
         payment.id === updatedPayment.id
           ? updatedPayment
           : payment,
+      ),
+    );
+
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+
+    onUpdateState({
+      ...state,
+      appointments,
+      clients,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
+    } as unknown as typeof state);
+  };
+
+  const handleDeleteExpensePayment = async (
+    paymentId: string,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para excluir o lançamento.",
+      );
+    }
+
+    const currentPayment = expensePayments.find(
+      (payment) => payment.id === paymentId,
+    );
+
+    if (!currentPayment) {
+      throw new Error("Pagamento de despesa não encontrado.");
+    }
+
+    const { data, error } = await supabase.rpc(
+      "delete_my_expense_payment",
+      {
+        p_payment_id: paymentId,
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        error.message ||
+          "Não foi possível excluir o lançamento da despesa.",
+      );
+    }
+
+    if (data !== true) {
+      throw new Error(
+        "A exclusão foi processada, mas não foi confirmada pelo Supabase.",
+      );
+    }
+
+    setExpensePayments((currentPayments) =>
+      currentPayments.filter(
+        (payment) => payment.id !== paymentId,
       ),
     );
 
@@ -5849,6 +5982,7 @@ ${professionalAccessLink}`);
               onDeleteExpenseTemplate={handleDeleteExpenseTemplate}
               onPayExpense={handlePayExpense}
               onUpdateExpensePayment={handleUpdateExpensePayment}
+              onDeleteExpensePayment={handleDeleteExpensePayment}
             />
           )}
 
