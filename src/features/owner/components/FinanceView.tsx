@@ -16,6 +16,7 @@ import React, {
 
 import {
   ArrowLeft,
+  ArrowUpDown,
   BarChart3,
   Coins,
   Filter,
@@ -42,7 +43,11 @@ import {
   getRemunerationLabel
 } from '../owner.utils';
 
-type FinanceInternalTab = 'faturamento' | 'comissoes' | 'livroCaixa';
+type FinanceInternalTab =
+  | 'faturamento'
+  | 'comissoes'
+  | 'movimentacao'
+  | 'livroCaixa';
 
 export interface CommissionPaymentPayload {
   professionalId: string;
@@ -103,6 +108,16 @@ interface CashBookRow {
   type: 'recebimento' | 'despesa';
   description: string;
   value: number;
+}
+
+interface FinancialMovementRow {
+  id: string;
+  date: string;
+  type: 'recebimento' | 'despesa' | 'cortesia';
+  description: string;
+  paymentType: PaymentType;
+  entryValue: number;
+  exitValue: number;
 }
 
 interface CommissionRow {
@@ -671,6 +686,7 @@ export default function FinanceView({
     });
   }, [
     isInvalidPeriod,
+    isPeriodTooLong,
     period,
     receipts
   ]);
@@ -1047,6 +1063,125 @@ export default function FinanceView({
     setPendingCommissionPrintHtml('');
     setCommissionFeedback(null);
   };
+
+  const financialMovementRows = useMemo<FinancialMovementRow[]>(() => {
+    const receiptRows: FinancialMovementRow[] = filteredReceipts.flatMap<
+      FinancialMovementRow
+    >((receipt) => {
+      const receiptDate = receipt.paidAt.slice(0, 10);
+      const description =
+        receipt.items
+          .map((item) => item.itemDescription || item.serviceName)
+          .filter(Boolean)
+          .join(' + ') ||
+        receipt.clientName ||
+        'Recebimento';
+
+      if (receipt.paymentType === 'cortesia') {
+        return [{
+          id: `${receipt.id}-cortesia`,
+          date: receiptDate,
+          type: 'cortesia',
+          description,
+          paymentType: 'cortesia',
+          entryValue: 0,
+          exitValue: 0
+        } satisfies FinancialMovementRow];
+      }
+
+      if (receipt.status !== 'paid') {
+        return [];
+      }
+
+      if (Array.isArray(receipt.payments) && receipt.payments.length > 0) {
+        return receipt.payments
+          .filter((payment) => payment.paymentType !== 'pendente')
+          .map<FinancialMovementRow>((payment) => ({
+            id: `${receipt.id}-${payment.id}`,
+            date: receiptDate,
+            type: 'recebimento',
+            description,
+            paymentType: payment.paymentType,
+            entryValue: Number(payment.amount) || 0,
+            exitValue: 0
+          }));
+      }
+
+      return [{
+        id: `${receipt.id}-${receipt.paymentType}`,
+        date: receiptDate,
+        type: 'recebimento',
+        description,
+        paymentType: receipt.paymentType,
+        entryValue: Number(receipt.amountPaid ?? receipt.totalAmount) || 0,
+        exitValue: 0
+      } satisfies FinancialMovementRow];
+    });
+
+    const expenseRows: FinancialMovementRow[] =
+      filteredCashExpenses.map<FinancialMovementRow>((expense) => ({
+        id: expense.id,
+        date:
+          getAppointmentDateStr(expense.paidAt) ||
+          expense.paidAt.slice(0, 10),
+        type: 'despesa',
+        description: expense.description || 'Despesa manual',
+        paymentType: expense.paymentType,
+        entryValue: 0,
+        exitValue: Math.abs(Number(expense.amount) || 0)
+      }));
+
+    return [
+      ...receiptRows,
+      ...expenseRows
+    ].sort((firstRow, secondRow) => {
+      if (firstRow.date !== secondRow.date) {
+        return firstRow.date.localeCompare(secondRow.date);
+      }
+
+      return firstRow.description.localeCompare(
+        secondRow.description,
+        'pt-BR'
+      );
+    });
+  }, [
+    filteredCashExpenses,
+    filteredReceipts
+  ]);
+
+  const financialMovementIncomeTotal = useMemo(() => {
+    return financialMovementRows.reduce(
+      (sum, row) => sum + row.entryValue,
+      0
+    );
+  }, [financialMovementRows]);
+
+  const financialMovementExpenseTotal = useMemo(() => {
+    return financialMovementRows.reduce(
+      (sum, row) => sum + row.exitValue,
+      0
+    );
+  }, [financialMovementRows]);
+
+  const financialMovementBalance =
+    financialMovementIncomeTotal - financialMovementExpenseTotal;
+
+  const financialMovementPaymentTotals = useMemo(() => {
+    const paymentTypes: PaymentType[] = [
+      'dinheiro',
+      'pix',
+      'debito',
+      'credito',
+      'cortesia'
+    ];
+
+    return paymentTypes.map((paymentType) => ({
+      paymentType,
+      total: financialMovementRows
+        .filter((row) => row.paymentType === paymentType)
+        .reduce((sum, row) => sum + row.entryValue, 0)
+    }));
+  }, [financialMovementRows]);
 
   const cashBookRows = useMemo<CashBookRow[]>(() => {
     const cashAppointmentRows = filteredAppointments
@@ -1565,6 +1700,91 @@ export default function FinanceView({
     });
   };
 
+  const handlePrintFinancialMovement = () => {
+    const rowsHtml = financialMovementRows.map((row) => {
+      return `
+        <tr>
+          <td>${formatDateBr(row.date)}</td>
+          <td>${
+            row.type === 'despesa'
+              ? 'Saída'
+              : row.type === 'cortesia'
+                ? 'Cortesia'
+                : 'Entrada'
+          }</td>
+          <td>${escapeHtml(row.description)}</td>
+          <td>${escapeHtml(getPaymentLabel(row.paymentType))}</td>
+          <td class="right positive">${
+            row.entryValue > 0 ? formatCurrency(row.entryValue) : '-'
+          }</td>
+          <td class="right negative">${
+            row.exitValue > 0 ? formatCurrency(row.exitValue) : '-'
+          }</td>
+        </tr>
+      `;
+    }).join('');
+
+    const paymentTotalsHtml = financialMovementPaymentTotals.map((row) => {
+      return `
+        <div class="summary-row">
+          <span>${escapeHtml(getPaymentLabel(row.paymentType))}</span>
+          <span>${formatCurrency(row.total)}</span>
+        </div>
+      `;
+    }).join('');
+
+    buildPrintWindow({
+      title: 'Movimentação Financeira',
+      body: `
+        ${buildEstablishmentPrintHeader({
+          companyName,
+          companyAddress,
+          companyPhone,
+          reportTitle: 'Movimentação Financeira',
+          period
+        })}
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Total de entradas</span>
+            <span>${formatCurrency(financialMovementIncomeTotal)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Total de saídas</span>
+            <span>${formatCurrency(financialMovementExpenseTotal)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Saldo do período</span>
+            <span>${formatCurrency(financialMovementBalance)}</span>
+          </div>
+        </div>
+
+        <br />
+
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th>Forma</th>
+              <th class="right">Entrada</th>
+              <th class="right">Saída</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="6" style="text-align:center;color:#64748b;">Nenhuma movimentação no período.</td></tr>'}
+          </tbody>
+        </table>
+
+        <h2>Entradas por forma de pagamento</h2>
+        <div class="summary">
+          ${paymentTotalsHtml}
+        </div>
+      `
+    });
+  };
+
   const handlePrintCashBook = () => {
     const rowsHtml = cashBookRows.map((row) => {
       const formattedValue =
@@ -1707,7 +1927,7 @@ export default function FinanceView({
       </div>
 
       {!activeFinanceTab && (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {renderFinanceOption({
             tab: 'faturamento',
             title: 'Faturamento',
@@ -1723,9 +1943,16 @@ export default function FinanceView({
           })}
 
           {renderFinanceOption({
+            tab: 'movimentacao',
+            title: 'Movimentação Financeira',
+            description: 'Entradas e saídas do período em dinheiro, PIX, débito, crédito e cortesia.',
+            icon: <ArrowUpDown className="h-5 w-5" />
+          })}
+
+          {renderFinanceOption({
             tab: 'livroCaixa',
-            title: 'Livro Caixa',
-            description: 'Relatório simples apenas com entradas e saídas em dinheiro, com saldo inicial.',
+            title: 'Livro Caixa — Dinheiro',
+            description: 'Controle exclusivo do caixa físico, somente com entradas e saídas em dinheiro.',
             icon: <WalletCards className="h-5 w-5" />
           })}
         </div>
@@ -1808,7 +2035,131 @@ export default function FinanceView({
               </div>
             )}
 
-            {activeFinanceTab === 'livroCaixa' && (
+            {activeFinanceTab === 'movimentacao' && (
+              <button
+                type="button"
+                onClick={handlePrintFinancialMovement}
+                className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Movimentação
+              </button>
+            )}
+
+            {activeFinanceTab === 'movimentacao' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Total de entradas
+              </p>
+              <p className="mt-1 text-xl font-black text-[#0f4c5c]">
+                {formatCurrency(financialMovementIncomeTotal)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Total de saídas
+              </p>
+              <p className="mt-1 text-xl font-black text-red-600">
+                -{formatCurrency(financialMovementExpenseTotal).replace('R$', '').trim()}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f4c5c]">
+                Saldo do período
+              </p>
+              <p className={`mt-1 text-xl font-black ${
+                financialMovementBalance < 0
+                  ? 'text-red-600'
+                  : 'text-[#0f4c5c]'
+              }`}>
+                {formatCurrency(financialMovementBalance)}
+              </p>
+            </div>
+          </div>
+
+          <PanelCard title="Movimentação Financeira">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Descrição</th>
+                    <th className="px-4 py-3">Forma</th>
+                    <th className="px-4 py-3 text-right">Entrada</th>
+                    <th className="px-4 py-3 text-right">Saída</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {financialMovementRows.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-bold text-slate-900">
+                        {formatDateBr(row.date)}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">
+                        {row.type === 'despesa'
+                          ? 'Saída'
+                          : row.type === 'cortesia'
+                            ? 'Cortesia'
+                            : 'Entrada'}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">
+                        {row.description}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">
+                        {getPaymentLabel(row.paymentType)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-[#0f4c5c]">
+                        {row.entryValue > 0
+                          ? formatCurrency(row.entryValue)
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-red-600">
+                        {row.exitValue > 0
+                          ? formatCurrency(row.exitValue)
+                          : '-'}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {financialMovementRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        Nenhuma movimentação financeira neste período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </PanelCard>
+
+          <PanelCard title="Entradas por Forma de Pagamento">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-5">
+              {financialMovementPaymentTotals.map((row) => (
+                <div
+                  key={row.paymentType}
+                  className="border-b border-slate-100 p-4 sm:border-r"
+                >
+                  <p className="text-[10px] font-black uppercase text-slate-400">
+                    {getPaymentLabel(row.paymentType)}
+                  </p>
+                  <p className="mt-1 text-lg font-black text-[#0f4c5c]">
+                    {formatCurrency(row.total)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </PanelCard>
+        </div>
+      )}
+
+      {activeFinanceTab === 'livroCaixa' && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <label className="space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1830,7 +2181,7 @@ export default function FinanceView({
                   className="h-10 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-2"
                 >
                   <Printer className="h-4 w-4" />
-                  Imprimir Livro Caixa
+                  Imprimir Caixa em Dinheiro
                 </button>
               </div>
             )}
@@ -2149,7 +2500,7 @@ export default function FinanceView({
             </div>
           </div>
 
-          <PanelCard title="Livro Caixa - Dinheiro">
+          <PanelCard title="Livro Caixa — Dinheiro">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
