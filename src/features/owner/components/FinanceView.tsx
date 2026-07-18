@@ -136,6 +136,18 @@ export interface ExpensePaymentPayload {
   notes?: string;
 }
 
+export interface ExpensePaymentUpdatePayload {
+  paymentId: string;
+  expectedAmount: number;
+  interestValue: number;
+  fineValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  paidAt: string;
+  notes?: string;
+}
+
 interface FinanceViewProps {
   professionals: Professional[];
   services: Service[];
@@ -163,6 +175,9 @@ interface FinanceViewProps {
   ) => void | Promise<void>;
   onPayExpense?: (
     payload: ExpensePaymentPayload
+  ) => void | Promise<void>;
+  onUpdateExpensePayment?: (
+    payload: ExpensePaymentUpdatePayload
   ) => void | Promise<void>;
 }
 
@@ -526,7 +541,8 @@ export default function FinanceView({
   onUpdateCommissionPaidAt,
   onSaveExpenseTemplate,
   onDeleteExpenseTemplate,
-  onPayExpense
+  onPayExpense,
+  onUpdateExpensePayment
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -600,6 +616,10 @@ export default function FinanceView({
   const [expenseDiscountValue, setExpenseDiscountValue] = useState(0);
   const [expensePaymentNotes, setExpensePaymentNotes] = useState('');
   const [isPayingExpense, setIsPayingExpense] = useState(false);
+  const [editingExpensePayment, setEditingExpensePayment] =
+    useState<ExpensePaymentRecord | null>(null);
+  const [isUpdatingExpensePayment, setIsUpdatingExpensePayment] =
+    useState(false);
   const [expenseFeedback, setExpenseFeedback] = useState<{
     title: string;
     message: string;
@@ -1457,8 +1477,7 @@ export default function FinanceView({
       resetExpensePaymentForm();
       setExpenseFeedback({
         title: 'Despesa paga',
-        message:
-          'O pagamento foi registrado e passará a alimentar os relatórios financeiros.'
+        message: 'Pagamento efetuado com sucesso!'
       });
     } catch (error) {
       setExpenseFeedback({
@@ -1470,6 +1489,90 @@ export default function FinanceView({
       });
     } finally {
       setIsPayingExpense(false);
+    }
+  };
+
+  const handleOpenEditExpensePayment = (
+    payment: ExpensePaymentRecord
+  ) => {
+    setEditingExpensePayment(payment);
+    setExpensePaidAt(payment.paidAt || formatLocalDateStr(new Date()));
+    setExpensePaymentType(payment.paymentType);
+    setExpenseInterestValue(payment.interestValue);
+    setExpenseFineValue(payment.fineValue);
+    setExpenseDiscountValue(payment.discountValue);
+    setExpensePaymentNotes(payment.notes || '');
+  };
+
+  const handleConfirmExpensePaymentUpdate = async () => {
+    if (!editingExpensePayment || isUpdatingExpensePayment) {
+      return;
+    }
+
+    if (!expensePaidAt) {
+      setExpenseFeedback({
+        title: 'Data obrigatória',
+        message: 'Informe a data do pagamento.'
+      });
+      return;
+    }
+
+    const updatedAmountPaid = Math.max(
+      0,
+      editingExpensePayment.expectedAmount +
+        expenseInterestValue +
+        expenseFineValue -
+        expenseDiscountValue
+    );
+
+    if (updatedAmountPaid <= 0) {
+      setExpenseFeedback({
+        title: 'Valor inválido',
+        message: 'O valor final da despesa precisa ser maior que zero.'
+      });
+      return;
+    }
+
+    if (!onUpdateExpensePayment) {
+      setExpenseFeedback({
+        title: 'Integração pendente',
+        message:
+          'A alteração ainda precisa ser conectada ao Supabase pelo painel do dono.'
+      });
+      return;
+    }
+
+    setIsUpdatingExpensePayment(true);
+
+    try {
+      await onUpdateExpensePayment({
+        paymentId: editingExpensePayment.id,
+        expectedAmount: editingExpensePayment.expectedAmount,
+        interestValue: expenseInterestValue,
+        fineValue: expenseFineValue,
+        discountValue: expenseDiscountValue,
+        amountPaid: updatedAmountPaid,
+        paymentType: expensePaymentType,
+        paidAt: expensePaidAt,
+        notes: expensePaymentNotes.trim() || undefined
+      });
+
+      setEditingExpensePayment(null);
+      resetExpensePaymentForm();
+      setExpenseFeedback({
+        title: 'Pagamento alterado',
+        message: 'Pagamento atualizado com sucesso!'
+      });
+    } catch (error) {
+      setExpenseFeedback({
+        title: 'Pagamento não alterado',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível atualizar o pagamento.'
+      });
+    } finally {
+      setIsUpdatingExpensePayment(false);
     }
   };
 
@@ -2547,10 +2650,16 @@ export default function FinanceView({
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => handleOpenEditExpenseTemplate(template)}
-                            disabled={isPaid}
-                            className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Alterar"
+                            onClick={() => {
+                              if (isPaid && payment) {
+                                handleOpenEditExpensePayment(payment);
+                                return;
+                              }
+
+                              handleOpenEditExpenseTemplate(template);
+                            }}
+                            className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                            title={isPaid ? 'Alterar pagamento' : 'Alterar cadastro'}
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -2568,8 +2677,12 @@ export default function FinanceView({
                           {isPaid ? (
                             <button
                               type="button"
-                              disabled
-                              className="flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700"
+                              onClick={() => {
+                                if (payment) {
+                                  handleOpenEditExpensePayment(payment);
+                                }
+                              }}
+                              className="flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               PAGA
@@ -3521,6 +3634,185 @@ export default function FinanceView({
                   className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
                 >
                   {isPayingExpense ? 'Salvando...' : 'Confirmar pagamento'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingExpensePayment && (
+        <div className="fixed inset-0 z-[128] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-emerald-600" />
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+                    Despesa paga
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    {editingExpensePayment.description}
+                  </h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Competência {formatDateBr(editingExpensePayment.competenceMonth)}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingExpensePayment(null);
+                    resetExpensePaymentForm();
+                  }}
+                  disabled={isUpdatingExpensePayment}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Data do pagamento
+                  </span>
+                  <input
+                    type="date"
+                    value={expensePaidAt}
+                    onChange={(event) => setExpensePaidAt(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Forma de pagamento
+                  </span>
+                  <select
+                    value={expensePaymentType}
+                    onChange={(event) =>
+                      setExpensePaymentType(event.target.value as PaymentType)
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  >
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="pix">PIX</option>
+                    <option value="debito">Débito</option>
+                    <option value="credito">Crédito</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Valor previsto
+                  </span>
+                  <input
+                    type="text"
+                    value={formatCurrencyInput(editingExpensePayment.expectedAmount)}
+                    disabled
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-500"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Juros
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseInterestValue)}
+                    onChange={(event) =>
+                      setExpenseInterestValue(parseCurrencyInput(event.target.value))
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Multa
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseFineValue)}
+                    onChange={(event) =>
+                      setExpenseFineValue(parseCurrencyInput(event.target.value))
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Desconto
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyInput(expenseDiscountValue)}
+                    onChange={(event) =>
+                      setExpenseDiscountValue(parseCurrencyInput(event.target.value))
+                    }
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 block space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-500">
+                  Observações
+                </span>
+                <textarea
+                  value={expensePaymentNotes}
+                  onChange={(event) => setExpensePaymentNotes(event.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
+                />
+              </label>
+
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-black uppercase text-emerald-700">
+                    Total atualizado
+                  </span>
+                  <strong className="text-xl font-black text-emerald-700">
+                    {formatCurrency(
+                      Math.max(
+                        0,
+                        editingExpensePayment.expectedAmount +
+                          expenseInterestValue +
+                          expenseFineValue -
+                          expenseDiscountValue
+                      )
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingExpensePayment(null);
+                    resetExpensePaymentForm();
+                  }}
+                  disabled={isUpdatingExpensePayment}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmExpensePaymentUpdate}
+                  disabled={isUpdatingExpensePayment}
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
+                >
+                  {isUpdatingExpensePayment ? 'Salvando...' : 'Salvar alteração'}
                 </button>
               </div>
             </div>

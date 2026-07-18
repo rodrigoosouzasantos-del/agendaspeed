@@ -61,6 +61,7 @@ import FinanceView, {
   CommissionPaymentRecord,
   ExpensePaymentPayload,
   ExpensePaymentRecord,
+  ExpensePaymentUpdatePayload,
   ExpenseTemplatePayload,
   ExpenseTemplateRecord,
 } from "./components/FinanceView";
@@ -5447,6 +5448,187 @@ ${professionalAccessLink}`);
     } as unknown as typeof state);
   };
 
+  const handleUpdateExpensePayment = async (
+    payload: ExpensePaymentUpdatePayload,
+  ): Promise<void> => {
+    if (!tenantId) {
+      throw new Error(
+        "Não foi possível identificar a empresa para atualizar a despesa.",
+      );
+    }
+
+    const currentPayment = expensePayments.find(
+      (payment) => payment.id === payload.paymentId,
+    );
+
+    if (!currentPayment) {
+      throw new Error("Pagamento de despesa não encontrado.");
+    }
+
+    const normalizedExpectedAmount = Math.max(
+      0,
+      Number(payload.expectedAmount) || 0,
+    );
+    const normalizedInterestValue = Math.max(
+      0,
+      Number(payload.interestValue) || 0,
+    );
+    const normalizedFineValue = Math.max(
+      0,
+      Number(payload.fineValue) || 0,
+    );
+    const normalizedDiscountValue = Math.max(
+      0,
+      Number(payload.discountValue) || 0,
+    );
+    const normalizedAmountPaid = Math.max(
+      0,
+      Number(payload.amountPaid) || 0,
+    );
+
+    const expectedAmountPaid = Math.max(
+      0,
+      normalizedExpectedAmount +
+        normalizedInterestValue +
+        normalizedFineValue -
+        normalizedDiscountValue,
+    );
+
+    if (Math.abs(expectedAmountPaid - normalizedAmountPaid) > 0.01) {
+      throw new Error(
+        "O valor final não corresponde ao cálculo atualizado da despesa.",
+      );
+    }
+
+    if (normalizedAmountPaid <= 0) {
+      throw new Error(
+        "O valor final da despesa precisa ser maior que zero.",
+      );
+    }
+
+    const previousExpenseDescription =
+      `${currentPayment.description} - competência ` +
+      `${currentPayment.competenceMonth
+        .slice(0, 7)
+        .split("-")
+        .reverse()
+        .join("/")}`;
+
+    const previousPaidAt = currentPayment.paidAt || "";
+    const previousAmountPaid = Number(currentPayment.amountPaid) || 0;
+    const previousPaymentType = currentPayment.paymentType;
+    const previousNotes = currentPayment.notes || null;
+
+    const { data: updatedPaymentData, error: paymentUpdateError } =
+      await supabase
+        .from("expense_payments")
+        .update({
+          expected_amount: normalizedExpectedAmount,
+          interest_value: normalizedInterestValue,
+          fine_value: normalizedFineValue,
+          discount_value: normalizedDiscountValue,
+          amount_paid: normalizedAmountPaid,
+          payment_type: payload.paymentType,
+          paid_at: payload.paidAt,
+          notes: payload.notes || null,
+        })
+        .eq("tenant_id", tenantId)
+        .eq("id", payload.paymentId)
+        .select(
+          "id,tenant_id,expense_template_id,description,competence_month,due_date,expected_amount,interest_value,fine_value,discount_value,amount_paid,payment_type,status,paid_at,notes,created_at,updated_at",
+        )
+        .limit(1);
+
+    if (paymentUpdateError) {
+      throw new Error(
+        paymentUpdateError.message ||
+          "Não foi possível atualizar o pagamento da despesa.",
+      );
+    }
+
+    const updatedPaymentRow = (
+      Array.isArray(updatedPaymentData) ? updatedPaymentData[0] : null
+    ) as SupabaseExpensePaymentResponse | null;
+
+    if (!updatedPaymentRow?.id) {
+      throw new Error(
+        "O pagamento foi atualizado, mas o registro não retornou do Supabase.",
+      );
+    }
+
+    let cashExpenseQuery = supabase
+      .from("cash_expenses")
+      .update({
+        amount: normalizedAmountPaid,
+        payment_type: payload.paymentType,
+        expense_date: payload.paidAt,
+        notes: payload.notes || null,
+      })
+      .eq("tenant_id", tenantId)
+      .eq("description", previousExpenseDescription)
+      .eq("amount", previousAmountPaid)
+      .eq("payment_type", previousPaymentType);
+
+    if (previousPaidAt) {
+      cashExpenseQuery = cashExpenseQuery.eq(
+        "expense_date",
+        previousPaidAt,
+      );
+    }
+
+    const { data: updatedCashExpenses, error: cashExpenseUpdateError } =
+      await cashExpenseQuery
+        .select("id")
+        .limit(1);
+
+    if (
+      cashExpenseUpdateError ||
+      !Array.isArray(updatedCashExpenses) ||
+      updatedCashExpenses.length === 0
+    ) {
+      await supabase
+        .from("expense_payments")
+        .update({
+          expected_amount: currentPayment.expectedAmount,
+          interest_value: currentPayment.interestValue,
+          fine_value: currentPayment.fineValue,
+          discount_value: currentPayment.discountValue,
+          amount_paid: currentPayment.amountPaid,
+          payment_type: currentPayment.paymentType,
+          paid_at: currentPayment.paidAt || null,
+          notes: previousNotes,
+        })
+        .eq("tenant_id", tenantId)
+        .eq("id", payload.paymentId);
+
+      throw new Error(
+        cashExpenseUpdateError?.message ||
+          "A alteração foi cancelada porque o lançamento financeiro vinculado não foi encontrado.",
+      );
+    }
+
+    const updatedPayment =
+      mapSupabaseExpensePaymentToAppRecord(updatedPaymentRow);
+
+    setExpensePayments((currentPayments) =>
+      currentPayments.map((payment) =>
+        payment.id === updatedPayment.id
+          ? updatedPayment
+          : payment,
+      ),
+    );
+
+    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+
+    onUpdateState({
+      ...state,
+      appointments,
+      clients,
+      receipts: loadedRecords.receipts,
+      cashExpenses: loadedRecords.cashExpenses,
+    } as unknown as typeof state);
+  };
+
   const sortedServices = sortServicesForDisplay({
     services,
     categoryOrders: serviceCategoryOrders,
@@ -5666,6 +5848,7 @@ ${professionalAccessLink}`);
               onSaveExpenseTemplate={handleSaveExpenseTemplate}
               onDeleteExpenseTemplate={handleDeleteExpenseTemplate}
               onPayExpense={handlePayExpense}
+              onUpdateExpensePayment={handleUpdateExpensePayment}
             />
           )}
 
