@@ -894,19 +894,37 @@ export default function ReceiptsView({
     setPendingPaymentNotes('');
   };
 
+  const selectedPendingAmount = selectedPendingReceipt
+    ? Math.max(0, Number(selectedPendingReceipt.amountPending) || 0)
+    : 0;
+
+  const normalizedPendingPaymentAmount = Math.max(
+    0,
+    Number(pendingPaymentAmount) || 0
+  );
+
+  const pendingAmountToApply =
+    pendingPaymentType === 'dinheiro'
+      ? Math.min(normalizedPendingPaymentAmount, selectedPendingAmount)
+      : Math.min(normalizedPendingPaymentAmount, selectedPendingAmount);
+
+  const pendingPaymentChange =
+    pendingPaymentType === 'dinheiro'
+      ? Math.max(0, normalizedPendingPaymentAmount - selectedPendingAmount)
+      : 0;
+
+  const pendingAmountRemaining = Math.max(
+    0,
+    Number((selectedPendingAmount - pendingAmountToApply).toFixed(2))
+  );
+
   const handleConfirmPendingPayment = async () => {
     if (!selectedPendingReceipt || isSubmittingPendingPayment) {
       return;
     }
 
-    const currentPending = Math.max(
-      0,
-      Number(selectedPendingReceipt.amountPending) || 0
-    );
-    const amountReceived = Math.max(
-      0,
-      Math.min(Number(pendingPaymentAmount) || 0, currentPending)
-    );
+    const currentPending = selectedPendingAmount;
+    const amountReceived = pendingAmountToApply;
 
     if (amountReceived <= 0) {
       setValidationPopupMessage('Informe o valor recebido.');
@@ -950,7 +968,12 @@ export default function ReceiptsView({
         status: nextAmountPending > 0 ? 'pending' : 'paid',
         paymentType: pendingPaymentType,
         paidAt: pendingPaymentDate,
-        notes: pendingPaymentNotes.trim() || undefined
+        notes: [
+          pendingPaymentNotes.trim(),
+          pendingPaymentType === 'dinheiro' && pendingPaymentChange > 0
+            ? `Recebido ${formatCurrency(normalizedPendingPaymentAmount)} em dinheiro; troco ${formatCurrency(pendingPaymentChange)}`
+            : ''
+        ].filter(Boolean).join(' | ') || undefined
       });
 
       handleClosePendingPayment();
@@ -2139,20 +2162,26 @@ export default function ReceiptsView({
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="space-y-1">
                     <span className="text-[10px] font-black uppercase text-slate-500">
-                      Valor recebido
+                      {pendingPaymentType === 'dinheiro'
+                        ? 'Valor entregue'
+                        : 'Valor recebido'}
                     </span>
                     <input
                       type="text"
                       inputMode="numeric"
                       value={formatCurrencyInput(pendingPaymentAmount)}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const nextAmount = parseCurrencyInput(event.target.value);
+
                         setPendingPaymentAmount(
-                          Math.min(
-                            parseCurrencyInput(event.target.value),
-                            Number(selectedPendingReceipt.amountPending) || 0
-                          )
-                        )
-                      }
+                          pendingPaymentType === 'dinheiro'
+                            ? nextAmount
+                            : Math.min(
+                                nextAmount,
+                                Number(selectedPendingReceipt.amountPending) || 0
+                              )
+                        );
+                      }}
                       className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black outline-none focus:border-[#0f4c5c]"
                     />
                   </label>
@@ -2182,7 +2211,18 @@ export default function ReceiptsView({
                       <button
                         type="button"
                         key={option}
-                        onClick={() => setPendingPaymentType(option)}
+                        onClick={() => {
+                          setPendingPaymentType(option);
+
+                          if (option !== 'dinheiro') {
+                            setPendingPaymentAmount((currentAmount) =>
+                              Math.min(
+                                currentAmount,
+                                Number(selectedPendingReceipt.amountPending) || 0
+                              )
+                            );
+                          }
+                        }}
                         className={`h-10 rounded-xl border px-3 text-xs font-black transition ${
                           pendingPaymentType === option
                             ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
@@ -2209,20 +2249,43 @@ export default function ReceiptsView({
                   />
                 </label>
 
-                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-xs font-black uppercase text-amber-700">
+                <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:grid-cols-2">
+                  <div className="rounded-xl border border-amber-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase text-amber-600">
+                      Saldo pendente
+                    </p>
+                    <p className="mt-1 text-sm font-black text-slate-900">
+                      {formatCurrency(selectedPendingAmount)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase text-emerald-600">
+                      Valor que será baixado
+                    </p>
+                    <p className="mt-1 text-sm font-black text-emerald-700">
+                      {formatCurrency(pendingAmountToApply)}
+                    </p>
+                  </div>
+
+                  {pendingPaymentType === 'dinheiro' && (
+                    <div className="rounded-xl border border-[#0f4c5c]/20 bg-white p-3">
+                      <p className="text-[9px] font-black uppercase text-[#0f4c5c]">
+                        Troco
+                      </p>
+                      <p className="mt-1 text-sm font-black text-[#0f4c5c]">
+                        {formatCurrency(pendingPaymentChange)}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-amber-300 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase text-amber-600">
                       Restará pendente
-                    </span>
-                    <strong className="text-lg font-black text-amber-700">
-                      {formatCurrency(
-                        Math.max(
-                          0,
-                          (Number(selectedPendingReceipt.amountPending) || 0) -
-                            pendingPaymentAmount
-                        )
-                      )}
-                    </strong>
+                    </p>
+                    <p className="mt-1 text-sm font-black text-amber-700">
+                      {formatCurrency(pendingAmountRemaining)}
+                    </p>
                   </div>
                 </div>
 
@@ -2239,7 +2302,10 @@ export default function ReceiptsView({
                   <button
                     type="button"
                     onClick={handleConfirmPendingPayment}
-                    disabled={isSubmittingPendingPayment}
+                    disabled={
+                      isSubmittingPendingPayment ||
+                      pendingAmountToApply <= 0
+                    }
                     className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
                   >
                     {isSubmittingPendingPayment

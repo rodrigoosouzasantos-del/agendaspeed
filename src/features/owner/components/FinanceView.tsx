@@ -1674,22 +1674,34 @@ export default function FinanceView({
         } satisfies FinancialMovementRow];
       }
 
-      if (receipt.status !== 'paid') {
-        return [];
-      }
-
       if (Array.isArray(receipt.payments) && receipt.payments.length > 0) {
         return receipt.payments
-          .filter((payment) => payment.paymentType !== 'pendente')
-          .map<FinancialMovementRow>((payment) => ({
-            id: `${receipt.id}-${payment.id}`,
-            date: receiptDate,
-            type: 'recebimento',
-            description,
-            paymentType: payment.paymentType,
-            entryValue: Number(payment.amount) || 0,
-            exitValue: 0
-          }));
+          .filter((payment) => {
+            return (
+              payment.paymentType !== 'pendente' &&
+              payment.paymentType !== 'cortesia' &&
+              Number(payment.amount) > 0
+            );
+          })
+          .map<FinancialMovementRow>((payment) => {
+            const paymentDate =
+              payment.createdAt?.slice(0, 10) ||
+              receiptDate;
+
+            return {
+              id: `${receipt.id}-${payment.id}`,
+              date: paymentDate,
+              type: 'recebimento',
+              description,
+              paymentType: payment.paymentType,
+              entryValue: Number(payment.amount) || 0,
+              exitValue: 0
+            };
+          });
+      }
+
+      if (receipt.status !== 'paid') {
+        return [];
       }
 
       return [{
@@ -1769,35 +1781,29 @@ export default function FinanceView({
   }, [financialMovementRows]);
 
   const cashBookRows = useMemo<CashBookRow[]>(() => {
-    const cashAppointmentRows = filteredAppointments
-      .filter((appointment) => appointment.paymentType === 'dinheiro')
-      .map((appointment) => ({
-        date: getAppointmentDateStr(appointment.dateTime),
-        type: 'recebimento' as const,
-        description: getServiceName(services, appointment.serviceId),
-        value: Number(appointment.price) || 0
-      }));
+    return financialMovementRows
+      .filter((row) => row.paymentType === 'dinheiro')
+      .map<CashBookRow>((row) => ({
+        date: row.date,
+        type: row.type === 'despesa' ? 'despesa' : 'recebimento',
+        description: row.description,
+        value:
+          row.type === 'despesa'
+            ? -Math.abs(Number(row.exitValue) || 0)
+            : Number(row.entryValue) || 0
+      }))
+      .filter((row) => Math.abs(Number(row.value) || 0) > 0)
+      .sort((firstRow, secondRow) => {
+        if (firstRow.date !== secondRow.date) {
+          return firstRow.date.localeCompare(secondRow.date);
+        }
 
-    const cashExpenseRows = filteredCashExpenses
-      .filter((expense) => expense.paymentType === 'dinheiro')
-      .map((expense) => ({
-        date: getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10),
-        type: 'despesa' as const,
-        description: expense.description || 'Despesa manual',
-        value: -Math.abs(Number(expense.amount) || 0)
-      }));
-
-    return [
-      ...cashAppointmentRows,
-      ...cashExpenseRows
-    ].sort((firstRow, secondRow) => {
-      return firstRow.date.localeCompare(secondRow.date);
-    });
-  }, [
-    filteredAppointments,
-    filteredCashExpenses,
-    services
-  ]);
+        return firstRow.description.localeCompare(
+          secondRow.description,
+          'pt-BR'
+        );
+      });
+  }, [financialMovementRows]);
 
   const cashBookIncomeTotal = useMemo(() => {
     return cashBookRows
