@@ -111,7 +111,7 @@ const CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS = 12000;
 const RESCHEDULE_LOAD_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(
-  promise: Promise<T>,
+  promiseLike: PromiseLike<T>,
   timeoutMs: number,
   timeoutMessage: string
 ): Promise<T> {
@@ -120,15 +120,16 @@ function withTimeout<T>(
       reject(new Error(timeoutMessage));
     }, timeoutMs);
 
-    promise
-      .then((value) => {
+    Promise.resolve(promiseLike).then(
+      (value) => {
         window.clearTimeout(timer);
         resolve(value);
-      })
-      .catch((error) => {
+      },
+      (error) => {
         window.clearTimeout(timer);
         reject(error);
-      });
+      }
+    );
   });
 }
 
