@@ -451,13 +451,13 @@ export default function OwnerDashboard({
           className="flex-1 p-4 sm:p-6 space-y-6 overflow-hidden"
         >
           {appointmentsLoadError && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
               Não foi possível carregar a agenda real do Supabase: {appointmentsLoadError}
             </div>
           )}
 
           {isLoadingAppointments && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando agenda real do Supabase...
             </div>
           )}
@@ -494,7 +494,7 @@ export default function OwnerDashboard({
           )}
 
           {activeTab === "profissionais" && isLoadingProfessionals && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando profissionais reais do Supabase...
             </div>
           )}
@@ -513,7 +513,7 @@ export default function OwnerDashboard({
           )}
 
           {activeTab === "servicos" && isLoadingServices && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando serviços reais do Supabase...
             </div>
           )}
@@ -537,13 +537,13 @@ export default function OwnerDashboard({
           )}
 
           {activeTab === "produtos" && productsLoadError && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
               Não foi possível carregar os produtos reais do Supabase: {productsLoadError}
             </div>
           )}
 
           {activeTab === "produtos" && isLoadingProducts && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando produtos reais do Supabase...
             </div>
           )}
@@ -559,13 +559,13 @@ export default function OwnerDashboard({
           )}
 
           {activeTab === "clientes" && clientsLoadError && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
               Não foi possível carregar clientes reais do Supabase: {clientsLoadError}
             </div>
           )}
 
           {activeTab === "clientes" && isLoadingClients && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando clientes reais do Supabase...
             </div>
           )}
@@ -585,13 +585,13 @@ export default function OwnerDashboard({
           )}
 
           {activeTab === "recebimentos" && financialRecordsLoadError && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
               Não foi possível carregar o caixa real do Supabase: {financialRecordsLoadError}
             </div>
           )}
 
           {activeTab === "recebimentos" && isLoadingFinancialRecords && (
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-bold text-orange-800">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-medium text-orange-800">
               Carregando recebimentos e despesas reais do Supabase...
             </div>
           )}
@@ -714,13 +714,13 @@ export default function OwnerDashboard({
       {professionalPendingHardDelete && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-5 shadow-2xl">
-            <h2 className="text-lg font-black text-[#1A3038]">
+            <h2 className="text-lg font-semibold text-[#1A3038]">
               Excluir profissional?
             </h2>
 
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
               Deseja excluir definitivamente{" "}
-              <strong className="text-neutral-900">
+              <strong className="font-medium text-neutral-900">
                 {professionalPendingHardDelete.name}
               </strong>
               ? A exclusão pode ser bloqueada caso existam agendamentos vinculados.
@@ -731,7 +731,7 @@ export default function OwnerDashboard({
                 type="button"
                 onClick={handleCancelHardDeleteProfessional}
                 disabled={isDeletingProfessional}
-                className="rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Não
               </button>
@@ -740,7 +740,7 @@ export default function OwnerDashboard({
                 type="button"
                 onClick={handleConfirmHardDeleteProfessional}
                 disabled={isDeletingProfessional}
-                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeletingProfessional ? "Excluindo..." : "Sim, excluir"}
               </button>
@@ -854,15 +854,15 @@ export default function OwnerDashboard({
             <div className="h-1.5 bg-amber-500" />
 
             <div className="p-5 text-left">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-xl font-black text-amber-700">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-xl font-medium text-amber-700">
                 !
               </div>
 
-              <h2 className="mt-4 text-lg font-black text-neutral-950">
+              <h2 className="mt-4 text-lg font-semibold text-neutral-950">
                 {productPopup.title}
               </h2>
 
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
                 {productPopup.message}
               </p>
 
@@ -870,7 +870,7 @@ export default function OwnerDashboard({
                 <button
                   type="button"
                   onClick={() => setProductPopup(null)}
-                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#123945]"
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#123945]"
                 >
                   Entendi
                 </button>
@@ -886,15 +886,15 @@ export default function OwnerDashboard({
             <div className="h-1.5 bg-[#E0A96D]" />
 
             <div className="p-5 text-left">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FBF4EC] text-xl font-black text-[#8A663F]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FBF4EC] text-xl font-medium text-[#8A663F]">
                 !
               </div>
 
-              <h2 className="mt-4 text-lg font-black text-neutral-950">
+              <h2 className="mt-4 text-lg font-semibold text-neutral-950">
                 {ownerFeedback.title}
               </h2>
 
-              <p className="mt-2 whitespace-pre-line text-sm font-semibold leading-relaxed text-slate-600">
+              <p className="mt-2 whitespace-pre-line text-sm font-medium leading-relaxed text-slate-600">
                 {ownerFeedback.message}
               </p>
 
@@ -902,7 +902,7 @@ export default function OwnerDashboard({
                 <button
                   type="button"
                   onClick={() => setOwnerFeedback(null)}
-                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#123945]"
+                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#123945]"
                 >
                   Entendi
                 </button>
@@ -925,7 +925,7 @@ export default function OwnerDashboard({
 
             <div className="p-5 text-left">
               <div
-                className={`flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-black ${
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-medium ${
                   ownerConfirmation.tone === "danger"
                     ? "bg-red-50 text-red-700"
                     : "bg-amber-50 text-amber-700"
@@ -934,11 +934,11 @@ export default function OwnerDashboard({
                 !
               </div>
 
-              <h2 className="mt-4 text-lg font-black text-neutral-950">
+              <h2 className="mt-4 text-lg font-semibold text-neutral-950">
                 {ownerConfirmation.title}
               </h2>
 
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
                 {ownerConfirmation.message}
               </p>
 
@@ -947,7 +947,7 @@ export default function OwnerDashboard({
                   type="button"
                   onClick={closeOwnerConfirmation}
                   disabled={isConfirmingOwnerAction}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancelar
                 </button>
@@ -956,7 +956,7 @@ export default function OwnerDashboard({
                   type="button"
                   onClick={confirmOwnerAction}
                   disabled={isConfirmingOwnerAction}
-                  className={`rounded-xl px-4 py-2.5 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
                     ownerConfirmation.tone === "danger"
                       ? "bg-red-600 hover:bg-red-700"
                       : "bg-amber-600 hover:bg-amber-700"

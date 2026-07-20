@@ -131,7 +131,7 @@ export default function OwnerSidebar({
         <button
           key={item.tab}
           onClick={() => handleItemClick(item)}
-          className={`w-full rounded-xl px-3.5 py-2.5 text-left text-xs font-extrabold transition flex items-center gap-2.5 ${
+          className={`w-full rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition flex items-center gap-2.5 ${
             isActive
               ? 'bg-orange-600 text-white shadow-sm'
               : isMobile
@@ -158,7 +158,7 @@ export default function OwnerSidebar({
         <button
           type="button"
           onClick={() => setIsMobileMenuOpen((current) => !current)}
-          className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-extrabold text-neutral-900 shadow-sm"
+          className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-medium text-neutral-900 shadow-sm"
         >
           <span className="flex items-center gap-2">
             {isMobileMenuOpen ? (
@@ -169,7 +169,7 @@ export default function OwnerSidebar({
             Menu do painel
           </span>
 
-          <span className="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-orange-700">
+          <span className="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-orange-700">
             {sidebarItems.find((item) => item.tab === activeTab)?.label || 'Painel'}
           </span>
         </button>

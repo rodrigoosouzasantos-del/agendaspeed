@@ -89,15 +89,15 @@ export default function ProductsView({
 
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[#0f4c5c]">
               AGENDASPEED
             </p>
 
-            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+            <h2 className="text-lg font-medium tracking-tight text-neutral-950">
               Produtos
             </h2>
 
-            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+            <p className="mt-0.5 text-xs font-normal text-slate-500">
               Cadastro simples para vendas adicionais nos recebimentos.
             </p>
           </div>
@@ -111,14 +111,14 @@ export default function ProductsView({
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}
                 placeholder="Buscar por código, descrição ou valor"
-                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-normal text-slate-700 outline-none transition focus:border-[#0f4c5c] focus:bg-white"
               />
             </div>
 
             <button
               type="button"
               onClick={onOpenCreateProduct}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123945]"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-[#123945]"
             >
               <Plus className="h-4 w-4" />
               Cadastrar Produto
@@ -130,7 +130,7 @@ export default function ProductsView({
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-xs">
-            <thead className="border-b bg-[#0f4c5c] text-[10px] font-black uppercase tracking-wider text-white">
+            <thead className="border-b bg-[#0f4c5c] text-[10px] font-medium uppercase tracking-wider text-white">
               <tr>
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Descrição</th>
@@ -149,7 +149,7 @@ export default function ProductsView({
                     !product.active ? "opacity-60" : ""
                   }`}
                 >
-                  <td className="px-4 py-3.5 font-black text-[#0f4c5c]">
+                  <td className="px-4 py-3.5 font-medium text-[#0f4c5c]">
                     {product.code}
                   </td>
 
@@ -159,23 +159,23 @@ export default function ProductsView({
                         <Package className="h-4 w-4" />
                       </span>
 
-                      <span className="font-black text-slate-900">
+                      <span className="font-medium text-slate-900">
                         {product.description}
                       </span>
                     </div>
                   </td>
 
-                  <td className="px-4 py-3.5 text-right font-bold text-slate-600">
+                  <td className="px-4 py-3.5 text-right font-normal text-slate-600">
                     {formatCurrency(product.costPrice)}
                   </td>
 
-                  <td className="px-4 py-3.5 text-right font-black text-[#0f4c5c]">
+                  <td className="px-4 py-3.5 text-right font-medium text-[#0f4c5c]">
                     {formatCurrency(product.salePrice)}
                   </td>
 
                   <td className="px-4 py-3.5 text-center">
                     <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] ${
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-medium uppercase tracking-[0.08em] ${
                         product.active
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-slate-200 bg-slate-100 text-slate-500"
@@ -231,11 +231,11 @@ export default function ProductsView({
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <Package className="mx-auto h-9 w-9 text-slate-300" />
 
-                    <p className="mt-3 text-sm font-black text-slate-700">
+                    <p className="mt-3 text-sm font-normal text-slate-700">
                       Nenhum produto encontrado.
                     </p>
 
-                    <p className="mt-1 text-xs font-semibold text-slate-400">
+                    <p className="mt-1 text-xs font-normal text-slate-400">
                       Cadastre produtos simples para adicioná-los aos recebimentos.
                     </p>
                   </td>
@@ -247,7 +247,7 @@ export default function ProductsView({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-xs font-semibold leading-relaxed text-slate-500">
+        <p className="text-xs font-normal leading-relaxed text-slate-500">
           Os produtos são usados apenas como complementos nos recebimentos. Esta versão
           não possui controle de estoque, fornecedores, lotes ou inventário.
         </p>

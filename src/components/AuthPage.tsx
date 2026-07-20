@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -223,6 +223,11 @@ export default function AuthPage({
   const [resetLoading, setResetLoading] = useState(false);
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState | null>(null);
 
+  const registerFormRef = useRef<HTMLFormElement | null>(null);
+  const registerEmailRef = useRef<HTMLInputElement | null>(null);
+  const registerPasswordRef = useRef<HTMLInputElement | null>(null);
+  const registerConfirmPasswordRef = useRef<HTMLInputElement | null>(null);
+
   const publicOrigin = useMemo(() => {
     if (typeof window === 'undefined') return 'https://agendaspeed.com.br';
     return window.location.origin.replace('https://www.', 'https://');
@@ -236,28 +241,39 @@ export default function AuthPage({
   }, [initialRolePreseed]);
 
   useEffect(() => {
-    if (mode !== 'register') return;
-
-    // Cadastro público novo nunca deve herdar credenciais salvas do login.
-    // A única exceção é a retomada segura após confirmação de e-mail.
+    if (mode !== 'register' || registerStep !== 1) return;
     if (loadPendingTrial()) return;
 
     const clearRegistrationCredentials = () => {
       setEmail('');
       setPassword('');
       setConfirmPassword('');
+
+      if (registerEmailRef.current) {
+        registerEmailRef.current.value = '';
+      }
+
+      if (registerPasswordRef.current) {
+        registerPasswordRef.current.value = '';
+      }
+
+      if (registerConfirmPasswordRef.current) {
+        registerConfirmPasswordRef.current.value = '';
+      }
+
+      registerFormRef.current?.reset();
     };
 
     clearRegistrationCredentials();
 
-    const immediateTimer = window.setTimeout(clearRegistrationCredentials, 0);
-    const autofillTimer = window.setTimeout(clearRegistrationCredentials, 300);
+    const timers = [0, 100, 300, 700, 1500, 3000].map((delay) =>
+      window.setTimeout(clearRegistrationCredentials, delay),
+    );
 
     return () => {
-      window.clearTimeout(immediateTimer);
-      window.clearTimeout(autofillTimer);
+      timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [mode]);
+  }, [mode, registerStep]);
 
   useEffect(() => {
     if (mode !== 'register' || slugWasEdited) return;
@@ -747,6 +763,7 @@ export default function AuthPage({
           )}
 
           <form
+            ref={mode === 'register' ? registerFormRef : undefined}
             onSubmit={handleSubmit}
             autoComplete={mode === 'login' ? 'on' : 'off'}
             className="space-y-4"
@@ -801,7 +818,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">E-mail</span>
                   <div className="relative">
                     <Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="email" name="agendaspeed-new-company-contact" autoComplete="off" data-1p-ignore="true" data-lpignore="true" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input ref={registerEmailRef} type="email" name="agendaspeed-new-company-contact" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -810,7 +827,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input type={showPassword ? 'text' : 'password'} name="agendaspeed-new-company-password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input ref={registerPasswordRef} type={showPassword ? 'text' : 'password'} name="agendaspeed-new-company-password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -821,7 +838,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Confirmar senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input type={showConfirmPassword ? 'text' : 'password'} name="agendaspeed-new-company-password-confirmation" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input ref={registerConfirmPasswordRef} type={showConfirmPassword ? 'text' : 'password'} name="agendaspeed-new-company-password-confirmation" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowConfirmPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
