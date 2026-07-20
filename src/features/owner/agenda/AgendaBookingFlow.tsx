@@ -91,7 +91,7 @@ const renderProfessionalManagerCards = () => {
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
                 AGENDASPEED
               </p>
-              <h3 className="text-lg font-black tracking-tight text-neutral-950 mt-1">
+              <h3 className="text-lg font-semibold tracking-tight text-neutral-950 mt-1">
                 Gerenciador de agenda dos profissionais
               </h3>
               <p className="text-xs text-slate-500 font-semibold mt-1">
@@ -137,7 +137,7 @@ const renderProfessionalManagerCards = () => {
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f4c5c]">
                         Profissional
                       </p>
-                      <h4 className="mt-1 text-base font-black text-neutral-950 truncate">
+                      <h4 className="mt-1 text-base font-semibold text-neutral-950 truncate">
                         {professional.name}
                       </h4>
                       <p className="mt-1 text-xs font-semibold text-slate-500 line-clamp-2 min-h-[32px]">

@@ -892,7 +892,7 @@ export default function AgendaView({
       {currentStep === "start" ? (
         <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-extrabold tracking-tight text-neutral-950">
+            <h2 className="text-xl font-semibold tracking-tight text-neutral-950">
               Agenda Geral do Salão
             </h2>
 
