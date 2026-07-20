@@ -38,7 +38,7 @@ function BookingStepShell({
         </button>
 
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-[#1A3038] sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1A3038] sm:text-3xl">
             {title}
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-600">
@@ -205,7 +205,7 @@ export function ServiceSelectionStep({
                   {service.category || 'Serviço'}
                 </span>
 
-                <h2 className="mt-3 line-clamp-2 text-base font-black leading-tight text-[#1A3038] sm:text-lg">
+                <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-tight text-[#1A3038] sm:text-lg">
                   {service.name}
                 </h2>
               </div>
@@ -280,7 +280,7 @@ export function ProfessionalSelectionStep({
       <div className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-slate-100 bg-[#1A3038] px-4 py-3 text-white">
           <Users className="h-4 w-4" />
-          <h2 className="text-sm font-black">Profissionais disponíveis</h2>
+          <h2 className="text-sm font-semibold">Profissionais disponíveis</h2>
         </div>
 
         <div className="divide-y divide-slate-100 p-2">
@@ -310,7 +310,7 @@ export function ProfessionalSelectionStep({
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-black text-[#1A3038]">
+                  <p className="truncate text-base font-semibold text-[#1A3038]">
                     {professional.name}
                   </p>
                   <p className="mt-0.5 truncate text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
