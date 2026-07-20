@@ -12,7 +12,7 @@
  * - Configurações.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BriefcaseBusiness,
   Calendar,
@@ -50,6 +50,19 @@ export default function OwnerSidebar({
   subscriptionStatus = 'trial'
 }: OwnerSidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuOpen]);
 
   const sidebarItems: SidebarItem[] = [
     {
@@ -113,6 +126,13 @@ export default function OwnerSidebar({
     }
 
     setIsMobileMenuOpen(false);
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
   };
 
   const renderItems = (isMobile = false) => {
@@ -157,15 +177,11 @@ export default function OwnerSidebar({
       <div className="sticky top-[65px] z-40 border-b border-neutral-200 bg-white px-4 py-3 lg:hidden">
         <button
           type="button"
-          onClick={() => setIsMobileMenuOpen((current) => !current)}
+          onClick={() => setIsMobileMenuOpen(true)}
           className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-medium text-neutral-900 shadow-sm"
         >
           <span className="flex items-center gap-2">
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5 text-orange-600" />
-            ) : (
-              <Menu className="h-5 w-5 text-orange-600" />
-            )}
+            <Menu className="h-5 w-5 text-orange-600" />
             Menu do painel
           </span>
 
@@ -173,13 +189,46 @@ export default function OwnerSidebar({
             {sidebarItems.find((item) => item.tab === activeTab)?.label || 'Painel'}
           </span>
         </button>
-
-        {isMobileMenuOpen && (
-          <div className="mt-3 grid gap-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg">
-            {renderItems(true)}
-          </div>
-        )}
       </div>
+
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+          />
+
+          <aside className="absolute left-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-600">
+                  AgendaSpeed
+                </p>
+                <h2 className="mt-1 text-base font-semibold text-neutral-950">
+                  Menu do painel
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50"
+                aria-label="Fechar menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid gap-2">
+                {renderItems(true)}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       <nav
         id="admin-sidebar"
