@@ -97,7 +97,7 @@ const renderReceivableAppointmentCard = (appointment: Appointment) => {
             <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
               {getAppointmentTime(appointment)} • {getReceivableStatusLabel(appointment.status)}
             </p>
-            <h3 className="mt-1 text-base font-black text-slate-950 truncate">
+            <h3 className="mt-1 text-base font-semibold text-slate-950 truncate">
               {appointment.clientName || 'Cliente'}
             </h3>
             <p className="mt-0.5 text-xs font-semibold text-slate-500">
@@ -111,7 +111,7 @@ const renderReceivableAppointmentCard = (appointment: Appointment) => {
         </div>
 
         <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-          <p className="text-sm font-black text-slate-900 truncate">
+          <p className="text-sm font-normal text-slate-900 truncate">
             {serviceName}
           </p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
@@ -421,7 +421,7 @@ return (
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
               AGENDASPEED
             </p>
-            <h1 className="text-lg font-black tracking-tight text-neutral-950">
+            <h1 className="text-lg font-semibold tracking-tight text-neutral-950">
               Recebimentos
             </h1>
           </div>
