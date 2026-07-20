@@ -57,7 +57,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0f4c5c]">Relatório</p>
-          <h3 className="mt-1 min-h-[48px] text-[15px] font-black leading-6 text-neutral-950">{title}</h3>
+          <h3 className="mt-1 min-h-[48px] text-[15px] font-semibold leading-6 text-neutral-950">{title}</h3>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{description}</p>
         </div>
       </div>
@@ -75,7 +75,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
               AGENDASPEED
             </p>
 
-            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
               Financeiro
             </h2>
           </div>
@@ -256,7 +256,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {serviceRevenueRows.map((row) => (
+                  {serviceRevenueRows.map((row: any) => (
                     <tr key={row.serviceId} className="hover:bg-slate-50">
                       <td className="px-4 py-3.5 font-bold text-slate-900">
                         {row.serviceName}
@@ -313,7 +313,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {paymentRevenueRows.map((row) => (
+                    {paymentRevenueRows.map((row: any) => (
                       <tr key={row.paymentType}>
                         <td className="px-4 py-3.5 font-bold text-slate-900">
                           {getPaymentLabel(row.paymentType)}
@@ -355,7 +355,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {professionalRevenueRows.map((row) => (
+                    {professionalRevenueRows.map((row: any) => (
                       <tr key={row.professional.id}>
                         <td className="px-4 py-3.5 font-bold text-slate-900">
                           {row.professional.name}
@@ -400,7 +400,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {productRevenueRows.map((row) => (
+                  {productRevenueRows.map((row: any) => (
                     <tr key={row.productId} className="hover:bg-slate-50">
                       <td className="px-4 py-3.5 font-bold text-slate-900">
                         {row.description}
@@ -549,7 +549,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {financialMovementRows.map((row) => (
+                  {financialMovementRows.map((row: any) => (
                     <tr key={row.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-bold text-slate-900">
                         {formatDateBr(row.date)}
@@ -594,7 +594,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
 
           <PanelCard title="Entradas por Forma de Pagamento">
             <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-5">
-              {financialMovementPaymentTotals.map((row) => (
+              {financialMovementPaymentTotals.map((row: any) => (
                 <div
                   key={row.paymentType}
                   className="border-b border-slate-100 p-4 sm:border-r"
@@ -665,7 +665,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {cashBookRows.map((row, index) => (
+                  {cashBookRows.map((row: any, index: number) => (
                     <tr key={`${row.date}-${row.type}-${index}`}>
                       <td className="px-4 py-3 font-bold text-slate-900">
                         {formatDateBr(row.date)}
