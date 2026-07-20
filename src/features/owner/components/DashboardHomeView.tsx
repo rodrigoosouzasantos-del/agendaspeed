@@ -1061,7 +1061,7 @@ export default function DashboardHomeView({
 
                       <span className="hidden sm:block h-5 w-px bg-neutral-300" />
 
-                      <h4 className="text-sm font-black uppercase leading-tight tracking-tight text-neutral-950">
+                      <h4 className="text-sm font-normal uppercase leading-tight tracking-tight text-neutral-950">
                         CLIENTE: {appointment.clientName}
                       </h4>
                     </div>
@@ -1219,7 +1219,7 @@ export default function DashboardHomeView({
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
               AGENDASPEED
             </p>
-            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+            <h2 className="text-lg font-normal tracking-tight text-neutral-950">
               Painel Operacional
             </h2>
           </div>
