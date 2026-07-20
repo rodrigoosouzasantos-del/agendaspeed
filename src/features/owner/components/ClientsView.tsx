@@ -854,7 +854,7 @@ export default function ClientsView({
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-black text-slate-950">
+                    <p className="truncate text-sm font-normal text-slate-950">
                       {client.name}
                     </p>
 
