@@ -102,7 +102,7 @@ export default function ProfessionalsView({
               AGENDASPEED
             </p>
 
-            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
               Profissionais
             </h2>
           </div>
@@ -175,7 +175,7 @@ export default function ProfessionalsView({
                             Profissional
                           </p>
 
-                          <h3 className="mt-1 truncate text-base font-black leading-tight text-neutral-950">
+                          <h3 className="mt-1 truncate text-base font-semibold leading-tight text-neutral-950">
                             {professional.name}
                           </h3>
 
