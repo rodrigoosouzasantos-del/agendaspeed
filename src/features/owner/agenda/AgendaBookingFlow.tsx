@@ -278,7 +278,7 @@ const renderProfessionalManagerCards = () => {
                     openDays,
                   }).length
                 : serviceProfessional
-                  ? dateOptions.reduce((total, dateOption) => {
+                  ? dateOptions.reduce((total: number, dateOption: string) => {
                       return (
                         total +
                         generateSlotsForSelection({
@@ -302,7 +302,7 @@ const renderProfessionalManagerCards = () => {
 
                         return (
                           total +
-                          dateOptions.reduce((dateTotal, dateOption) => {
+                          dateOptions.reduce((dateTotal: number, dateOption: string) => {
                             return (
                               dateTotal +
                               generateSlotsForSelection({
@@ -882,6 +882,10 @@ const renderProfessionalManagerCards = () => {
   };
 
   const renderCurrentStep = () => {
+    if (currentStep === "start") {
+      return renderProfessionalManagerCards();
+    }
+
     if (currentStep === "selectDate") {
       return renderDateSelection();
     }
