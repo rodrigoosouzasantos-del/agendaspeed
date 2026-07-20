@@ -274,7 +274,7 @@ export default function ServicesView({
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">AGENDASPEED</p>
-            <h2 className="text-lg font-black tracking-tight text-neutral-950">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
               {mode === 'services' ? 'Serviços' : 'Categorias'}
             </h2>
           </div>
@@ -497,7 +497,7 @@ export default function ServicesView({
 
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <h3 className="line-clamp-2 text-base font-black leading-tight text-neutral-950">{service.name}</h3>
+                      <h3 className="line-clamp-2 text-base font-semibold leading-tight text-neutral-950">{service.name}</h3>
                       <p className="mt-2 line-clamp-2 min-h-[36px] text-xs font-semibold leading-relaxed text-slate-500">{service.description || 'Sem descrição cadastrada.'}</p>
                     </div>
                     <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
