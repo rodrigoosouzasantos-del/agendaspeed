@@ -41,6 +41,10 @@ import {
   Service
 } from '../../../types';
 
+import ReceiptsCheckoutView from '../receipts/ReceiptsCheckoutView';
+import PendingReceiptsView from '../receipts/PendingReceiptsView';
+import ReceiptsHistoryView from '../receipts/ReceiptsHistoryView';
+
 import {
   formatCurrency,
   formatDateBr,
@@ -1586,1561 +1590,161 @@ export default function ReceiptsView({
     }
   };
 
-  const renderDraftItem = (item: ReceiptDraftItem) => {
-    if (item.itemType === 'product') {
-      const product = item.productId
-        ? getProductById(products, item.productId)
-        : undefined;
-      const quantity = Math.max(1, Number(item.quantity) || 1);
-      const unitPrice = Number(item.unitPrice) || 0;
 
-      return (
-        <div
-          key={item.id}
-          className="rounded-2xl border border-orange-200 bg-orange-50/40 p-3"
-        >
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.5fr_100px_120px_120px_auto] lg:items-end">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-600">
-                Produto
-              </p>
-
-              <select
-                value={item.productId || ''}
-                onChange={(event) => handleChangeProduct(item.id, event.target.value)}
-                className="mt-1 w-full rounded-xl border border-orange-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
-              >
-                <option value="">Selecione o produto</option>
-                {products
-                  .filter((productOption) => productOption.active)
-                  .map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.code} • {option.description}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                Quantidade
-              </p>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={quantity}
-                onChange={(event) =>
-                  handleChangeProductQuantity(item.id, Number(event.target.value))
-                }
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-black outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                Unitário
-              </p>
-              <p className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-800">
-                {formatCurrency(unitPrice)}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                Total
-              </p>
-              <p className="mt-1 rounded-xl border border-orange-200 bg-white px-3 py-2 text-sm font-black text-orange-700">
-                {formatCurrency(item.price)}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleRemoveExtra(item.id)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50"
-              title={`Remover ${product?.description || 'produto'}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    const service = getServiceById(services, item.serviceId);
-    const professional = getProfessionalById(professionals, item.professionalId);
-    const isEditableItem = item.itemType !== 'appointment';
-    const linkedAppointment =
-      item.itemType === 'appointment' && selectedAppointment
-        ? selectedAppointment
-        : null;
-    const serviceName = linkedAppointment
-      ? getAppointmentServiceName(linkedAppointment, services)
-      : service?.name || 'Serviço não localizado';
-    const professionalName = linkedAppointment
-      ? getAppointmentProfessionalName(linkedAppointment, professionals)
-      : professional?.name || 'Profissional não localizado';
-    const serviceDescription = linkedAppointment
-      ? getAppointmentServiceDescription(linkedAppointment, services)
-      : service?.description || '';
-
-    return (
-      <div
-        key={item.id}
-        className="rounded-2xl border border-slate-200 bg-white p-3"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_120px_auto] gap-3 lg:items-end">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              {item.itemType === 'appointment' ? 'Serviço prestado' : item.itemType === 'manual' ? 'Serviço manual' : 'Serviço extra'}
-            </p>
-
-            {isEditableItem ? (
-              <select
-                value={item.serviceId}
-                onChange={(event) => handleChangeExtraService(item.id, event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-              >
-                <option value="">Selecione o serviço</option>
-                {services.filter((serviceOption) => serviceOption.active).map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <>
-                <p className="mt-1 text-base font-black text-slate-950">
-                  {serviceName}
-                </p>
-                {serviceDescription && (
-                  <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
-                    {serviceDescription}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Profissional
-            </p>
-
-            {isEditableItem ? (
-              <select
-                value={item.professionalId}
-                onChange={(event) => handleChangeExtraProfessional(item.id, event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-              >
-                <option value="">Selecione o profissional</option>
-                {professionals.filter((professionalOption) => professionalOption.active).map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="mt-1 text-sm font-black text-slate-950">
-                {professionalName}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Valor
-            </p>
-
-            {isEditableItem ? (
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatCurrencyInput(item.price)}
-                onChange={(event) => handleChangeExtraPrice(item.id, parseCurrencyInput(event.target.value))}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-black outline-none focus:border-[#0f4c5c]"
-              />
-            ) : (
-              <p className="mt-1 text-sm font-black text-slate-950">
-                {formatCurrency(item.price)}
-              </p>
-            )}
-          </div>
-
-          {isEditableItem && (
-            <button
-              type="button"
-              onClick={() => handleRemoveExtra(item.id)}
-              className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center justify-center"
-              title="Remover serviço extra"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    );
+  const sharedContext = {
+    canShowCheckout: checkoutMode === 'manual' || Boolean(selectedAppointment),
+    cashAmountPaid,
+    cashChange,
+    cashSearch,
+    checkoutMode,
+    clients,
+    currentDayKey,
+    dailyBalance,
+    defaultAreaCode,
+    discountValue,
+    expenseAmount,
+    expenseDescription,
+    expenseNotes,
+    expensePaymentOptions,
+    expensePaymentType,
+    extraItems,
+    formatCurrency,
+    formatCurrencyInput,
+    formatDateBr,
+    formatManualPhoneInput,
+    formatCpfForDisplay,
+    formatPhoneForDisplay,
+    getAppointmentDate,
+    getAppointmentServiceDescription,
+    getAppointmentProfessionalName,
+    getAppointmentServiceName,
+    getAppointmentTime,
+    getProductById,
+    getProfessionalById,
+    getReceivableStatusLabel,
+    getReceiptPaymentLabel,
+    getServiceById,
+    clientPhoneForLookup,
+    handleAddExtraItem,
+    handleAddProductItem,
+    handleAuthorizePendingReceipt,
+    handleBackToSearch,
+    handleChangeExtraPrice,
+    handleChangeExtraProfessional,
+    handleChangeExtraService,
+    handleChangeProduct,
+    handleChangeProductQuantity,
+    handleClosePendingPayment,
+    handleClosePendingReceipts,
+    handleConfirmExpense,
+    handleConfirmPendingPayment,
+    handleConfirmReceipt,
+    handleOpenCheckout,
+    handleOpenManualReceipt,
+    handleOpenPendingPayment,
+    handleOpenPendingReceipts,
+    handlePrintDailySummary,
+    handlePrintDraftReceipt,
+    handlePrintReceipt,
+    handlePrintConfirmedReceipt,
+    handleRemoveExtra,
+    handleSkipConfirmedReceiptPrint,
+    isCheckoutOpen,
+    isExpenseOpen,
+    isHistoryOpen,
+    isPendingAuthorizationOpen,
+    isPendingReceiptsOpen,
+    isSubmittingExpense,
+    isSubmittingPendingPayment,
+    isSubmittingReceipt,
+    manualClientCpf,
+    manualClientName,
+    manualClientPhone,
+    manualMatchedClient,
+    normalizeManualPhone,
+    normalizePhone,
+    notes,
+    normalizedDiscount,
+    parseCurrencyInput,
+    paymentOptions,
+    paymentType,
+    pendingAmountRemaining,
+    pendingAmountToApply,
+    pendingAuthorizationAmount,
+    pendingPaymentAmount,
+    pendingPaymentChange,
+    pendingPaymentDate,
+    pendingPaymentNotes,
+    pendingPaymentType,
+    pendingReceipts,
+    printAfterConfirmHtml,
+    products,
+    professionals,
+    receiptItems,
+    receivableAppointmentsList,
+    selectedAppointment,
+    selectedPendingAmount,
+    selectedPendingReceipt,
+    services,
+    setCashAmountPaid,
+    setCashSearch,
+    setDiscountValue,
+    setExpenseAmount,
+    setExpenseDescription,
+    setExpenseNotes,
+    setExpensePaymentType,
+    setIsHistoryOpen,
+    setIsPendingAuthorizationOpen,
+    setManualClientCpf,
+    setManualClientName,
+    setManualClientPhone,
+    setNotes,
+    setPaymentType,
+    setPendingAuthorizationAmount,
+    setPendingPaymentAmount,
+    setPendingPaymentDate,
+    setPendingPaymentNotes,
+    setPendingPaymentType,
+    setSplitCashAmount,
+    setSplitCreditAmount,
+    setSplitDebitAmount,
+    setSplitPixAmount,
+    setUseSplitPayment,
+    setValidationPopupMessage,
+    splitCashAmount,
+    splitChange,
+    splitCreditAmount,
+    splitDebitAmount,
+    splitPixAmount,
+    splitRemaining,
+    structuredAmountPending,
+    subtotal,
+    todayExpenses,
+    todayReceipts,
+    todayTotalsByPayment,
+    total,
+    totalExpensesToday,
+    totalPendingReceipts,
+    totalReceivedToday,
+    useSplitPayment,
+    validationPopupMessage
   };
-
-  const renderReceivableAppointmentCard = (appointment: Appointment) => {
-    const serviceName = getAppointmentServiceName(appointment, services);
-    const professionalName = getAppointmentProfessionalName(appointment, professionals);
-    const serviceDescription = getAppointmentServiceDescription(appointment, services);
-    const appointmentDate = getAppointmentDate(appointment);
-    const isOverdue = appointmentDate < currentDayKey;
-
-    return (
-      <div
-        key={appointment.id}
-        className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 shadow-sm transition hover:border-slate-300"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
-              {getAppointmentTime(appointment)} • {getReceivableStatusLabel(appointment.status)}
-            </p>
-            <h3 className="mt-1 text-base font-black text-slate-950 truncate">
-              {appointment.clientName || 'Cliente'}
-            </h3>
-            <p className="mt-0.5 text-xs font-semibold text-slate-500">
-              {formatPhoneForDisplay(appointment.clientPhone)}
-            </p>
-          </div>
-
-          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-slate-700">
-            {formatCurrency(appointment.price)}
-          </span>
-        </div>
-
-        <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-          <p className="text-sm font-black text-slate-900 truncate">
-            {serviceName}
-          </p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
-            Profissional: {professionalName}
-          </p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500 truncate">
-            {formatDateBr(appointmentDate)} às {getAppointmentTime(appointment)}
-          </p>
-          {serviceDescription && (
-            <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-relaxed text-slate-500">
-              {serviceDescription}
-            </p>
-          )}
-        </div>
-
-        {isOverdue && (
-          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-            <p className="text-[11px] font-bold text-amber-700">
-              Valor antigo sem baixa. Priorize este recebimento.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => handleOpenCheckout(appointment.id)}
-            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
-          >
-            Baixar pagamento
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderHistory = () => (
-    <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setIsHistoryOpen((current) => !current)}
-        className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-neutral-50 transition"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-            {isHistoryOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-lg font-black text-neutral-950">
-              Histórico de recebimentos do dia
-            </h2>
-            <p className="text-xs font-semibold text-neutral-500">
-              Fica fechado para não poluir a tela. Clique para abrir o resumo do caixa.
-            </p>
-          </div>
-        </div>
-
-        <span className="rounded-full bg-neutral-100 border border-neutral-200 px-3 py-1 text-xs font-black text-neutral-700 shrink-0">
-          {todayReceipts.length} recebimento(s)
-        </span>
-      </button>
-
-      {isHistoryOpen && (
-        <div className="border-t border-neutral-200">
-          <div className="p-4 flex justify-end">
-            <button
-              type="button"
-              onClick={handlePrintDailySummary}
-              className="rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              Imprimir resumo do dia
-            </button>
-          </div>
-
-          <div className="px-4 pb-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 border-b border-neutral-100">
-            <div className="rounded-2xl bg-neutral-950 text-white p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">
-                Recebido
-              </p>
-              <p className="text-lg font-black mt-1">
-                {formatCurrency(totalReceivedToday)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-red-50 border border-red-100 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-400">
-                Despesas
-              </p>
-              <p className="text-sm font-black text-red-700 mt-1">
-                {formatCurrency(totalExpensesToday)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-500">
-                Saldo
-              </p>
-              <p className="text-sm font-black text-emerald-700 mt-1">
-                {formatCurrency(dailyBalance)}
-              </p>
-            </div>
-
-            {todayTotalsByPayment.map((item) => (
-              <div key={item.paymentType} className="rounded-2xl bg-neutral-50 border border-neutral-200 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
-                  {getReceiptPaymentLabel(item.paymentType)}
-                </p>
-                <p className="text-sm font-black text-neutral-950 mt-1">
-                  {formatCurrency(item.total)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-4 space-y-2">
-            {todayReceipts.length === 0 && todayExpenses.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center">
-                <p className="text-sm font-black text-neutral-700">
-                  Nenhuma movimentação confirmada hoje.
-                </p>
-              </div>
-            )}
-
-            {todayReceipts.map((receipt) => (
-              <div
-                key={receipt.id}
-                className="rounded-2xl border border-neutral-200 bg-white p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
-              >
-                <div>
-                  <p className="text-sm font-black text-neutral-950">
-                    {receipt.clientName}
-                  </p>
-                  <p className="text-xs font-bold text-neutral-500">
-                    {new Date(receipt.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {' '}• {getReceiptPaymentLabel(receipt.paymentType)} • {receipt.items.length} item(ns)
-                  </p>
-                </div>
-
-                <div className="flex flex-row gap-2 items-center justify-end">
-                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-black text-emerald-700 text-center">
-                    {formatCurrency(Number(receipt.amountPaid) || 0)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handlePrintReceipt(receipt)}
-                    className="h-9 w-9 rounded-xl border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 transition flex items-center justify-center"
-                    title="Imprimir"
-                    aria-label="Imprimir recebimento"
-                  >
-                    <Printer className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {todayExpenses.map((expense) => (
-              <div
-                key={expense.id}
-                className="rounded-2xl border border-red-100 bg-red-50 p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
-              >
-                <div>
-                  <p className="text-sm font-black text-red-800">
-                    {expense.description}
-                  </p>
-                  <p className="text-xs font-bold text-red-500">
-                    {new Date(expense.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {' '}• Despesa • {getReceiptPaymentLabel(expense.paymentType)}
-                  </p>
-                </div>
-
-                <span className="rounded-full bg-white border border-red-200 px-3 py-1 text-xs font-black text-red-700 text-center">
-                  - {formatCurrency(expense.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const canShowCheckout = checkoutMode === 'manual' || Boolean(selectedAppointment);
 
   if (isPendingReceiptsOpen) {
-    return (
-      <section className="space-y-4">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 bg-[#0f4c5c]" />
-
-          <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                AGENDASPEED
-              </p>
-              <h1 className="text-lg font-black text-slate-950">
-                Valores pendentes
-              </h1>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                Receba saldos restantes sem gerar uma segunda baixa integral.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleClosePendingReceipts}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar para recebimentos
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-3 text-white">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-tight">
-                Pendências em aberto
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-white/90">
-                Clique em receber saldo para registrar o pagamento.
-              </p>
-            </div>
-
-            <div className="text-right">
-              <span className="block text-[10px] font-black uppercase text-white/75">
-                Saldo total
-              </span>
-              <strong className="text-sm font-black">
-                {formatCurrency(totalPendingReceipts)}
-              </strong>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-2">
-            {pendingReceipts.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 p-8 text-center xl:col-span-2">
-                <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-amber-500" />
-                <p className="text-sm font-black text-amber-800">
-                  Nenhum valor pendente.
-                </p>
-              </div>
-            )}
-
-            {pendingReceipts.map((receipt) => (
-              <article
-                key={receipt.id}
-                className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-950">
-                      {receipt.clientName || 'Cliente'}
-                    </p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-600">
-                      {formatPhoneForDisplay(receipt.clientPhone)}
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                      {receipt.items
-                        .map((item) => item.itemDescription || item.serviceName)
-                        .filter(Boolean)
-                        .join(' + ') || 'Recebimento'}
-                    </p>
-                  </div>
-
-                  <span className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-black text-amber-700">
-                    Pendente
-                  </span>
-                </div>
-
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-slate-200 bg-white p-2">
-                    <span className="text-[9px] font-black uppercase text-slate-400">
-                      Total
-                    </span>
-                    <p className="text-xs font-black text-slate-800">
-                      {formatCurrency(receipt.totalAmount)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-emerald-200 bg-white p-2">
-                    <span className="text-[9px] font-black uppercase text-emerald-500">
-                      Pago
-                    </span>
-                    <p className="text-xs font-black text-emerald-700">
-                      {formatCurrency(Number(receipt.amountPaid) || 0)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-amber-300 bg-white p-2">
-                    <span className="text-[9px] font-black uppercase text-amber-500">
-                      Restante
-                    </span>
-                    <p className="text-xs font-black text-amber-700">
-                      {formatCurrency(Number(receipt.amountPending) || 0)}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenPendingPayment(receipt)}
-                  className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#0f4c5c] px-4 text-xs font-black text-white hover:bg-[#123945]"
-                >
-                  <WalletCards className="h-4 w-4" />
-                  RECEBER SALDO
-                </button>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        {selectedPendingReceipt && (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-              <div className="h-1.5 bg-[#0f4c5c]" />
-
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
-                      Receber saldo
-                    </p>
-                    <h2 className="mt-1 text-xl font-black text-slate-950">
-                      {selectedPendingReceipt.clientName || 'Cliente'}
-                    </h2>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Saldo atual: {formatCurrency(
-                        Number(selectedPendingReceipt.amountPending) || 0
-                      )}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleClosePendingPayment}
-                    disabled={isSubmittingPendingPayment}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Fechar
-                  </button>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">
-                      {pendingPaymentType === 'dinheiro'
-                        ? 'Valor entregue'
-                        : 'Valor recebido'}
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formatCurrencyInput(pendingPaymentAmount)}
-                      onChange={(event) => {
-                        const nextAmount = parseCurrencyInput(event.target.value);
-
-                        setPendingPaymentAmount(
-                          pendingPaymentType === 'dinheiro'
-                            ? nextAmount
-                            : Math.min(
-                                nextAmount,
-                                Number(selectedPendingReceipt.amountPending) || 0
-                              )
-                        );
-                      }}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black outline-none focus:border-[#0f4c5c]"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">
-                      Data do recebimento
-                    </span>
-                    <input
-                      type="date"
-                      value={pendingPaymentDate}
-                      onChange={(event) =>
-                        setPendingPaymentDate(event.target.value)
-                      }
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-3">
-                  <p className="text-[10px] font-black uppercase text-slate-500">
-                    Forma de pagamento
-                  </p>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {expensePaymentOptions().map((option) => (
-                      <button
-                        type="button"
-                        key={option}
-                        onClick={() => {
-                          setPendingPaymentType(option);
-
-                          if (option !== 'dinheiro') {
-                            setPendingPaymentAmount((currentAmount) =>
-                              Math.min(
-                                currentAmount,
-                                Number(selectedPendingReceipt.amountPending) || 0
-                              )
-                            );
-                          }
-                        }}
-                        className={`h-10 rounded-xl border px-3 text-xs font-black transition ${
-                          pendingPaymentType === option
-                            ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
-                        }`}
-                      >
-                        {getReceiptPaymentLabel(option)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <label className="mt-3 block space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">
-                    Observações
-                  </span>
-                  <textarea
-                    value={pendingPaymentNotes}
-                    onChange={(event) =>
-                      setPendingPaymentNotes(event.target.value)
-                    }
-                    rows={3}
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
-                  />
-                </label>
-
-                <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-amber-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase text-amber-600">
-                      Saldo pendente
-                    </p>
-                    <p className="mt-1 text-sm font-black text-slate-900">
-                      {formatCurrency(selectedPendingAmount)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-emerald-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase text-emerald-600">
-                      Valor que será baixado
-                    </p>
-                    <p className="mt-1 text-sm font-black text-emerald-700">
-                      {formatCurrency(pendingAmountToApply)}
-                    </p>
-                  </div>
-
-                  {pendingPaymentType === 'dinheiro' && (
-                    <div className="rounded-xl border border-[#0f4c5c]/20 bg-white p-3">
-                      <p className="text-[9px] font-black uppercase text-[#0f4c5c]">
-                        Troco
-                      </p>
-                      <p className="mt-1 text-sm font-black text-[#0f4c5c]">
-                        {formatCurrency(pendingPaymentChange)}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="rounded-xl border border-amber-300 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase text-amber-600">
-                      Restará pendente
-                    </p>
-                    <p className="mt-1 text-sm font-black text-amber-700">
-                      {formatCurrency(pendingAmountRemaining)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleClosePendingPayment}
-                    disabled={isSubmittingPendingPayment}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleConfirmPendingPayment}
-                    disabled={
-                      isSubmittingPendingPayment ||
-                      pendingAmountToApply <= 0
-                    }
-                    className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:opacity-60"
-                  >
-                    {isSubmittingPendingPayment
-                      ? 'Salvando...'
-                      : 'Confirmar recebimento'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {validationPopupMessage && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
-              <div className="h-1.5 bg-amber-500" />
-              <div className="p-5 text-left">
-                <h3 className="text-lg font-black text-neutral-950">
-                  Informação
-                </h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                  {validationPopupMessage}
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setValidationPopupMessage('')}
-                    className="rounded-xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white hover:bg-[#123945]"
-                  >
-                    Entendi
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  if (isExpenseOpen) {
-    return (
-      <section className="space-y-4">
-        <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleBackToSearch}
-            className="rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2 w-fit"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </button>
-
-          <div className="text-left lg:text-right">
-            <h1 className="text-2xl font-black tracking-tight text-neutral-950">
-              Lançar despesa extra
-            </h1>
-            <p className="text-sm text-neutral-500 font-medium">
-              Use para saída de caixa: compra rápida, vale, material ou despesa do dia.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm overflow-hidden max-w-3xl">
-          <div className="p-4 border-b border-neutral-200">
-            <h2 className="text-lg font-black text-neutral-950">
-              Dados da despesa
-            </h2>
-            <p className="text-xs font-semibold text-neutral-500">
-              Despesa reduz o saldo do caixa do dia, mas não entra como recebimento.
-            </p>
-          </div>
-
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
-                Descrição
-              </label>
-              <input
-                value={expenseDescription}
-                onChange={(event) => setExpenseDescription(event.target.value)}
-                placeholder="Ex.: compra de toalhas, vale, material"
-                className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
-                  Valor
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formatCurrencyInput(expenseAmount)}
-                  onChange={(event) => setExpenseAmount(parseCurrencyInput(event.target.value))}
-                  className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-black outline-none focus:border-orange-500"
-                />
-              </div>
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500 mb-2">
-                  Forma de pagamento
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {expensePaymentOptions().map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      onClick={() => setExpensePaymentType(option)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
-                        expensePaymentType === option
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-200'
-                      }`}
-                    >
-                      {getReceiptPaymentLabel(option)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
-                Observações
-              </label>
-              <textarea
-                value={expenseNotes}
-                onChange={(event) => setExpenseNotes(event.target.value)}
-                rows={3}
-                placeholder="Observação opcional."
-                className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-semibold outline-none focus:border-orange-500 resize-none"
-              />
-            </div>
-
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 flex items-center justify-between gap-3">
-              <span className="text-sm font-black text-red-700">Saída do caixa</span>
-              <span className="text-xl font-black text-red-700">- {formatCurrency(Number(expenseAmount) || 0)}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleConfirmExpense}
-              disabled={isSubmittingExpense}
-              className="w-full rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white hover:bg-orange-700 transition flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {isSubmittingExpense ? 'Salvando despesa...' : 'Confirmar despesa'}
-            </button>
-          </div>
-        </div>
-      </section>
-    );
+    return <PendingReceiptsView context={sharedContext} />;
   }
 
   if (isCheckoutOpen) {
-    const checkoutExtraItems =
-      checkoutMode === 'appointment' ? extraItems : receiptItems;
-
-    return (
-      <section className="space-y-2">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1 bg-[#0f4c5c]" />
-          <div className="relative flex min-h-[62px] items-center justify-center px-4 py-2.5">
-            <button
-              type="button"
-              onClick={handleBackToSearch}
-              className="absolute left-4 flex items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945]"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </button>
-
-            <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                AGENDASPEED • CAIXA
-              </p>
-              <h1 className="text-lg font-black tracking-tight text-neutral-950">
-                Fechamento do pagamento
-              </h1>
-            </div>
-          </div>
-        </div>
-
-        {checkoutMode === 'appointment' && !selectedAppointment && (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-sm">
-            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-neutral-400" />
-            <p className="text-sm font-black text-neutral-700">
-              Nenhum atendimento selecionado.
-            </p>
-          </div>
-        )}
-
-        {canShowCheckout && (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 bg-[#0f4c5c] px-4 py-2.5 text-white">
-              <div>
-                <h2 className="text-sm font-black uppercase tracking-tight">
-                  Resumo do recebimento
-                </h2>
-                <p className="text-[10px] font-semibold text-white/75">
-                  Confira os itens, informe o pagamento e conclua a baixa.
-                </p>
-              </div>
-
-              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
-                {formatCurrency(total)}
-              </span>
-            </div>
-
-            <div className="space-y-3 p-3">
-              {checkoutMode === 'appointment' && selectedAppointment && (
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.2fr_1.4fr_1fr_120px]">
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                      Cliente
-                    </p>
-                    <p className="truncate text-sm font-black text-slate-950">
-                      {selectedAppointment.clientName || 'Cliente'}
-                    </p>
-                    <p className="truncate text-[11px] font-semibold text-slate-500">
-                      {formatPhoneForDisplay(selectedAppointment.clientPhone || '')}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                      Serviço
-                    </p>
-                    <p className="truncate text-sm font-black text-slate-950">
-                      {getAppointmentServiceName(selectedAppointment, services)}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                      Profissional
-                    </p>
-                    <p className="truncate text-sm font-black text-slate-950">
-                      {getAppointmentProfessionalName(selectedAppointment, professionals)}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                      Atendimento
-                    </p>
-                    <p className="text-xs font-black text-slate-950">
-                      {formatDateBr(getAppointmentDate(selectedAppointment))}
-                    </p>
-                    <p className="text-xs font-black text-[#0f4c5c]">
-                      {getAppointmentTime(selectedAppointment)} • {formatCurrency(selectedAppointment.price)}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {checkoutMode === 'manual' && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_1.3fr]">
-                    <label>
-                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                        WhatsApp
-                      </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={manualClientPhone}
-                        onChange={(event) => {
-                          const nextPhone = formatManualPhoneInput(
-                            event.target.value,
-                            defaultAreaCode
-                          );
-                          const normalizedNextPhone = normalizeManualPhone(
-                            nextPhone,
-                            defaultAreaCode
-                          );
-                          const matchedClient = clients.find((client) => {
-                            return normalizePhone(
-                              client.phoneNormalized || client.phone || ''
-                            ) === normalizedNextPhone;
-                          });
-
-                          setManualClientPhone(nextPhone);
-
-                          if (matchedClient) {
-                            setManualClientName(matchedClient.name);
-                            setManualClientCpf(
-                              formatCpfForDisplay(matchedClient.cpf || '')
-                            );
-                          }
-                        }}
-                        onBlur={() => {
-                          const normalizedPhone = normalizeManualPhone(
-                            manualClientPhone,
-                            defaultAreaCode
-                          );
-
-                          if (normalizedPhone.length >= 10) {
-                            setManualClientPhone(
-                              formatPhoneForDisplay(normalizedPhone)
-                            );
-                          }
-                        }}
-                        placeholder={
-                          defaultAreaCode
-                            ? `(DDD opcional: ${defaultAreaCode})`
-                            : '(99) 99999-9999'
-                        }
-                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
-                    </label>
-
-                    <label>
-                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                        CPF (opcional)
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={manualClientCpf}
-                        onChange={(event) => {
-                          const nextCpf = formatCpfForDisplay(event.target.value);
-                          const normalizedNextCpf = nextCpf.replace(/\D/g, '');
-                          const matchedClient = clients.find((client) => {
-                            return String(client.cpf || '').replace(/\D/g, '') === normalizedNextCpf;
-                          });
-
-                          setManualClientCpf(nextCpf);
-
-                          if (matchedClient && normalizedNextCpf.length === 11) {
-                            setManualClientName(matchedClient.name);
-                            setManualClientPhone(
-                              formatPhoneForDisplay(
-                                clientPhoneForLookup(matchedClient)
-                              )
-                            );
-                          }
-                        }}
-                        placeholder="000.000.000-00"
-                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
-                    </label>
-
-                    <label>
-                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                        Nome do cliente
-                      </span>
-                      <input
-                        value={manualClientName}
-                        onChange={(event) => setManualClientName(event.target.value)}
-                        placeholder="Nome do cliente"
-                        className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
-                    </label>
-                  </div>
-
-                  {manualMatchedClient && (
-                    <p className="mt-2 text-[11px] font-bold text-emerald-700">
-                      Cliente localizado: {manualMatchedClient.name}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {checkoutExtraItems.length > 0 && (
-                <div className="space-y-2">
-                  {checkoutExtraItems.map(renderDraftItem)}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleAddExtraItem}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-[#0f4c5c]/20 bg-[#0f4c5c]/5 px-4 text-sm font-black text-[#0f4c5c] transition hover:bg-[#0f4c5c]/10"
-                >
-                  <Plus className="h-4 w-4" />
-                  {checkoutMode === 'manual' ? 'Adicionar outro serviço' : 'Adicionar serviço extra'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleAddProductItem}
-                  disabled={!products.some((product) => product.active)}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  <Package className="h-4 w-4" />
-                  Adicionar produto
-                </button>
-              </div>
-
-              <div className="border-t border-slate-200 pt-3">
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.45fr_0.8fr_0.85fr]">
-                  <div>
-                    <p className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Forma de pagamento
-                    </p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {paymentOptions().map((option) => (
-                        <button
-                          type="button"
-                          key={option}
-                          onClick={() => {
-                            setPaymentType(option);
-                            setUseSplitPayment(false);
-                          }}
-                          className={`h-9 rounded-xl border px-2 text-[11px] font-black transition ${
-                            !useSplitPayment && paymentType === option
-                              ? 'border-[#0f4c5c] bg-[#0f4c5c] text-white'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
-                          }`}
-                        >
-                          {getReceiptPaymentLabel(option)}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setUseSplitPayment((current) => !current)}
-                      className={`mt-2 h-9 w-full rounded-xl border px-3 text-[11px] font-black transition ${
-                        useSplitPayment
-                          ? 'border-[#0f4c5c] bg-[#0f4c5c]/10 text-[#0f4c5c]'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f4c5c]/40'
-                      }`}
-                    >
-                      Pagamento dividido
-                    </button>
-
-                    {!useSplitPayment && paymentType === 'dinheiro' && (
-                      <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                        <label>
-                          <span className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
-                            Valor recebido
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatCurrencyInput(cashAmountPaid)}
-                            onChange={(event) => setCashAmountPaid(parseCurrencyInput(event.target.value))}
-                            className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                          />
-                        </label>
-                        <div className="min-w-[100px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-right">
-                          <p className="text-[9px] font-black uppercase text-slate-400">Troco</p>
-                          <p className="text-sm font-black text-[#0f4c5c]">{formatCurrency(cashChange)}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {useSplitPayment && (
-                      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                        <div className="grid grid-cols-4 gap-2">
-                          {[
-                            ['Dinheiro', splitCashAmount, setSplitCashAmount],
-                            ['Pix', splitPixAmount, setSplitPixAmount],
-                            ['Débito', splitDebitAmount, setSplitDebitAmount],
-                            ['Crédito', splitCreditAmount, setSplitCreditAmount]
-                          ].map(([label, value, setter]) => (
-                            <label key={String(label)}>
-                              <span className="text-[9px] font-black uppercase text-slate-500">
-                                {String(label)}
-                              </span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={formatCurrencyInput(Number(value))}
-                                onChange={(event) =>
-                                  (setter as React.Dispatch<React.SetStateAction<number>>)(
-                                    parseCurrencyInput(event.target.value)
-                                  )
-                                }
-                                className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold outline-none focus:border-[#0f4c5c]"
-                              />
-                            </label>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex justify-end gap-4 text-[11px] font-black text-slate-600">
-                          <span>Restante: {formatCurrency(splitRemaining)}</span>
-                          <span className="text-[#0f4c5c]">Troco: {formatCurrency(splitChange)}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-rows-[auto_1fr] gap-2">
-                    <label>
-                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                        Desconto
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatCurrencyInput(discountValue)}
-                        onChange={(event) => setDiscountValue(parseCurrencyInput(event.target.value))}
-                        className="mt-1 h-9 w-full rounded-xl border border-slate-300 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
-                      />
-                    </label>
-
-                    <label>
-                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                        Observações
-                      </span>
-                      <textarea
-                        value={notes}
-                        onChange={(event) => setNotes(event.target.value)}
-                        placeholder="Observação opcional"
-                        rows={2}
-                        className="mt-1 min-h-[58px] w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold outline-none focus:border-[#0f4c5c]"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                        <span>Subtotal</span>
-                        <span>{formatCurrency(subtotal)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                        <span>Desconto</span>
-                        <span>- {formatCurrency(normalizedDiscount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                        <span className="text-sm font-black text-slate-950">Total</span>
-                        <span className="text-xl font-black text-[#0f4c5c]">{formatCurrency(total)}</span>
-                      </div>
-                      {structuredAmountPending > 0 && (
-                        <div className="flex items-center justify-between text-xs font-black text-amber-700">
-                          <span>Pendente</span>
-                          <span>{formatCurrency(structuredAmountPending)}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePrintDraftReceipt}
-                        className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#0f4c5c]/20 bg-white px-3 text-xs font-black text-[#0f4c5c] transition hover:bg-[#0f4c5c]/5"
-                      >
-                        <Printer className="h-4 w-4" />
-                        Imprimir
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleConfirmReceipt}
-                        disabled={receiptItems.length === 0 || isSubmittingReceipt}
-                        className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0f4c5c] px-3 text-xs font-black text-white transition hover:bg-[#123945] disabled:bg-neutral-200 disabled:text-neutral-400"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {isSubmittingReceipt ? 'Salvando...' : 'Baixar'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {validationPopupMessage && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
-              <div className="h-1.5 bg-amber-500" />
-              <div className="p-5 text-left">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-                  <AlertCircle className="h-6 w-6" />
-                </div>
-                <h3 className="mt-4 text-lg font-black text-neutral-950">
-                  Verifique os dados
-                </h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                  {validationPopupMessage}
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setValidationPopupMessage('')}
-                    className="rounded-xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123945]"
-                  >
-                    Entendi
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isPendingAuthorizationOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
-              <div className="h-1.5 bg-amber-500" />
-              <div className="p-5 text-left">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-                  <AlertCircle className="h-6 w-6" />
-                </div>
-                <h3 className="mt-4 text-lg font-black text-neutral-950">
-                  Valor inferior ao total
-                </h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                  O valor informado é menor que o total dos serviços e produtos.
-                  Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
-                </p>
-                <p className="mt-2 text-sm font-black text-amber-700">
-                  Deseja baixar este pagamento com valor pendente?
-                </p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPendingAuthorizationOpen(false);
-                      setPendingAuthorizationAmount(0);
-                    }}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Não, corrigir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAuthorizePendingReceipt}
-                    className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-black text-white transition hover:bg-amber-700"
-                  >
-                    Sim, autorizar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-    );
+    return <ReceiptsCheckoutView context={sharedContext} />;
   }
 
   return (
-    <section className="space-y-3">
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="h-1.5 bg-[#0f4c5c]" />
-        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
-            </p>
-            <h1 className="text-lg font-black tracking-tight text-neutral-950">
-              Recebimentos
-            </h1>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 lg:max-w-2xl lg:flex-row lg:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
-              <input
-                type="text"
-                value={cashSearch}
-                onChange={(event) => setCashSearch(event.target.value)}
-                placeholder="Buscar por cliente, telefone, serviço ou profissional"
-                className="h-9 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 pr-3 text-sm font-semibold text-neutral-700 outline-none focus:border-[#0f4c5c] focus:bg-white"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleOpenManualReceipt}
-                className="rounded-xl bg-[#0f4c5c] px-3 py-2 text-xs font-black text-white transition hover:bg-[#123945] flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Manual
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenPendingReceipts}
-                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700 transition hover:bg-amber-100 flex items-center justify-center gap-1.5"
-              >
-                <WalletCards className="w-3.5 h-3.5" />
-                Pendentes
-                {pendingReceipts.length > 0 && (
-                  <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-black text-white">
-                    {pendingReceipts.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[360px]">
-        <div className="bg-[#0f4c5c] px-4 py-3 text-white flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-tight">
-              Atendimentos para receber
-            </h2>
-            <p className="mt-0.5 text-[11px] font-semibold text-white/80">
-              Selecione o atendimento e faça a baixa diretamente.
-            </p>
-          </div>
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">
-            {receivableAppointmentsList.length}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-2">
-          {receivableAppointmentsList.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center xl:col-span-2">
-              <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-              <p className="text-sm font-black text-neutral-800">
-                Nenhum atendimento aguardando baixa.
-              </p>
-              <p className="text-xs font-semibold text-neutral-500 mt-1">
-                Os atendimentos concluídos ou pendentes de pagamento aparecerão aqui.
-              </p>
-            </div>
-          )}
-
-          {receivableAppointmentsList.map((appointment) =>
-            renderReceivableAppointmentCard(appointment)
-          )}
-        </div>
-      </div>
-
-      {renderHistory()}
-
-      {validationPopupMessage && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
-            <div className="h-1.5 bg-amber-500" />
-
-            <div className="p-5 text-left">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-
-              <h3 className="mt-4 text-lg font-black text-neutral-950">
-                Verifique os dados
-              </h3>
-
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                {validationPopupMessage}
-              </p>
-
-              <div className="mt-5 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setValidationPopupMessage('')}
-                  className="rounded-xl bg-[#0f4c5c] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123945]"
-                >
-                  Entendi
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isPendingAuthorizationOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl">
-            <div className="h-1.5 bg-amber-500" />
-            <div className="p-5 text-left">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <h3 className="mt-4 text-lg font-black text-neutral-950">
-                Valor inferior ao total
-              </h3>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                O valor informado é menor que o total dos serviços e produtos.
-                Restará pendente <strong>{formatCurrency(pendingAuthorizationAmount)}</strong>.
-              </p>
-              <p className="mt-2 text-sm font-black text-amber-700">
-                Deseja baixar este pagamento com valor pendente?
-              </p>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPendingAuthorizationOpen(false);
-                    setPendingAuthorizationAmount(0);
-                  }}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                >
-                  Não, corrigir
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAuthorizePendingReceipt}
-                  className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-black text-white transition hover:bg-amber-700"
-                >
-                  Sim, autorizar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {printAfterConfirmHtml && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-5 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-black text-neutral-950 text-center">
-              Pagamento confirmado
-            </h3>
-            <p className="text-sm font-semibold text-neutral-500 text-center mt-2">
-              Deseja imprimir o comprovante agora?
-            </p>
-
-            <div className="grid grid-cols-2 gap-3 mt-5">
-              <button
-                type="button"
-                onClick={handlePrintConfirmedReceipt}
-                className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 transition flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                Sim
-              </button>
-              <button
-                type="button"
-                onClick={handleSkipConfirmedReceiptPrint}
-                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-700 transition"
-              >
-                Não
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+    <ReceiptsHistoryView
+      context={{
+        ...sharedContext,
+        renderMode: isExpenseOpen ? 'expense' : 'home'
+      }}
+    />
   );
 }
 

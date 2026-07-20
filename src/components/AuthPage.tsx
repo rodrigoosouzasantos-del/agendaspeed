@@ -238,11 +238,25 @@ export default function AuthPage({
   useEffect(() => {
     if (mode !== 'register') return;
 
-    // Cadastro público novo nunca deve herdar e-mail de login anterior.
-    // O único preenchimento permitido é a retomada segura após confirmação de e-mail.
-    if (!loadPendingTrial()) {
+    // Cadastro público novo nunca deve herdar credenciais salvas do login.
+    // A única exceção é a retomada segura após confirmação de e-mail.
+    if (loadPendingTrial()) return;
+
+    const clearRegistrationCredentials = () => {
       setEmail('');
-    }
+      setPassword('');
+      setConfirmPassword('');
+    };
+
+    clearRegistrationCredentials();
+
+    const immediateTimer = window.setTimeout(clearRegistrationCredentials, 0);
+    const autofillTimer = window.setTimeout(clearRegistrationCredentials, 300);
+
+    return () => {
+      window.clearTimeout(immediateTimer);
+      window.clearTimeout(autofillTimer);
+    };
   }, [mode]);
 
   useEffect(() => {
@@ -659,6 +673,10 @@ export default function AuthPage({
     setMessage('');
     setPassword('');
     setConfirmPassword('');
+
+    if (nextMode === 'register' && !loadPendingTrial()) {
+      setEmail('');
+    }
   };
 
   return (
@@ -728,14 +746,38 @@ export default function AuthPage({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            autoComplete={mode === 'login' ? 'on' : 'off'}
+            className="space-y-4"
+          >
+            {mode === 'register' && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -left-[10000px] top-auto h-px w-px overflow-hidden opacity-0"
+              >
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  tabIndex={-1}
+                />
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  tabIndex={-1}
+                />
+              </div>
+            )}
+
             {mode === 'register' && registerStep === 1 && (
               <>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Nome do estabelecimento</span>
                   <div className="relative">
                     <Building className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="text" value={salonName} onChange={(event) => setSalonName(event.target.value)} placeholder="Ex.: Studio Bella" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input type="text" name="trial-business-name" autoComplete="organization" value={salonName} onChange={(event) => setSalonName(event.target.value)} placeholder="Ex.: Studio Bella" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -743,7 +785,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Nome do responsável</span>
                   <div className="relative">
                     <User className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="text" value={ownerName} onChange={(event) => setOwnerName(event.target.value)} placeholder="Seu nome completo" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input type="text" name="trial-owner-name" autoComplete="name" value={ownerName} onChange={(event) => setOwnerName(event.target.value)} placeholder="Seu nome completo" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -751,7 +793,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">WhatsApp comercial</span>
                   <div className="relative">
                     <Phone className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="tel" value={phone} onChange={(event) => setPhone(formatPhone(event.target.value))} placeholder="(99) 99999-9999" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input type="tel" name="trial-business-phone" autoComplete="tel" value={phone} onChange={(event) => setPhone(formatPhone(event.target.value))} placeholder="(99) 99999-9999" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -759,7 +801,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">E-mail</span>
                   <div className="relative">
                     <Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input type="email" name="trial-contact-email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input type="email" name="agendaspeed-new-company-contact" autoComplete="off" data-1p-ignore="true" data-lpignore="true" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -768,7 +810,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input type={showPassword ? 'text' : 'password'} name="agendaspeed-new-company-password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -779,7 +821,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Confirmar senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input type={showConfirmPassword ? 'text' : 'password'} name="agendaspeed-new-company-password-confirmation" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowConfirmPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -860,7 +902,7 @@ export default function AuthPage({
 
                 <label className="block space-y-1.5">
                   <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Senha</span><button type="button" onClick={handleForgotPassword} disabled={resetLoading} className="text-xs font-black text-orange-600 hover:text-orange-700 disabled:opacity-60">{resetLoading ? 'Enviando...' : 'Esqueci minha senha'}</button></div>
-                  <div className="relative"><Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" /><input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••••••" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" /><button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+                  <div className="relative"><Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" /><input type={showPassword ? 'text' : 'password'} name="login-password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••••••" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" /><button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
                 </label>
               </>
             )}
