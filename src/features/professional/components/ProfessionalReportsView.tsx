@@ -3,7 +3,20 @@ import React, {
   useState
 } from 'react';
 
-import { ProfessionalReportsViewProps } from '../professional.types';
+import {
+  Banknote,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardList,
+  ReceiptText,
+  TrendingUp
+} from 'lucide-react';
+
+import {
+  ProfessionalCommissionPaymentRecord,
+  ProfessionalReportsViewProps
+} from '../professional.types';
 
 import { formatCurrency } from '../professional.utils';
 
@@ -16,6 +29,14 @@ type ProfessionalReportPeriodPreset =
 interface ProfessionalReportPeriod {
   startDate: string;
   endDate: string;
+}
+
+interface SummaryCardProps {
+  label: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  accent?: 'default' | 'orange' | 'green';
 }
 
 function padDatePart(value: number): string {
@@ -111,10 +132,79 @@ function getPeriodByPreset(
   return getCurrentWeekPeriod();
 }
 
+function getPaymentTypeLabel(
+  paymentType: ProfessionalCommissionPaymentRecord['paymentType']
+): string {
+  const labels: Partial<Record<
+    ProfessionalCommissionPaymentRecord['paymentType'],
+    string
+  >> = {
+    dinheiro: 'Dinheiro',
+    pix: 'PIX',
+    debito: 'Débito',
+    credito: 'Crédito',
+    pendente: 'Pendente',
+    cortesia: 'Cortesia'
+  };
+
+  return labels[paymentType] || paymentType;
+}
+
+function SummaryCard({
+  label,
+  value,
+  description,
+  icon,
+  accent = 'default'
+}: SummaryCardProps) {
+  const styles = {
+    default: {
+      card: 'border-neutral-200 bg-white',
+      icon: 'bg-[#0f4c5c]/10 text-[#0f4c5c]',
+      value: 'text-neutral-950'
+    },
+    orange: {
+      card: 'border-orange-200 bg-orange-50/70',
+      icon: 'bg-orange-100 text-orange-700',
+      value: 'text-orange-900'
+    },
+    green: {
+      card: 'border-emerald-200 bg-emerald-50/70',
+      icon: 'bg-emerald-100 text-emerald-700',
+      value: 'text-emerald-800'
+    }
+  }[accent];
+
+  return (
+    <div className={`rounded-2xl border p-4 shadow-sm ${styles.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-neutral-500">
+            {label}
+          </p>
+
+          <p className={`mt-2 break-words text-xl font-semibold tracking-tight ${styles.value}`}>
+            {value}
+          </p>
+        </div>
+
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${styles.icon}`}>
+          {icon}
+        </span>
+      </div>
+
+      <p className="mt-2 text-[10px] leading-4 text-neutral-500">
+        {description}
+      </p>
+    </div>
+  );
+}
+
 export default function ProfessionalReportsView({
   professional,
   services,
-  completedAppointments
+  completedAppointments,
+  commissionPayments
 }: ProfessionalReportsViewProps) {
   const initialWeekPeriod = useMemo(() => {
     return getCurrentWeekPeriod();
@@ -126,7 +216,15 @@ export default function ProfessionalReportsView({
   const [reportPeriod, setReportPeriod] =
     useState<ProfessionalReportPeriod>(initialWeekPeriod);
 
+  const isInvalidPeriod =
+    Boolean(reportPeriod.startDate && reportPeriod.endDate) &&
+    reportPeriod.startDate > reportPeriod.endDate;
+
   const filteredAppointments = useMemo(() => {
+    if (isInvalidPeriod) {
+      return [];
+    }
+
     return completedAppointments.filter((appointment) => {
       const appointmentDate = getAppointmentDateStr(appointment.dateTime);
 
@@ -141,6 +239,34 @@ export default function ProfessionalReportsView({
     });
   }, [
     completedAppointments,
+    isInvalidPeriod,
+    reportPeriod
+  ]);
+
+  const filteredCommissionPayments = useMemo(() => {
+    if (isInvalidPeriod) {
+      return [];
+    }
+
+    return commissionPayments
+      .filter((payment) => {
+        return (
+          payment.periodStart <= reportPeriod.endDate &&
+          payment.periodEnd >= reportPeriod.startDate
+        );
+      })
+      .sort((firstPayment, secondPayment) => {
+        if (firstPayment.paidAt !== secondPayment.paidAt) {
+          return secondPayment.paidAt.localeCompare(firstPayment.paidAt);
+        }
+
+        return (secondPayment.createdAt || '').localeCompare(
+          firstPayment.createdAt || ''
+        );
+      });
+  }, [
+    commissionPayments,
+    isInvalidPeriod,
     reportPeriod
   ]);
 
@@ -155,6 +281,29 @@ export default function ProfessionalReportsView({
       return total + appointment.commissionValue;
     }, 0);
   }, [filteredAppointments]);
+
+  const totalCalculatedInPayments = useMemo(() => {
+    return filteredCommissionPayments.reduce((total, payment) => {
+      return total + payment.calculatedCommission;
+    }, 0);
+  }, [filteredCommissionPayments]);
+
+  const totalPaid = useMemo(() => {
+    return filteredCommissionPayments.reduce((total, payment) => {
+      return total + payment.amountPaid;
+    }, 0);
+  }, [filteredCommissionPayments]);
+
+  const totalAdjustments = useMemo(() => {
+    return filteredCommissionPayments.reduce((total, payment) => {
+      return total + payment.extraValue - payment.discountValue;
+    }, 0);
+  }, [filteredCommissionPayments]);
+
+  const estimatedOpenCommission = Math.max(
+    0,
+    filteredCommissionExpected - totalCalculatedInPayments
+  );
 
   const handleChangePreset = (
     nextPreset: ProfessionalReportPeriodPreset
@@ -184,257 +333,344 @@ export default function ProfessionalReportsView({
     }));
   };
 
-  const isInvalidPeriod =
-    Boolean(reportPeriod.startDate && reportPeriod.endDate) &&
-    reportPeriod.startDate > reportPeriod.endDate;
-
   const periodLabel = getPeriodLabel(reportPeriod);
 
   return (
-    <div id="professional-reports" className="space-y-6 text-left">
-      <div className="bg-white border rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-          <div>
-            <h2 className="text-xl font-extrabold text-neutral-950">
-              Meus Indicadores e Acerto
-            </h2>
+    <div id="professional-reports" className="space-y-4 text-left">
+      <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-[#0f4c5c]" />
 
-            <p className="text-xs text-neutral-500 mt-1">
-              Este extrato é calculado com base exclusivamente em seus próprios atendimentos finalizados. O salão inteiro não é visível aqui.
-            </p>
-
-            <p className="text-[11px] text-orange-700 font-bold mt-2">
-              Período exibido: {periodLabel}
-            </p>
-          </div>
-
-          <div className="bg-neutral-50 border rounded-2xl p-3 space-y-3 lg:min-w-[420px]">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => handleChangePreset('today')}
-                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                  periodPreset === 'today'
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-100'
-                }`}
-              >
-                Hoje
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleChangePreset('week')}
-                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                  periodPreset === 'week'
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-100'
-                }`}
-              >
-                Semana
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleChangePreset('month')}
-                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                  periodPreset === 'month'
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-100'
-                }`}
-              >
-                Mês
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleChangePreset('custom')}
-                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                  periodPreset === 'custom'
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-100'
-                }`}
-              >
-                Filtrar
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <label className="space-y-1">
-                <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                  Data inicial
-                </span>
-
-                <input
-                  type="date"
-                  value={reportPeriod.startDate}
-                  onChange={(event) => handleChangeStartDate(event.target.value)}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-800 outline-none focus:border-orange-500"
-                />
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">
-                  Data final
-                </span>
-
-                <input
-                  type="date"
-                  value={reportPeriod.endDate}
-                  onChange={(event) => handleChangeEndDate(event.target.value)}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-800 outline-none focus:border-orange-500"
-                />
-              </label>
-            </div>
-
-            {isInvalidPeriod && (
-              <p className="text-[11px] text-red-600 font-bold">
-                A data inicial não pode ser maior que a data final.
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#0f4c5c]">
+                Área do profissional
               </p>
-            )}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-neutral-50 p-5 rounded-2xl space-y-1">
-            <span className="text-xs text-zinc-500 font-semibold uppercase font-mono block">
-              Atendimentos Concluídos
-            </span>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-neutral-950">
+                Meus indicadores e acertos
+              </h2>
 
-            <span className="text-2xl font-black text-neutral-950 tracking-tight">
-              {isInvalidPeriod ? 0 : filteredAppointments.length}
-            </span>
+              <p className="mt-2 text-xs leading-5 text-neutral-500">
+                Consulte seus atendimentos finalizados e os pagamentos de comissão
+                registrados oficialmente pelo estabelecimento.
+              </p>
 
-            <p className="text-[10px] text-zinc-400">
-              Total no período selecionado
-            </p>
-          </div>
-
-          <div className="bg-neutral-50 p-5 rounded-2xl space-y-1">
-            <span className="text-xs text-zinc-500 font-semibold uppercase font-mono block">
-              Faturamento Bruto Gerado
-            </span>
-
-            <span className="text-2xl font-black text-neutral-950 tracking-tight">
-              {formatCurrency(isInvalidPeriod ? 0 : filteredTotalProduced)}
-            </span>
-
-            <p className="text-[10px] text-zinc-400">
-              Valor bruto no período selecionado
-            </p>
-          </div>
-
-          {professional.permissions.viewCommission && (
-            <div className="bg-orange-50 border border-orange-100 p-5 rounded-2xl space-y-1">
-              <span className="text-xs text-orange-800 font-bold uppercase font-mono block">
-                Minha Comissão Prevista
-              </span>
-
-              <span className="text-2xl font-black text-orange-900 tracking-tight">
-                {formatCurrency(isInvalidPeriod ? 0 : filteredCommissionExpected)}
-              </span>
-
-              <p className="text-[10px] text-orange-700">
-                Prevista no período selecionado
+              <p className="mt-2 text-[11px] font-medium text-orange-700">
+                Período exibido: {periodLabel}
               </p>
             </div>
-          )}
-        </div>
 
-        <div className="space-y-4 pt-4 border-t">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 lg:min-w-[430px]">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {([
+                  ['today', 'Hoje'],
+                  ['week', 'Semana'],
+                  ['month', 'Mês'],
+                  ['custom', 'Filtrar']
+                ] as Array<[ProfessionalReportPeriodPreset, string]>).map(
+                  ([preset, label]) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleChangePreset(preset)}
+                      className={`rounded-xl px-3 py-2 text-[10px] font-medium uppercase tracking-wider transition ${
+                        periodPreset === preset
+                          ? 'bg-orange-600 text-white shadow-sm'
+                          : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                    Data inicial
+                  </span>
+
+                  <input
+                    type="date"
+                    value={reportPeriod.startDate}
+                    onChange={(event) => handleChangeStartDate(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-800 outline-none focus:border-orange-500"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                    Data final
+                  </span>
+
+                  <input
+                    type="date"
+                    value={reportPeriod.endDate}
+                    onChange={(event) => handleChangeEndDate(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-800 outline-none focus:border-orange-500"
+                  />
+                </label>
+              </div>
+
+              {isInvalidPeriod && (
+                <p className="text-[11px] font-medium text-red-600">
+                  A data inicial não pode ser maior que a data final.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryCard
+          label="Atendimentos finalizados"
+          value={String(filteredAppointments.length)}
+          description="Total concluído no período selecionado."
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
+
+        <SummaryCard
+          label="Produção bruta"
+          value={formatCurrency(filteredTotalProduced)}
+          description="Valor dos seus serviços finalizados."
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+
+        {professional.permissions.viewCommission && (
+          <>
+            <SummaryCard
+              label="Comissão gerada"
+              value={formatCurrency(filteredCommissionExpected)}
+              description="Soma gravada nos atendimentos do período."
+              icon={<CircleDollarSign className="h-4 w-4" />}
+              accent="orange"
+            />
+
+            <SummaryCard
+              label="Total pago"
+              value={formatCurrency(totalPaid)}
+              description="Inclui extras e descontos registrados."
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              accent="green"
+            />
+
+            <SummaryCard
+              label="Saldo estimado"
+              value={formatCurrency(estimatedOpenCommission)}
+              description="Comissão gerada ainda não coberta por fechamento."
+              icon={<Banknote className="h-4 w-4" />}
+            />
+          </>
+        )}
+      </section>
+
+      {professional.permissions.viewCommission && totalAdjustments !== 0 && (
+        <section className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-sm font-bold text-neutral-950 uppercase tracking-wider">
-                Histórico de Atendimentos
-              </h3>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-neutral-500">
+                Ajustes nos pagamentos exibidos
+              </p>
 
-              <p className="text-[11px] text-neutral-500 mt-1">
-                Exibindo atendimentos finalizados de {periodLabel}.
+              <p className="mt-1 text-xs text-neutral-500">
+                Resultado líquido de extras menos descontos.
               </p>
             </div>
 
-            <span className="text-[10px] font-black text-neutral-400 uppercase tracking-wider font-mono">
-              {isInvalidPeriod ? 0 : filteredAppointments.length} registro(s)
+            <p className={`text-base font-semibold ${
+              totalAdjustments < 0 ? 'text-red-600' : 'text-[#0f4c5c]'
+            }`}>
+              {totalAdjustments > 0 ? '+' : ''}
+              {formatCurrency(totalAdjustments)}
+            </p>
+          </div>
+        </section>
+      )}
+
+      <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-[#0f4c5c]" />
+
+              <h3 className="text-sm font-semibold text-neutral-950">
+                Histórico de atendimentos
+              </h3>
+            </div>
+
+            <p className="mt-1 text-[11px] text-neutral-500">
+              Atendimentos finalizados de {periodLabel}.
+            </p>
+          </div>
+
+          <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">
+            {filteredAppointments.length} registro(s)
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-xs">
+            <thead className="border-b border-neutral-200 bg-neutral-50 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+              <tr>
+                <th className="px-4 py-3">Data e hora</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Serviço realizado</th>
+                <th className="px-4 py-3 text-right">Valor produzido</th>
+                <th className="px-4 py-3 text-right">Comissão gerada</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-neutral-100">
+              {filteredAppointments.map((appointment) => {
+                const service = services.find((item) => {
+                  return item.id === appointment.serviceId;
+                });
+
+                return (
+                  <tr
+                    key={appointment.id}
+                    className="transition-colors hover:bg-neutral-50"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3.5 font-medium text-neutral-700">
+                      {formatDateTimeBr(appointment.dateTime)}
+                    </td>
+
+                    <td className="px-4 py-3.5 font-medium text-neutral-900">
+                      {appointment.clientName}
+                    </td>
+
+                    <td className="px-4 py-3.5 text-neutral-600">
+                      {service?.name || 'Serviço personalizado'}
+                    </td>
+
+                    <td className="px-4 py-3.5 text-right font-medium text-neutral-800">
+                      {formatCurrency(appointment.price)}
+                    </td>
+
+                    <td className="px-4 py-3.5 text-right font-medium text-[#0f4c5c]">
+                      {formatCurrency(appointment.commissionValue)}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filteredAppointments.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-4 py-10 text-center text-neutral-400"
+                  >
+                    {isInvalidPeriod
+                      ? 'Corrija o período para visualizar o relatório.'
+                      : 'Nenhum atendimento finalizado neste período.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {professional.permissions.viewCommission && (
+        <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <ReceiptText className="h-4 w-4 text-emerald-700" />
+
+                <h3 className="text-sm font-semibold text-neutral-950">
+                  Histórico de pagamentos
+                </h3>
+              </div>
+
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Acertos registrados pelo estabelecimento que alcançam o período selecionado.
+              </p>
+            </div>
+
+            <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">
+              {filteredCommissionPayments.length} pagamento(s)
             </span>
           </div>
 
-          <div className="overflow-x-auto border rounded-2xl bg-neutral-50/50">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-neutral-100 text-neutral-600 font-bold uppercase tracking-wider text-[10px] border-b">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[940px] text-left text-xs">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
                 <tr>
-                  <th className="py-3 px-4">
-                    Data/Hora
-                  </th>
-
-                  <th className="py-3 px-4">
-                    Cliente
-                  </th>
-
-                  <th className="py-3 px-4">
-                    Serviço Realizado
-                  </th>
-
-                  <th className="py-3 px-4">
-                    Valor Pago
-                  </th>
-
-                  <th className="py-3 px-4 text-right">
-                    Comissão Devida
-                  </th>
+                  <th className="px-4 py-3">Pagamento</th>
+                  <th className="px-4 py-3">Período fechado</th>
+                  <th className="px-4 py-3 text-right">Comissão</th>
+                  <th className="px-4 py-3 text-right">Extra</th>
+                  <th className="px-4 py-3 text-right">Desconto</th>
+                  <th className="px-4 py-3 text-right">Total pago</th>
+                  <th className="px-4 py-3">Forma</th>
+                  <th className="px-4 py-3">Observações</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y">
-                {!isInvalidPeriod && filteredAppointments.map((appointment) => {
-                  const service = services.find((item) => {
-                    return item.id === appointment.serviceId;
-                  });
+              <tbody className="divide-y divide-neutral-100">
+                {filteredCommissionPayments.map((payment) => (
+                  <tr
+                    key={payment.id}
+                    className="transition-colors hover:bg-neutral-50"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3.5 font-medium text-neutral-800">
+                      {formatDateBr(payment.paidAt)}
+                    </td>
 
-                  return (
-                    <tr
-                      key={appointment.id}
-                      className="hover:bg-white transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-mono font-bold">
-                        {formatDateTimeBr(appointment.dateTime)}
-                      </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-neutral-600">
+                      {formatDateBr(payment.periodStart)} a{' '}
+                      {formatDateBr(payment.periodEnd)}
+                    </td>
 
-                      <td className="py-3.5 px-4 font-semibold">
-                        {appointment.clientName}
-                      </td>
+                    <td className="px-4 py-3.5 text-right font-medium text-neutral-800">
+                      {formatCurrency(payment.calculatedCommission)}
+                    </td>
 
-                      <td className="py-3.5 px-4 text-neutral-600">
-                        {service?.name || 'Serviço Personalizado'}
-                      </td>
+                    <td className="px-4 py-3.5 text-right font-medium text-emerald-700">
+                      {formatCurrency(payment.extraValue)}
+                    </td>
 
-                      <td className="py-3.5 px-4 font-mono font-bold">
-                        {formatCurrency(appointment.price)}
-                      </td>
+                    <td className="px-4 py-3.5 text-right font-medium text-red-600">
+                      {formatCurrency(payment.discountValue)}
+                    </td>
 
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-600">
-                        {formatCurrency(appointment.commissionValue)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                    <td className="px-4 py-3.5 text-right font-semibold text-[#0f4c5c]">
+                      {formatCurrency(payment.amountPaid)}
+                    </td>
 
-                {(isInvalidPeriod || filteredAppointments.length === 0) && (
+                    <td className="px-4 py-3.5 text-neutral-700">
+                      {getPaymentTypeLabel(payment.paymentType)}
+                    </td>
+
+                    <td className="max-w-[260px] px-4 py-3.5 text-neutral-500">
+                      <span className="line-clamp-3 whitespace-pre-line">
+                        {payment.notes || '-'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredCommissionPayments.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
-                      className="py-8 text-center text-neutral-400"
+                      colSpan={8}
+                      className="px-4 py-10 text-center text-neutral-400"
                     >
                       {isInvalidPeriod
-                        ? 'Corrija o período para visualizar o relatório.'
-                        : 'Nenhum atendimento finalizado neste período.'}
+                        ? 'Corrija o período para visualizar os pagamentos.'
+                        : 'Nenhum pagamento de comissão alcança este período.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
+        </section>
+      )}
     </div>
   );
 }

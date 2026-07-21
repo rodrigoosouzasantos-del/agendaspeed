@@ -13,6 +13,7 @@ import {
 } from '../../types';
 
 import {
+  ProfessionalCommissionPaymentRecord,
   ProfessionalDashboardProps,
   ProfessionalManualAppointmentFormState,
   ProfessionalTab
@@ -65,6 +66,70 @@ type SupabaseProfessionalAppointmentResponse = {
   commission_value: number;
   deposit_paid: boolean;
 };
+
+
+function mapPublicCommissionPayment(
+  rawPayment: Record<string, unknown>
+): ProfessionalCommissionPaymentRecord {
+  const rawPaymentType = String(
+    rawPayment.paymentType ||
+      rawPayment.payment_type ||
+      'dinheiro'
+  );
+
+  const normalizedPaymentType = [
+    'dinheiro',
+    'pix',
+    'debito',
+    'credito',
+    'pendente',
+    'cortesia'
+  ].includes(rawPaymentType)
+    ? rawPaymentType as PaymentType
+    : 'dinheiro';
+
+  return {
+    id: String(rawPayment.id || ''),
+    professionalId: String(
+      rawPayment.professionalId ||
+        rawPayment.professional_id ||
+        ''
+    ),
+    periodStart: String(
+      rawPayment.periodStart ||
+        rawPayment.period_start ||
+        ''
+    ).slice(0, 10),
+    periodEnd: String(
+      rawPayment.periodEnd ||
+        rawPayment.period_end ||
+        ''
+    ).slice(0, 10),
+    calculatedCommission:
+      Number(
+        rawPayment.calculatedCommission ||
+          rawPayment.calculated_commission
+      ) || 0,
+    extraValue:
+      Number(rawPayment.extraValue || rawPayment.extra_value) || 0,
+    discountValue:
+      Number(rawPayment.discountValue || rawPayment.discount_value) || 0,
+    amountPaid:
+      Number(rawPayment.amountPaid || rawPayment.amount_paid) || 0,
+    paymentType: normalizedPaymentType,
+    paidAt: String(
+      rawPayment.paidAt ||
+        rawPayment.paid_at ||
+        ''
+    ).slice(0, 10),
+    notes: rawPayment.notes
+      ? String(rawPayment.notes)
+      : undefined,
+    createdAt: rawPayment.createdAt || rawPayment.created_at
+      ? String(rawPayment.createdAt || rawPayment.created_at)
+      : undefined
+  };
+}
 
 function mapSupabaseAppointmentToProfessionalAppointment(
   appointment: SupabaseProfessionalAppointmentResponse
@@ -396,6 +461,8 @@ export default function ProfessionalDashboard({
   const [tokenProfessional, setTokenProfessional] = useState<Professional | null>(null);
   const [tokenServices, setTokenServices] = useState<Service[] | null>(null);
   const [tokenConfig, setTokenConfig] = useState<EstablishmentConfig | null>(null);
+  const [commissionPayments, setCommissionPayments] =
+    useState<ProfessionalCommissionPaymentRecord[]>([]);
 
   const config = tokenConfig || stateConfig;
   const services = tokenServices || stateServices;
@@ -440,11 +507,18 @@ export default function ProfessionalDashboard({
         const loadedAppointments = Array.isArray(firstRow.appointments)
           ? (firstRow.appointments as SupabaseProfessionalAppointmentResponse[]).map(mapSupabaseAppointmentToProfessionalAppointment)
           : [];
+        const loadedCommissionPayments = Array.isArray(firstRow.commission_payments)
+          ? firstRow.commission_payments.map(
+              (payment: Record<string, unknown>) =>
+                mapPublicCommissionPayment(payment)
+            )
+          : [];
 
         setTokenConfig(mapPublicConfig(firstRow.config || {}));
         setTokenProfessional(loadedProfessional);
         setTokenServices(loadedServices);
         setSupabaseAppointments(loadedAppointments);
+        setCommissionPayments(loadedCommissionPayments);
         return;
       }
 
@@ -792,6 +866,7 @@ export default function ProfessionalDashboard({
             services={services}
             completedAppointments={financialSummary.completedAppointments}
             activeAppointments={financialSummary.activeAppointments}
+            commissionPayments={commissionPayments}
             totalProduced={financialSummary.totalProduced}
             commissionExpected={financialSummary.commissionExpected}
             chairRentalFee={financialSummary.chairRentalFee}
