@@ -14,9 +14,14 @@ export default function ProfessionalHeader({
   onChangeTab,
   onLogOut
 }: ProfessionalHeaderProps) {
+  const canViewReports =
+    professional.permissions.viewFinancial === true ||
+    professional.permissions.viewCommission === true ||
+    professional.permissions.viewChairRental === true;
+
   const getTabClassName = (tab: ProfessionalTab) => {
     return [
-      'px-4 py-2 rounded-xl text-xs font-bold transition',
+      'px-4 py-2 rounded-xl text-xs font-medium transition',
       activeTab === tab
         ? 'bg-orange-600 text-white'
         : 'bg-neutral-900 hover:bg-neutral-850 text-neutral-400'
@@ -36,11 +41,11 @@ export default function ProfessionalHeader({
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black tracking-tight">
+              <h1 className="text-lg font-semibold tracking-tight">
                 {professional.name}
               </h1>
 
-              <span className="bg-sky-500/10 text-sky-400 text-[10px] uppercase font-mono px-2 py-0.5 rounded-full border border-sky-400/20 font-bold">
+              <span className="bg-sky-500/10 text-sky-400 text-[10px] uppercase font-mono px-2 py-0.5 rounded-full border border-sky-400/20 font-medium">
                 Colaborador
               </span>
             </div>
@@ -60,13 +65,15 @@ export default function ProfessionalHeader({
             Minha Agenda
           </button>
 
-          <button
-            type="button"
-            onClick={() => onChangeTab('relatorios')}
-            className={getTabClassName('relatorios')}
-          >
-            Meus Relatórios
-          </button>
+          {canViewReports && (
+            <button
+              type="button"
+              onClick={() => onChangeTab('relatorios')}
+              className={getTabClassName('relatorios')}
+            >
+              Meus Relatórios
+            </button>
+          )}
 
           <button
             id="btn-prof-logout"

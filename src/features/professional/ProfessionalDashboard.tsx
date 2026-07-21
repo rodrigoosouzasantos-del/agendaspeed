@@ -621,6 +621,34 @@ export default function ProfessionalDashboard({
     services
   ]);
 
+  const canViewReports = Boolean(
+    currentProfessional?.permissions.viewFinancial === true ||
+    currentProfessional?.permissions.viewCommission === true ||
+    currentProfessional?.permissions.viewChairRental === true
+  );
+
+  useEffect(() => {
+    if (!canViewReports && activeTab === 'relatorios') {
+      setActiveTab('agenda');
+    }
+  }, [
+    activeTab,
+    canViewReports
+  ]);
+
+  const handleChangeTab = (nextTab: ProfessionalTab) => {
+    if (nextTab === 'relatorios' && !canViewReports) {
+      setActiveTab('agenda');
+      setFeedbackMessage({
+        title: 'Acesso não permitido',
+        description: 'Os relatórios não estão liberados para este profissional.'
+      });
+      return;
+    }
+
+    setActiveTab(nextTab);
+  };
+
   const handleChangeManualFormState = (
     updates: Partial<ProfessionalManualAppointmentFormState>
   ) => {
@@ -820,7 +848,7 @@ export default function ProfessionalDashboard({
   if (!currentProfessional) {
     return (
       <div className="p-12 text-center text-neutral-850">
-        <p className="font-bold">
+        <p className="font-medium">
           Colaborador não cadastrado ou inativo.
         </p>
 
@@ -844,12 +872,12 @@ export default function ProfessionalDashboard({
         configName={config.name}
         professional={currentProfessional}
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={handleChangeTab}
         onLogOut={onLogOut}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {activeTab === 'agenda' ? (
+        {activeTab === 'agenda' || !canViewReports ? (
           <ProfessionalCalendarAgendaView
             professional={currentProfessional}
             services={services}
