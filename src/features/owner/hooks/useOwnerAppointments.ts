@@ -395,8 +395,18 @@ export function useOwnerAppointments({
       depositPaid: false,
     };
 
+    const allowOvertime =
+      (payload as AgendaCreateAppointmentPayload & {
+        allowOvertime?: boolean;
+      }).allowOvertime === true;
+
+    const ownerAppointmentPayload = {
+      ...buildOwnerAppointmentPayload(appointmentToSave),
+      allow_overtime: allowOvertime,
+    };
+
     const { data, error } = await supabase.rpc("create_my_owner_appointment", {
-      p_appointment: buildOwnerAppointmentPayload(appointmentToSave),
+      p_appointment: ownerAppointmentPayload,
     });
 
     if (error) {

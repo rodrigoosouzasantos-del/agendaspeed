@@ -85,6 +85,14 @@ export default function AgendaView({
   const [blockedIntervals, setBlockedIntervals] = useState<AgendaBlockedInterval[]>([]);
   const [outsideScaleConfirmRequest, setOutsideScaleConfirmRequest] =
     useState<OutsideScaleConfirmRequest>(null);
+  const [overtimeConfirmRequest, setOvertimeConfirmRequest] = useState<{
+    service: Service;
+    serviceEndTime: string;
+    workHoursStart: string;
+    workHoursEnd: string;
+  } | null>(null);
+  const [allowOvertimeForSelection, setAllowOvertimeForSelection] =
+    useState(false);
   const [openDays, setOpenDays] = useState<AgendaScheduleDay[]>([]);
   const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
   const [showPastProfessionalAgendaSlots, setShowPastProfessionalAgendaSlots] =
@@ -368,6 +376,8 @@ export default function AgendaView({
     setWhatsAppConfirmUrl("");
     setServiceSearch("");
     setProfessionalSearch("");
+    setOvertimeConfirmRequest(null);
+    setAllowOvertimeForSelection(false);
   };
 
   const openProfessionalAgendaManager = (professionalId: string) => {
@@ -514,11 +524,38 @@ export default function AgendaView({
       });
 
       if (!serviceSlotAvailability.available) {
-        alert(serviceSlotAvailability.reason || "Este serviço não cabe neste horário. Escolha outro horário ou outro serviço.");
+        const normalizedReason = normalizeText(
+          serviceSlotAvailability.reason || ""
+        );
+        const isOvertimeReason =
+          normalizedReason.includes("fora do expediente") ||
+          normalizedReason.includes("ultrapassa") ||
+          normalizedReason.includes("horario de trabalho") ||
+          normalizedReason.includes("expediente do profissional");
+
+        if (isOvertimeReason) {
+          const startMinutes = Number(selectedTime.slice(0, 2)) * 60 +
+            Number(selectedTime.slice(3, 5));
+          const serviceEndMinutes =
+            startMinutes + Math.max(1, Number(service.duration) || 30);
+          const serviceEndHour = Math.floor(serviceEndMinutes / 60);
+          const serviceEndMinute = serviceEndMinutes % 60;
+
+          setOvertimeConfirmRequest({
+            service,
+            serviceEndTime: `${String(serviceEndHour).padStart(2, "0")}:${String(serviceEndMinute).padStart(2, "0")}`,
+            workHoursStart: selectedProfessionalForAgenda.workHoursStart.slice(0, 5),
+            workHoursEnd: selectedProfessionalForAgenda.workHoursEnd.slice(0, 5),
+          });
+          return;
+        }
+
         setSelectedServiceId("");
+        setOutsideScaleConfirmRequest(null);
         return;
       }
 
+      setAllowOvertimeForSelection(false);
       setCurrentStep("clientData");
       return;
     }
@@ -666,8 +703,7 @@ export default function AgendaView({
       openDays,
     });
 
-    if (!slotAvailability.available) {
-      alert(slotAvailability.reason || "Este horário não está mais disponível. Atualize a agenda e escolha outro horário.");
+    if (!slotAvailability.available && !allowOvertimeForSelection) {
       return;
     }
 
@@ -680,7 +716,8 @@ export default function AgendaView({
       time: selectedTime,
       notes: clientNotes,
       paymentType: "pendente",
-    });
+      allowOvertime: allowOvertimeForSelection,
+    } as AgendaCreateAppointmentPayload);
 
     if (
       !createdAppointmentResult ||
@@ -922,6 +959,57 @@ export default function AgendaView({
             <AgendaBookingFlow context={sharedContext} />
           )}
         </>
+      )}
+
+      {overtimeConfirmRequest && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1.5 bg-amber-500" />
+
+            <div className="p-5 text-left">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-xl font-medium text-amber-700">
+                !
+              </div>
+
+              <h2 className="mt-4 text-lg font-semibold text-neutral-950">
+                Serviço ultrapassa o expediente
+              </h2>
+
+              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
+                Este serviço termina às {overtimeConfirmRequest.serviceEndTime},
+                mas o expediente do profissional é das{" "}
+                {overtimeConfirmRequest.workHoursStart} às{" "}
+                {overtimeConfirmRequest.workHoursEnd}. Deseja agendar mesmo assim?
+              </p>
+
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOvertimeConfirmRequest(null);
+                    setAllowOvertimeForSelection(false);
+                    setSelectedServiceId("");
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Não, escolher outro horário
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllowOvertimeForSelection(true);
+                    setOvertimeConfirmRequest(null);
+                    setCurrentStep("clientData");
+                  }}
+                  className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
+                >
+                  Sim, agendar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
