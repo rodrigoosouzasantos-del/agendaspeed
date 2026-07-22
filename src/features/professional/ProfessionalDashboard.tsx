@@ -38,6 +38,7 @@ import ManualAppointmentModal from './modals/ManualAppointmentModal';
 import { supabase } from '../../lib/supabase';
 
 import {
+  ProfessionalAgendaConfirmModal,
   ProfessionalAgendaFeedbackModal
 } from './agenda/ProfessionalAgendaModals';
 
@@ -195,7 +196,10 @@ function mapSupabaseAppointmentToProfessionalAppointment(
   };
 }
 
-function buildProfessionalAppointmentPayload(appointment: Omit<Appointment, 'id'>) {
+function buildProfessionalAppointmentPayload(
+  appointment: Omit<Appointment, 'id'>,
+  allowOvertime = false
+) {
   const [date, time] = appointment.dateTime.split('T');
 
   return {
@@ -206,7 +210,8 @@ function buildProfessionalAppointmentPayload(appointment: Omit<Appointment, 'id'
     client_phone: appointment.clientPhone,
     client_email: appointment.clientEmail || null,
     payment_type: appointment.paymentType || 'pendente',
-    notes: appointment.notes || 'Agendamento criado pelo profissional.'
+    notes: appointment.notes || 'Agendamento criado pelo profissional.',
+    allow_overtime: allowOvertime
   };
 }
 
@@ -292,6 +297,14 @@ function timeToMinutes(time: string): number {
   const [hour, minute] = time.split(':').map(Number);
 
   return hour * 60 + minute;
+}
+
+function minutesToTime(totalMinutes: number): string {
+  const normalizedMinutes = Math.max(0, totalMinutes);
+  const hour = Math.floor(normalizedMinutes / 60);
+  const minute = normalizedMinutes % 60;
+
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function getCurrentTimeMinutes(): number {
@@ -451,6 +464,11 @@ export default function ProfessionalDashboard({
   const [showAddModal, setShowAddModal] = useState(false);
   const [feedbackMessage, setFeedbackMessage] =
     useState<ProfessionalDashboardFeedbackState | null>(null);
+  const [overtimeConfirmation, setOvertimeConfirmation] = useState<{
+    appointment: Appointment;
+    serviceEndTime: string;
+    workHoursEnd: string;
+  } | null>(null);
 
   const [manualFormState, setManualFormState] =
     useState<ProfessionalManualAppointmentFormState>(
@@ -687,6 +705,54 @@ export default function ProfessionalDashboard({
     setShowAddModal(true);
   };
 
+  const saveManualAppointment = async (
+    newAppointment: Appointment,
+    allowOvertime: boolean
+  ) => {
+    const { data, error } = professionalAccessToken
+      ? await supabase.rpc('create_professional_access_appointment', {
+        p_token: professionalAccessToken,
+        p_appointment: buildProfessionalAppointmentPayload(
+          newAppointment,
+          allowOvertime
+        )
+      })
+      : await supabase.rpc('create_my_owner_appointment', {
+        p_appointment: buildProfessionalAppointmentPayload(
+          newAppointment,
+          allowOvertime
+        )
+      });
+
+    if (error) {
+      setFeedbackMessage(
+        getProfessionalManualAppointmentErrorFeedback(
+          error.message || 'Não foi possível criar o agendamento no banco de dados.'
+        )
+      );
+      return;
+    }
+
+    const savedRow = (Array.isArray(data) ? data[0] : null) as
+      | SupabaseProfessionalAppointmentResponse
+      | null;
+
+    const savedAppointment = savedRow
+      ? mapSupabaseAppointmentToProfessionalAppointment(savedRow)
+      : newAppointment;
+
+    setSupabaseAppointments((currentAppointments) => [
+      savedAppointment,
+      ...(currentAppointments || appointments)
+    ]);
+
+    onAddManualAppointment(savedAppointment);
+
+    setOvertimeConfirmation(null);
+    setShowAddModal(false);
+    handleResetManualAppointmentForm();
+  };
+
   const handleAddManualSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -737,41 +803,23 @@ export default function ProfessionalDashboard({
       services
     });
 
-    const { data, error } = professionalAccessToken
-      ? await supabase.rpc('create_professional_access_appointment', {
-        p_token: professionalAccessToken,
-        p_appointment: buildProfessionalAppointmentPayload(newAppointment)
-      })
-      : await supabase.rpc('create_my_owner_appointment', {
-        p_appointment: buildProfessionalAppointmentPayload(newAppointment)
-      });
+    const serviceEndMinutes =
+      timeToMinutes(manualFormState.time) +
+      Math.max(1, Number(selectedService.duration) || 30);
+    const professionalEndMinutes = timeToMinutes(
+      currentProfessional.workHoursEnd
+    );
 
-    if (error) {
-      setFeedbackMessage(
-        getProfessionalManualAppointmentErrorFeedback(
-          error.message || 'Não foi possível criar o agendamento no banco de dados.'
-        )
-      );
+    if (serviceEndMinutes > professionalEndMinutes) {
+      setOvertimeConfirmation({
+        appointment: newAppointment,
+        serviceEndTime: minutesToTime(serviceEndMinutes),
+        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5)
+      });
       return;
     }
 
-    const savedRow = (Array.isArray(data) ? data[0] : null) as
-      | SupabaseProfessionalAppointmentResponse
-      | null;
-
-    const savedAppointment = savedRow
-      ? mapSupabaseAppointmentToProfessionalAppointment(savedRow)
-      : newAppointment;
-
-    setSupabaseAppointments((currentAppointments) => [
-      savedAppointment,
-      ...(currentAppointments || appointments)
-    ]);
-
-    onAddManualAppointment(savedAppointment);
-
-    setShowAddModal(false);
-    handleResetManualAppointmentForm();
+    await saveManualAppointment(newAppointment, false);
   };
 
   const handleModifyAppointmentSync = async (
@@ -912,6 +960,22 @@ export default function ProfessionalDashboard({
           onChangeFormState={handleChangeManualFormState}
           onClose={handleCloseManualAppointmentModal}
           onSubmit={handleAddManualSubmit}
+        />
+      )}
+
+      {overtimeConfirmation && (
+        <ProfessionalAgendaConfirmModal
+          title="Serviço ultrapassa o expediente"
+          description={`Este serviço termina às ${overtimeConfirmation.serviceEndTime}, mas o expediente termina às ${overtimeConfirmation.workHoursEnd}. Deseja agendar mesmo assim?`}
+          cancelLabel="Não, escolher outro horário"
+          confirmLabel="Sim, agendar"
+          onCancel={() => setOvertimeConfirmation(null)}
+          onConfirm={() => {
+            void saveManualAppointment(
+              overtimeConfirmation.appointment,
+              true
+            );
+          }}
         />
       )}
 
