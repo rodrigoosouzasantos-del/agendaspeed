@@ -13,6 +13,7 @@
 
 import React, {
   useMemo,
+  useRef,
   useState
 } from 'react';
 
@@ -491,6 +492,8 @@ export default function ReceiptsView({
   const [pendingPaymentNotes, setPendingPaymentNotes] = useState('');
   const [isSubmittingPendingPayment, setIsSubmittingPendingPayment] =
     useState(false);
+
+  const receiptSubmissionLockRef = useRef(false);
 
   const phoneKey = normalizePhone(phoneSearch);
   const normalizedCashSearch = normalizeSearchValue(cashSearch);
@@ -1399,7 +1402,13 @@ export default function ReceiptsView({
     }
   };
 
-  const finalizeReceipt = async () => {
+  const finalizeReceipt = async (): Promise<boolean> => {
+    if (receiptSubmissionLockRef.current || isSubmittingReceipt) {
+      return false;
+    }
+
+    receiptSubmissionLockRef.current = true;
+
     const isManualReceipt = checkoutMode === 'manual';
     const clientName = isManualReceipt
       ? manualMatchedClient?.name || manualClientName.trim() || 'Cliente balcão'
@@ -1468,13 +1477,27 @@ export default function ReceiptsView({
       setManualClientName('');
       resetCheckoutDraft();
       window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      return true;
+    } catch (error) {
+      setValidationPopupMessage(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível registrar o pagamento. Tente novamente.'
+      );
+
+      return false;
     } finally {
+      receiptSubmissionLockRef.current = false;
       setIsSubmittingReceipt(false);
     }
   };
 
   const handleConfirmReceipt = async () => {
-    if (isSubmittingReceipt) return;
+    if (receiptSubmissionLockRef.current || isSubmittingReceipt) {
+      return;
+    }
+
     const isManualReceipt = checkoutMode === 'manual';
 
     if (!isManualReceipt && !selectedAppointment) {
@@ -1534,7 +1557,16 @@ export default function ReceiptsView({
   };
 
   const handleAuthorizePendingReceipt = async () => {
-    await finalizeReceipt();
+    if (receiptSubmissionLockRef.current || isSubmittingReceipt) {
+      return;
+    }
+
+    const wasConfirmed = await finalizeReceipt();
+
+    if (!wasConfirmed) {
+      return;
+    }
+
     setIsPendingAuthorizationOpen(false);
     setPendingAuthorizationAmount(0);
   };
@@ -1694,7 +1726,13 @@ export default function ReceiptsView({
     setExpenseNotes,
     setExpensePaymentType,
     setIsHistoryOpen,
-    setIsPendingAuthorizationOpen,
+    setIsPendingAuthorizationOpen: (isOpen: boolean) => {
+      if (isSubmittingReceipt && !isOpen) {
+        return;
+      }
+
+      setIsPendingAuthorizationOpen(isOpen);
+    },
     setManualClientCpf,
     setManualClientName,
     setManualClientPhone,
