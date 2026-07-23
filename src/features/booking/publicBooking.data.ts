@@ -133,12 +133,132 @@ export function isPublicScheduleDayOpen(params: {
   });
 }
 
+export function buildDemoServices(): Service[] {
+  return [
+    {
+      id: 'demo-service-corte-feminino',
+      name: 'Corte de Cabelo Feminino',
+      category: 'CABELO',
+      duration: 60,
+      price: 150,
+      description: 'Corte personalizado com acabamento profissional.',
+      professionals: ['demo-professional-ana'],
+      specificCommission: null,
+      requireDeposit: false,
+      depositValue: null,
+      active: true
+    },
+    {
+      id: 'demo-service-corte-masculino',
+      name: 'Corte de Cabelo Masculino',
+      category: 'BARBA & CABELO',
+      duration: 40,
+      price: 60,
+      description: 'Corte masculino com lavagem e finalização.',
+      professionals: ['demo-professional-carlos'],
+      specificCommission: null,
+      requireDeposit: false,
+      depositValue: null,
+      active: true
+    },
+    {
+      id: 'demo-service-barba',
+      name: 'Barba com Toalha Quente',
+      category: 'BARBA',
+      duration: 30,
+      price: 50,
+      description: 'Barba completa com toalha quente.',
+      professionals: ['demo-professional-carlos'],
+      specificCommission: null,
+      requireDeposit: false,
+      depositValue: null,
+      active: true
+    }
+  ];
+}
+
+export function buildDemoProfessionals(): Professional[] {
+  return [
+    {
+      id: 'demo-professional-ana',
+      name: 'ANA',
+      phone: '(11) 99999-1111',
+      email: 'ana@exemplo.com',
+      role: 'Cabeleireira',
+      displayOrder: 1,
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=240&h=240&fit=crop',
+      active: true,
+      workDays: [1, 2, 3, 4, 5, 6],
+      workHoursStart: '09:00',
+      workHoursEnd: '18:00',
+      lunchStart: '12:00',
+      lunchEnd: '13:00',
+      noLunchBreak: false,
+      defaultAppointmentDuration: 30,
+      services: ['demo-service-corte-feminino'],
+      remType: 'commission_percent',
+      remValue: 40,
+      chairRentalValue: 0,
+      chairRentalStatus: 'inactive',
+      permissions: {
+        viewOwnCalendar: true,
+        createAppts: true,
+        rescheduleAppts: true,
+        cancelAppts: true,
+        blockCalendar: true,
+        openSpots: true,
+        viewFinancial: false,
+        viewCommission: false,
+        viewChairRental: false,
+        manageOwnCalendar: 'yes'
+      }
+    },
+    {
+      id: 'demo-professional-carlos',
+      name: 'CARLOS',
+      phone: '(11) 99999-2222',
+      email: 'carlos@exemplo.com',
+      role: 'Barbeiro',
+      displayOrder: 2,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=240&h=240&fit=crop',
+      active: true,
+      workDays: [1, 2, 3, 4, 5, 6],
+      workHoursStart: '09:00',
+      workHoursEnd: '19:00',
+      lunchStart: '12:00',
+      lunchEnd: '13:00',
+      noLunchBreak: false,
+      defaultAppointmentDuration: 30,
+      services: [
+        'demo-service-corte-masculino',
+        'demo-service-barba'
+      ],
+      remType: 'commission_percent',
+      remValue: 40,
+      chairRentalValue: 0,
+      chairRentalStatus: 'inactive',
+      permissions: {
+        viewOwnCalendar: true,
+        createAppts: true,
+        rescheduleAppts: true,
+        cancelAppts: true,
+        blockCalendar: true,
+        openSpots: true,
+        viewFinancial: false,
+        viewCommission: false,
+        viewChairRental: false,
+        manageOwnCalendar: 'yes'
+      }
+    }
+  ] as Professional[];
+}
+
 export function buildDemoOpenScheduleDays(professionals: Professional[]): BookingScheduleDay[] {
   const today = new Date();
   const activeProfessionals = professionals.filter((professional) => professional.active);
   const scheduleDays: BookingScheduleDay[] = [];
 
-  for (let dayIndex = 0; dayIndex < 3; dayIndex += 1) {
+  for (let dayIndex = 1; dayIndex <= 3; dayIndex += 1) {
     const date = new Date(today);
     date.setDate(today.getDate() + dayIndex);
     const dateStr = getLocalDateStr(date);

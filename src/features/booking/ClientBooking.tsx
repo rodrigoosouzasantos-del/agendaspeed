@@ -40,7 +40,8 @@ import { supabase } from '../../lib/supabase';
 import {
   BookingAgendaBlockedInterval, ClientBookingFeedbackState, PublicBookingContextRow,
   PublicBookingCreationRow, buildClientFollowUpLink, buildClientFollowUpWhatsappUrl,
-  buildDemoOpenScheduleDays, extractPublicAccessToken, findPublicClientNameByPhone,
+  buildDemoOpenScheduleDays, buildDemoProfessionals, buildDemoServices,
+  extractPublicAccessToken, findPublicClientNameByPhone,
   formatClientWhatsapp, getClientPublicAccessTokenByAppointment, getLocalWhatsappDigits,
   getPublicBookingSlug, isPastBookingDateTime, isPublicScheduleDayOpen,
   isTimeBlockedForPublicBooking, isValidClientWhatsapp, mergeConfigWithFallback,
@@ -71,17 +72,29 @@ export default function ClientBooking({
     return mergeConfigWithFallback(state.config, remoteBookingContext?.config);
   }, [state.config, remoteBookingContext]);
 
-  // Em uma vitrine real, a resposta do Supabase é a única fonte válida.
-  // Mesmo uma lista vazia é um resultado legítimo e não deve cair em dados demo/localStorage.
-  const services = remoteBookingContext
-    ? remoteBookingContext.services
-    : state.services;
-
-  const professionals = remoteBookingContext
-    ? remoteBookingContext.professionals
-    : state.professionals;
-
   const isDemoBooking = !publicSlug;
+
+  const demoServices = useMemo(() => {
+    return isDemoBooking ? buildDemoServices() : [];
+  }, [isDemoBooking]);
+
+  const demoProfessionals = useMemo(() => {
+    return isDemoBooking ? buildDemoProfessionals() : [];
+  }, [isDemoBooking]);
+
+  // Em uma vitrine real, a resposta do Supabase é a única fonte válida.
+  // No caminho /agendar, usamos somente dados fictícios e descartáveis.
+  const services = isDemoBooking
+    ? demoServices
+    : remoteBookingContext
+      ? remoteBookingContext.services
+      : state.services;
+
+  const professionals = isDemoBooking
+    ? demoProfessionals
+    : remoteBookingContext
+      ? remoteBookingContext.professionals
+      : state.professionals;
   const appointments = isDemoBooking
     ? []
     : remoteBookingContext?.appointments || state.appointments;
@@ -280,7 +293,9 @@ export default function ClientBooking({
       appointments,
       services,
       openDays: effectiveAgendaOpenDays,
-      numberOfDays: config.maxFutureDays || 30
+      numberOfDays: isDemoBooking
+        ? 3
+        : config.maxFutureDays || 30
     });
   }, [
     config,
@@ -288,6 +303,7 @@ export default function ClientBooking({
     selectedService,
     appointments,
     effectiveAgendaOpenDays,
+    isDemoBooking,
     services
   ]);
 
