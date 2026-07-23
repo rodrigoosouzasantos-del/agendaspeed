@@ -149,7 +149,7 @@ export function useOwnerAppointments({
       if (document.visibilityState === "visible" && isOperationalTab) {
         void loadAppointmentsFromSupabase(false);
       }
-    }, 40000);
+    }, 10000);
 
     const appointmentsChannel = supabase
       .channel("owner-appointments-changes")

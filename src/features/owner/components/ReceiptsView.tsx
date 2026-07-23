@@ -354,6 +354,28 @@ function todayKey(): string {
   });
 }
 
+function getSaoPauloDateKey(value: string): string {
+  const normalizedValue = String(value || '').trim();
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  const parsedDate = new Date(normalizedValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return normalizedValue.slice(0, 10);
+  }
+
+  return parsedDate.toLocaleDateString('en-CA', {
+    timeZone: 'America/Sao_Paulo'
+  });
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -738,7 +760,7 @@ export default function ReceiptsView({
         return (
           receipt.status !== 'cancelled' &&
           Number(receipt.amountPaid) > 0 &&
-          receipt.paidAt.slice(0, 10) === currentDayKey
+          getSaoPauloDateKey(receipt.paidAt) === currentDayKey
         );
       })
       .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
@@ -786,7 +808,12 @@ export default function ReceiptsView({
 
   const todayExpenses = useMemo(() => {
     return cashExpenses
-      .filter((expense) => expense.status === 'paid' && expense.paidAt.slice(0, 10) === currentDayKey)
+      .filter((expense) => {
+        return (
+          expense.status === 'paid' &&
+          getSaoPauloDateKey(expense.paidAt) === currentDayKey
+        );
+      })
       .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
   }, [cashExpenses, currentDayKey]);
 
