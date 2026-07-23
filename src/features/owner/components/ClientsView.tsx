@@ -105,6 +105,16 @@ function normalizeSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+
+function normalizeClientName(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trimStart()
+    .toUpperCase();
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -186,11 +196,21 @@ function getClientAppointments(params: {
   appointments: Appointment[];
 }): Appointment[] {
   const { client, appointments } = params;
-  const clientPhone = onlyDigits(client.phone);
+  const clientPhone = onlyDigits(client.phone || '');
+  const clientName = normalizeSearch(client.name);
 
   return appointments
     .filter((appointment) => {
-      return onlyDigits(appointment.clientPhone) === clientPhone;
+      const appointmentPhone = onlyDigits(appointment.clientPhone || '');
+
+      if (clientPhone) {
+        return appointmentPhone === clientPhone;
+      }
+
+      return (
+        !appointmentPhone &&
+        normalizeSearch(appointment.clientName) === clientName
+      );
     })
     .sort((first, second) => {
       return second.dateTime.localeCompare(first.dateTime);
@@ -330,7 +350,7 @@ function buildReportHtml(params: {
     return `
       <tr>
         <td>${escapeHtml(client.name)}</td>
-        <td>${escapeHtml(formatPhoneMask(client.phone))}</td>
+        <td>${escapeHtml(client.phone ? formatPhoneMask(client.phone) : 'Não informado')}</td>
         <td>${escapeHtml(client.cpf ? formatCpfMask(client.cpf) : 'Não informado')}</td>
         <td>${escapeHtml(client.birthDate ? formatDateBr(client.birthDate) : 'Não informado')}</td>
         <td>${stats.presences}</td>
@@ -485,7 +505,12 @@ export default function ClientsView({
   }, [filteredClients, currentPage, totalClientPages]);
 
   const birthdayClients = useMemo(() => {
-    return clients.filter((client) => isClientBirthdayToday(client, todayDate));
+    return clients.filter((client) => {
+      return (
+        isClientBirthdayToday(client, todayDate) &&
+        Boolean(onlyDigits(client.phone || ''))
+      );
+    });
   }, [clients, todayDate]);
 
   useEffect(() => {
@@ -606,12 +631,12 @@ export default function ClientsView({
       return;
     }
 
-    if (!clientEditForm.name.trim() || !clientEditForm.phone.trim()) {
+    if (!clientEditForm.name.trim()) {
       return;
     }
 
     const wasUpdated = onUpdateClient(selectedClient.id, {
-      name: clientEditForm.name.trim(),
+      name: normalizeClientName(clientEditForm.name).trim(),
       phone: clientEditForm.phone.trim(),
       cpf: onlyDigits(clientEditForm.cpf) || undefined,
       birthDate: clientEditForm.birthDate || undefined
@@ -628,7 +653,7 @@ export default function ClientsView({
 
       return {
         ...currentClient,
-        name: clientEditForm.name.trim(),
+        name: normalizeClientName(clientEditForm.name).trim(),
         phone: clientEditForm.phone.trim(),
         cpf: onlyDigits(clientEditForm.cpf) || undefined,
         birthDate: clientEditForm.birthDate || undefined
@@ -650,12 +675,12 @@ export default function ClientsView({
   const handleSubmitManualClient = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!manualClientForm.name.trim() || !manualClientForm.phone.trim()) {
+    if (!manualClientForm.name.trim()) {
       return;
     }
 
     onAddClient({
-      name: manualClientForm.name.trim(),
+      name: normalizeClientName(manualClientForm.name).trim(),
       phone: manualClientForm.phone.trim(),
       cpf: onlyDigits(manualClientForm.cpf) || undefined,
       birthDate: manualClientForm.birthDate || undefined
@@ -873,7 +898,7 @@ export default function ClientsView({
 
                 <div>
                   <p className="text-sm font-bold text-slate-700">
-                    {formatPhoneMask(client.phone)}
+                    {client.phone ? formatPhoneMask(client.phone) : 'Não informado'}
                   </p>
 
                   <p className="mt-1 text-[11px] font-semibold text-slate-400">
@@ -899,29 +924,35 @@ export default function ClientsView({
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
-                  <a
-                    href={getWhatsAppUrl(
-                      client.phone,
-                      isBirthday ? getBirthdayMessage(client.name) : undefined
-                    )}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => {
-                      if (isBirthday) {
-                        handleBirthdayWhatsAppClick(client);
-                      }
-                    }}
-                    className={`rounded-xl px-3 py-2 text-xs font-black transition flex items-center gap-1.5 ${
-                      isBirthday
-                        ? birthdayAlreadyGreeted
-                          ? 'border border-emerald-200 bg-emerald-100 text-emerald-800'
-                          : 'border border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                        : 'border border-[#0f4c5c]/20 bg-[#0f4c5c] text-white hover:bg-[#123945]'
-                    }`}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    {isBirthday ? 'Aniversário' : 'Mensagem'}
-                  </a>
+                  {client.phone ? (
+                    <a
+                      href={getWhatsAppUrl(
+                        client.phone,
+                        isBirthday ? getBirthdayMessage(client.name) : undefined
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => {
+                        if (isBirthday) {
+                          handleBirthdayWhatsAppClick(client);
+                        }
+                      }}
+                      className={`rounded-xl px-3 py-2 text-xs font-black transition flex items-center gap-1.5 ${
+                        isBirthday
+                          ? birthdayAlreadyGreeted
+                            ? 'border border-emerald-200 bg-emerald-100 text-emerald-800'
+                            : 'border border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                          : 'border border-[#0f4c5c]/20 bg-[#0f4c5c] text-white hover:bg-[#123945]'
+                      }`}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      {isBirthday ? 'Aniversário' : 'Mensagem'}
+                    </a>
+                  ) : (
+                    <span className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-400">
+                      Sem WhatsApp
+                    </span>
+                  )}
 
                   <button
                     type="button"
@@ -1042,17 +1073,16 @@ export default function ClientsView({
                       onChange={(event) => {
                         setClientEditForm((currentForm) => ({
                           ...currentForm,
-                          name: event.target.value
+                          name: normalizeClientName(event.target.value)
                         }));
                       }}
                       className="w-full rounded-xl border bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0f4c5c]"
-                      required
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      WhatsApp
+                      WhatsApp (opcional)
                     </label>
 
                     <input
@@ -1140,18 +1170,24 @@ export default function ClientsView({
 
                 <div className="rounded-2xl border bg-slate-50 p-4">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    WhatsApp
+                    WhatsApp (opcional)
                   </span>
 
-                  <a
-                    href={getWhatsAppUrl(selectedClient.phone)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1.5 text-sm font-black text-[#0f4c5c] hover:underline"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    {formatPhoneMask(selectedClient.phone)}
-                  </a>
+                  {selectedClient.phone ? (
+                    <a
+                      href={getWhatsAppUrl(selectedClient.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1.5 text-sm font-black text-[#0f4c5c] hover:underline"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      {formatPhoneMask(selectedClient.phone)}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm font-medium text-slate-500">
+                      Não informado
+                    </p>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border bg-slate-50 p-4">
@@ -1365,11 +1401,10 @@ export default function ClientsView({
                     value={manualClientForm.name}
                     onChange={(event) => {
                       handleChangeManualClientForm({
-                        name: event.target.value
+                        name: normalizeClientName(event.target.value)
                       });
                     }}
                     className="w-full rounded-xl border bg-slate-50 py-2.5 pl-10 pr-3.5 text-xs outline-none focus:border-[#0f4c5c]"
-                    required
                   />
                 </div>
               </div>

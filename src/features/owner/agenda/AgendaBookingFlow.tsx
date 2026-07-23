@@ -706,8 +706,8 @@ const renderProfessionalManagerCards = () => {
           </h3>
 
           <p className="text-xs text-neutral-500 font-semibold mt-1">
-            Informe primeiro o WhatsApp. Se o cliente já existir, o nome será
-            preenchido automaticamente.
+            Informe primeiro o nome. A busca por clientes será refinada durante
+            a digitação e o WhatsApp poderá ser preenchido quando estiver cadastrado.
           </p>
         </div>
 
@@ -715,7 +715,21 @@ const renderProfessionalManagerCards = () => {
           <div className="lg:col-span-2 space-y-3">
             <div>
               <label className="text-xs font-black text-neutral-500 uppercase tracking-widest font-mono block mb-1.5">
-                WhatsApp
+                Nome do cliente
+              </label>
+
+              <input
+                value={clientName}
+                onChange={(event: any) => setClientName(event.target.value)}
+                placeholder="Ex.: JOSE DA PADARIA"
+                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold uppercase outline-none focus:border-[#0f4c5c]"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-black text-neutral-500 uppercase tracking-widest font-mono block mb-1.5">
+                WhatsApp (opcional no agendamento interno)
               </label>
 
               <div className="relative">
@@ -727,7 +741,6 @@ const renderProfessionalManagerCards = () => {
                   }
                   placeholder="(14) 99999-9999"
                   className="w-full bg-neutral-50 border rounded-xl pl-9 pr-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
-                  autoFocus
                 />
               </div>
 
@@ -736,19 +749,6 @@ const renderProfessionalManagerCards = () => {
                   Cliente encontrado na base: {matchedClient.name}
                 </p>
               )}
-            </div>
-
-            <div>
-              <label className="text-xs font-black text-neutral-500 uppercase tracking-widest font-mono block mb-1.5">
-                Nome do cliente
-              </label>
-
-              <input
-                value={clientName}
-                onChange={(event: any) => setClientName(event.target.value)}
-                placeholder="Ex.: Maria Silva"
-                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
-              />
             </div>
 
             <div>

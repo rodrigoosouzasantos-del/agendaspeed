@@ -50,6 +50,16 @@ function formatPhoneInput(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+
+function normalizeClientName(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trimStart()
+    .toUpperCase();
+}
+
 export default function ManualAppointmentModal({
   myServices,
   professionalAccessToken,
@@ -235,9 +245,29 @@ export default function ManualAppointmentModal({
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-neutral-600">
+                    Nome do cliente
+                  </label>
+
+                  <input
+                    type="text"
+                    placeholder="Ex.: JOSE DA PADARIA"
+                    value={formState.clientName}
+                    onChange={(event) => {
+                      onChangeFormState({
+                        clientName: normalizeClientName(event.target.value)
+                      });
+                    }}
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
                     <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp
+                    WhatsApp (opcional)
                   </label>
 
                   <input
@@ -250,26 +280,6 @@ export default function ManualAppointmentModal({
                       void handlePhoneChange(event.target.value);
                     }}
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-neutral-600">
-                    Nome do cliente
-                  </label>
-
-                  <input
-                    type="text"
-                    placeholder="Ex.: Amanda Silva"
-                    value={formState.clientName}
-                    onChange={(event) => {
-                      onChangeFormState({
-                        clientName: event.target.value.toUpperCase()
-                      });
-                    }}
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
-                    required
                   />
                 </div>
               </div>

@@ -19,6 +19,16 @@ interface UseOwnerClientsParams {
   showOwnerFeedback: (message: string, title?: string) => void;
 }
 
+
+function normalizeClientName(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
 export function useOwnerClients({
   state,
   onUpdateState,
@@ -88,9 +98,15 @@ export function useOwnerClients({
     cpf?: string;
     birthDate?: string;
   }) => {
+    const normalizedName = normalizeClientName(clientData.name);
     const newPhoneNormalized = normalizeClientPhone(clientData.phone);
 
-    const alreadyExists = clients.some((client) => {
+    if (!normalizedName) {
+      showOwnerFeedback("Informe o nome do cliente.");
+      return;
+    }
+
+    const alreadyExists = Boolean(newPhoneNormalized) && clients.some((client) => {
       const clientPhoneNormalized =
         client.phoneNormalized || normalizeClientPhone(client.phone);
 
@@ -126,8 +142,8 @@ export function useOwnerClients({
         .from("clients")
         .insert({
           tenant_id: tenantId,
-          name: clientData.name,
-          phone: newPhoneNormalized,
+          name: normalizedName,
+          phone: newPhoneNormalized || null,
           cpf: normalizedCpf || null,
           birth_date: clientData.birthDate || null,
           notes,
@@ -175,14 +191,22 @@ export function useOwnerClients({
       birthDate?: string;
     },
   ): boolean => {
+    const normalizedName = normalizeClientName(updates.name);
     const newPhoneNormalized = normalizeClientPhone(updates.phone);
 
-    const alreadyExists = clients.some((client) => {
+    if (!normalizedName) {
+      showOwnerFeedback("Informe o nome do cliente.");
+      return false;
+    }
+
+    const alreadyExists = Boolean(newPhoneNormalized) && clients.some((client) => {
       const clientPhoneNormalized =
         client.phoneNormalized || normalizeClientPhone(client.phone);
 
       return (
-        client.id !== clientId && clientPhoneNormalized === newPhoneNormalized
+        Boolean(newPhoneNormalized) &&
+        client.id !== clientId &&
+        clientPhoneNormalized === newPhoneNormalized
       );
     });
 
@@ -228,7 +252,7 @@ export function useOwnerClients({
 
       return {
         ...client,
-        name: updates.name,
+        name: normalizedName,
         phone: newPhoneNormalized,
         phoneNormalized: newPhoneNormalized,
         phoneHistory,
@@ -248,8 +272,8 @@ export function useOwnerClients({
       const { data, error } = await supabase
         .from("clients")
         .update({
-          name: updates.name,
-          phone: newPhoneNormalized,
+          name: normalizedName,
+          phone: newPhoneNormalized || null,
           cpf: normalizedCpf || null,
           birth_date: updates.birthDate || null,
         })
