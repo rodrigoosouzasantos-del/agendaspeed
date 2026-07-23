@@ -805,10 +805,6 @@ export default function ProfessionalCalendarAgendaView({
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     return timeSlots.filter((slot) => {
-      if (slot.status === 'booked') {
-        return true;
-      }
-
       return timeToMinutes(slot.time) > currentMinutes;
     });
   }, [

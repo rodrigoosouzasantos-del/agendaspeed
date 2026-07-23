@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  AlertCircle,
   ChevronRight,
   Loader2,
   MessageCircle,
@@ -63,7 +64,6 @@ function normalizeClientName(value: string): string {
     .toUpperCase();
 }
 
-
 interface ProfessionalClientSearchResult {
   id: string;
   name: string;
@@ -84,6 +84,7 @@ export default function ManualAppointmentModal({
     ProfessionalClientSearchResult[]
   >([]);
   const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const [clientSearchError, setClientSearchError] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
 
   const selectedService = myServices.find((service) => {
@@ -99,6 +100,7 @@ export default function ManualAppointmentModal({
       normalizedName.length < 1
     ) {
       setClientSearchResults([]);
+      setClientSearchError('');
       setIsSearchingClients(false);
       return;
     }
@@ -107,6 +109,7 @@ export default function ManualAppointmentModal({
 
     const timeoutId = window.setTimeout(async () => {
       setIsSearchingClients(true);
+      setClientSearchError('');
 
       const { data, error } = await supabase.rpc(
         'find_professional_access_clients_by_name',
@@ -124,11 +127,11 @@ export default function ManualAppointmentModal({
       setIsSearchingClients(false);
 
       if (error) {
-        console.error(
-          'Erro ao buscar clientes pelo nome:',
-          error.message
-        );
+        console.error('Erro ao buscar clientes pelo nome:', error);
         setClientSearchResults([]);
+        setClientSearchError(
+          'Não foi possível consultar os clientes. Verifique a função de busca no Supabase.'
+        );
         return;
       }
 
@@ -144,7 +147,7 @@ export default function ManualAppointmentModal({
           }))
           .filter((client) => Boolean(client.id && client.name))
       );
-    }, 180);
+    }, 150);
 
     return () => {
       isCurrentSearch = false;
@@ -158,6 +161,8 @@ export default function ManualAppointmentModal({
 
   const handleClientNameChange = (value: string) => {
     setSelectedClientId('');
+    setClientSearchError('');
+
     onChangeFormState({
       clientName: normalizeClientName(value)
     });
@@ -168,6 +173,7 @@ export default function ManualAppointmentModal({
   ) => {
     setSelectedClientId(client.id);
     setClientSearchResults([]);
+    setClientSearchError('');
 
     onChangeFormState({
       clientName: client.name,
@@ -222,6 +228,7 @@ export default function ManualAppointmentModal({
       String(matchedClient.id || matchedClient.client_id || normalizedPhone)
     );
     setClientSearchResults([]);
+    setClientSearchError('');
 
     onChangeFormState({
       clientPhone: nextPhone,
@@ -361,7 +368,7 @@ export default function ManualAppointmentModal({
 
                     <input
                       type="text"
-                      placeholder="Ex.: JOSE DA PADARIA"
+                      placeholder="Digite o nome do cliente"
                       value={formState.clientName}
                       onChange={(event) => {
                         handleClientNameChange(event.target.value);
@@ -408,6 +415,13 @@ export default function ManualAppointmentModal({
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {clientSearchError && (
+                    <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{clientSearchError}</span>
                     </div>
                   )}
                 </div>
