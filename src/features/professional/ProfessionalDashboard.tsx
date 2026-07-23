@@ -288,7 +288,11 @@ function mapPublicConfig(rawConfig: Record<string, unknown>): EstablishmentConfi
     workHoursStart: String(rawConfig.workHoursStart || '08:00'),
     workHoursEnd: String(rawConfig.workHoursEnd || '19:00'),
     minLeadTimeMinutes: Number(rawConfig.minLeadTimeMinutes || 0),
-    maxFutureDays: Number(rawConfig.maxFutureDays || 14),
+    maxFutureDays: Number(
+      rawConfig.maxFutureDays ||
+        rawConfig.max_future_days ||
+        14
+    ),
     cancellationPolicy: String(rawConfig.cancellationPolicy || ''),
     autoApprove: rawConfig.autoApprove === true,
     requireDepositGlobal: rawConfig.requireDepositGlobal === true,
@@ -970,6 +974,10 @@ export default function ProfessionalDashboard({
             professional={currentProfessional}
             services={services}
             appointments={appointments}
+            maxFutureDays={Math.max(
+              1,
+              Number(config.maxFutureDays) || 10
+            )}
             selectedDate={selectedDate}
             onChangeSelectedDate={setSelectedDate}
             onOpenManualAppointmentAtDateTime={handleOpenManualAppointmentAtDateTime}

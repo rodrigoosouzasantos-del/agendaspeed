@@ -87,6 +87,7 @@ export interface ProfessionalCalendarAgendaViewProps {
   professional: Professional;
   services: Service[];
   appointments: Appointment[];
+  maxFutureDays: number;
   selectedDate: string;
   onChangeSelectedDate: (date: string) => void;
   onOpenManualAppointmentAtDateTime?: (

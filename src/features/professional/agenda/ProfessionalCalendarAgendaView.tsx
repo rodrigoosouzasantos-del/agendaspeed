@@ -55,12 +55,6 @@ import {
 
 import { supabase } from '../../../lib/supabase';
 
-function getMonthLabel(date: Date): string {
-  return date.toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric'
-  });
-}
 
 function getSelectedDateAsDate(dateStr: string): Date {
   if (!dateStr || !dateStr.includes('-')) {
@@ -69,6 +63,21 @@ function getSelectedDateAsDate(dateStr: string): Date {
 
   return new Date(`${dateStr}T00:00:00`);
 }
+
+function getLocalDateStr(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, amount: number): Date {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + amount);
+  return nextDate;
+}
+
 
 
 function normalizeScheduleBlock(rawBlock: Record<string, unknown>): ProfessionalAgendaBlockedInterval {
@@ -566,15 +575,14 @@ export default function ProfessionalCalendarAgendaView({
   professional,
   services,
   appointments,
+  maxFutureDays,
   selectedDate,
   onChangeSelectedDate,
   onOpenManualAppointmentAtDateTime,
   onModifyAppointment,
   professionalAccessToken
 }: ProfessionalCalendarAgendaViewProps) {
-  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => {
-    return getSelectedDateAsDate(selectedDate);
-  });
+  const [showPreviousDates, setShowPreviousDates] = useState(false);
 
   const [dayOverrides, setDayOverrides] = useState<ProfessionalAgendaDayOverride[]>([]);
   const [blockedIntervals, setBlockedIntervals] = useState<ProfessionalAgendaBlockedInterval[]>([]);
@@ -589,6 +597,17 @@ export default function ProfessionalCalendarAgendaView({
     endTime: string;
   } | null>(null);
 
+
+  useEffect(() => {
+    const today = getLocalDateStr();
+
+    if (!selectedDate || selectedDate < today) {
+      onChangeSelectedDate(today);
+    }
+  }, [
+    selectedDate,
+    onChangeSelectedDate
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -662,26 +681,97 @@ export default function ProfessionalCalendarAgendaView({
     professionalAccessToken
   ]);
 
+  const visibleFutureDays = useMemo(() => {
+    const normalizedValue = Number(maxFutureDays);
+
+    if (!Number.isFinite(normalizedValue) || normalizedValue < 1) {
+      return 10;
+    }
+
+    return Math.min(Math.floor(normalizedValue), 90);
+  }, [
+    maxFutureDays
+  ]);
+
   const calendarDays = useMemo(() => {
-    return buildProfessionalAgendaCalendarDays({
-      currentMonthDate,
-      selectedDate,
-      professional,
-      services,
-      appointments,
-      dayOverrides,
-      blockedIntervals,
-      extraTimes
+    const today = new Date();
+    const futureLimitDate = addDays(today, visibleFutureDays);
+    const monthsAhead =
+      (
+        futureLimitDate.getFullYear() - today.getFullYear()
+      ) * 12 +
+      futureLimitDate.getMonth() -
+      today.getMonth();
+
+    const monthOffsets = Array.from(
+      {
+        length: monthsAhead + 2
+      },
+      (_, index) => index - 1
+    );
+
+    const monthReferences = monthOffsets.map((monthOffset) => {
+      return new Date(
+        today.getFullYear(),
+        today.getMonth() + monthOffset,
+        1
+      );
+    });
+
+    const allDays = monthReferences.flatMap((monthReference) => {
+      return buildProfessionalAgendaCalendarDays({
+        currentMonthDate: monthReference,
+        selectedDate,
+        professional,
+        services,
+        appointments,
+        dayOverrides,
+        blockedIntervals,
+        extraTimes
+      }).filter((day) => day.isCurrentMonth);
+    });
+
+    const uniqueDays = new Map<string, ProfessionalAgendaCalendarDay>();
+
+    allDays.forEach((day) => {
+      uniqueDays.set(day.dateStr, day);
+    });
+
+    return Array.from(uniqueDays.values()).sort((firstDay, secondDay) => {
+      return firstDay.dateStr.localeCompare(secondDay.dateStr);
     });
   }, [
-    currentMonthDate,
     selectedDate,
     professional,
     services,
     appointments,
     dayOverrides,
     blockedIntervals,
-    extraTimes
+    extraTimes,
+    visibleFutureDays
+  ]);
+
+  const visibleCalendarDays = useMemo(() => {
+    const today = new Date();
+    const todayStr = getLocalDateStr(today);
+
+    const rangeStart = showPreviousDates
+      ? getLocalDateStr(addDays(today, -10))
+      : todayStr;
+
+    const rangeEnd = showPreviousDates
+      ? getLocalDateStr(addDays(today, -1))
+      : getLocalDateStr(
+          addDays(today, visibleFutureDays)
+        );
+
+    return calendarDays.filter((day) => {
+      return day.dateStr >= rangeStart && day.dateStr <= rangeEnd;
+    });
+  }, [
+    calendarDays,
+    showPreviousDates,
+    visibleFutureDays
   ]);
 
   const timeSlots = useMemo(() => {
@@ -710,21 +800,6 @@ export default function ProfessionalCalendarAgendaView({
     timeSlots
   ]);
 
-  const handlePreviousMonth = () => {
-    setCurrentMonthDate((currentDate) => {
-      const nextDate = new Date(currentDate);
-      nextDate.setMonth(currentDate.getMonth() - 1);
-      return nextDate;
-    });
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonthDate((currentDate) => {
-      const nextDate = new Date(currentDate);
-      nextDate.setMonth(currentDate.getMonth() + 1);
-      return nextDate;
-    });
-  };
 
   const handleSelectCalendarDay = (dateStr: string) => {
     onChangeSelectedDate(dateStr);
@@ -1172,135 +1247,83 @@ export default function ProfessionalCalendarAgendaView({
     <>
       <div className="space-y-6">
         <div className="bg-white border rounded-3xl p-5 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-neutral-950 tracking-tight">
                 Minha Agenda
               </h2>
 
-              <p className="text-xs text-neutral-500 mt-1">
-                No celular, toque em um dia da lista. No computador, clique no calendário para abrir, fechar, bloquear horários ou agendar cliente.
+              <p className="mt-1 text-xs text-neutral-500">
+                A agenda inicia no dia atual e mostra somente o período permitido nas configurações.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePreviousMonth}
-                className="p-2 rounded-xl border bg-white hover:bg-neutral-50 transition"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+            <button
+              type="button"
+              onClick={() => {
+                const nextShowPreviousDates = !showPreviousDates;
+                setShowPreviousDates(nextShowPreviousDates);
 
-              <span className="text-sm font-black text-neutral-900 min-w-[150px] text-center capitalize">
-                {getMonthLabel(currentMonthDate)}
-              </span>
+                const nextSelectedDate = nextShowPreviousDates
+                  ? getLocalDateStr(addDays(new Date(), -1))
+                  : getLocalDateStr();
 
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="p-2 rounded-xl border bg-white hover:bg-neutral-50 transition"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+                onChangeSelectedDate(nextSelectedDate);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              {showPreviousDates
+                ? 'Voltar aos próximos dias'
+                : 'Datas anteriores'}
+            </button>
           </div>
 
-          <div className="md:hidden space-y-2">
-            {calendarDays
-              .filter((day) => day.isCurrentMonth)
-              .map((day) => (
+          <div className="overflow-x-auto pb-2">
+            <div className="flex min-w-max gap-2">
+              {visibleCalendarDays.map((day) => (
                 <button
                   key={day.dateStr}
                   type="button"
                   onClick={() => handleSelectCalendarDay(day.dateStr)}
-                  className={`w-full rounded-2xl border p-4 text-left transition flex items-center gap-3 ${
+                  className={`w-[118px] shrink-0 rounded-2xl border px-3 py-3 text-left transition ${
                     day.dateStr === selectedDate
                       ? 'border-orange-500 bg-orange-50 shadow-sm'
-                      : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                      : day.status === 'open'
+                        ? 'border-green-200 bg-green-50 hover:border-green-300'
+                        : day.status === 'partial'
+                          ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
+                          : day.status === 'full'
+                            ? 'border-red-200 bg-red-50 hover:border-red-300'
+                            : 'border-neutral-200 bg-white hover:bg-neutral-50'
                   }`}
                 >
-                  <div className={`w-14 h-14 rounded-2xl border flex flex-col items-center justify-center shrink-0 ${
-                    day.isToday
-                      ? 'bg-orange-600 border-orange-600 text-white'
-                      : 'bg-neutral-50 border-neutral-200 text-neutral-900'
-                  }`}>
-                    <span className="text-[10px] font-black uppercase leading-none">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase text-neutral-500">
                       {day.weekDayLabel}
                     </span>
 
-                    <span className="text-xl font-black leading-none mt-1">
-                      {day.dayNumber}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black ${getCalendarDayStatusClassName(day.status)}`}>
-                        {getCalendarDayStatusLabel(day.status)}
+                    {day.isToday && (
+                      <span className="text-[9px] font-black uppercase text-orange-600">
+                        Hoje
                       </span>
-
-                      {day.isToday && (
-                        <span className="text-[10px] font-black text-orange-600 uppercase">
-                          Hoje
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-sm font-black text-neutral-900 mt-1">
-                      {formatDateBr(day.dateStr)}
-                    </p>
-
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {day.totalAppointments} agendamento(s) • {day.freeSlots} horário(s) livres
-                    </p>
+                    )}
                   </div>
 
-                  <ChevronRight className="w-5 h-5 text-orange-600 shrink-0" />
-                </button>
-              ))}
-          </div>
+                  <p className="mt-1 text-sm font-black text-neutral-950">
+                    {formatDateBr(day.dateStr)}
+                  </p>
 
-          <div className="hidden md:grid grid-cols-7 gap-2">
-            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dayLabel) => (
-              <div
-                key={dayLabel}
-                className="text-center text-[10px] font-black text-neutral-400 uppercase tracking-widest font-mono py-1"
-              >
-                {dayLabel}
-              </div>
-            ))}
-
-            {calendarDays.map((day) => (
-              <button
-                key={day.dateStr}
-                type="button"
-                onClick={() => handleSelectCalendarDay(day.dateStr)}
-                className={getCalendarDayClassName(day, selectedDate)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-black ${day.isToday ? 'text-orange-600' : 'text-neutral-900'}`}>
-                    {day.dayNumber}
-                  </span>
-
-                  {day.isToday && (
-                    <span className="text-[9px] font-black text-orange-600 uppercase">
-                      Hoje
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full border text-[9px] font-black ${getCalendarDayStatusClassName(day.status)}`}>
+                  <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black ${getCalendarDayStatusClassName(day.status)}`}>
                     {getCalendarDayStatusLabel(day.status)}
                   </span>
 
-                  <span className="text-[9px] text-neutral-400 block">
+                  <p className="mt-2 text-[10px] text-neutral-500">
                     {day.totalAppointments} ag. • {day.freeSlots} livres
-                  </span>
-                </div>
-              </button>
-            ))}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="hidden md:flex flex-wrap gap-2 text-[10px] font-bold text-neutral-500">
