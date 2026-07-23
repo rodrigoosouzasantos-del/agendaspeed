@@ -26,8 +26,31 @@ function formatDateBr(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 11);
+}
+
+function formatPhoneInput(value: string): string {
+  const digits = normalizePhone(value);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function ManualAppointmentModal({
   myServices,
+  clients,
   formState,
   onChangeFormState,
   onClose,
@@ -160,6 +183,58 @@ export default function ManualAppointmentModal({
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </label>
+
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    placeholder="(11) 99999-8888"
+                    value={formatPhoneInput(formState.clientPhone)}
+                    onChange={(event) => {
+                      const nextPhone = formatPhoneInput(event.target.value);
+                      const normalizedPhone = normalizePhone(nextPhone);
+                      const matchedClient =
+                        normalizedPhone.length >= 10
+                          ? clients.find((client) => {
+                              const mainPhone = normalizePhone(
+                                client.phone || ''
+                              );
+                              const normalizedStoredPhone = normalizePhone(
+                                client.phoneNormalized || ''
+                              );
+                              const historyPhones =
+                                client.phoneHistory || [];
+
+                              return (
+                                mainPhone === normalizedPhone ||
+                                normalizedStoredPhone === normalizedPhone ||
+                                historyPhones.some((historyPhone) => {
+                                  return (
+                                    normalizePhone(historyPhone) ===
+                                    normalizedPhone
+                                  );
+                                })
+                              );
+                            }) || null
+                          : null;
+
+                      onChangeFormState({
+                        clientPhone: nextPhone,
+                        clientName: matchedClient
+                          ? matchedClient.name.toUpperCase()
+                          : formState.clientName
+                      });
+                    }}
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-neutral-600">
                     Nome do cliente
                   </label>
@@ -174,26 +249,6 @@ export default function ManualAppointmentModal({
                       });
                     }}
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp
-                  </label>
-
-                  <input
-                    type="tel"
-                    placeholder="(11) 99999-8888"
-                    value={formState.clientPhone}
-                    onChange={(event) => {
-                      onChangeFormState({
-                        clientPhone: event.target.value
-                      });
-                    }}
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
                     required
                   />
                 </div>

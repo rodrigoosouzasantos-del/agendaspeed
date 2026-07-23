@@ -6,6 +6,7 @@ import React, {
 
 import {
   Appointment,
+  Client,
   EstablishmentConfig,
   PaymentType,
   Professional,
@@ -276,6 +277,45 @@ function mapPublicService(rawService: Record<string, unknown>): Service {
   } as Service;
 }
 
+function mapPublicClient(rawClient: Record<string, unknown>): Client {
+  const rawPhoneHistory =
+    rawClient.phoneHistory ||
+    rawClient.phone_history ||
+    [];
+
+  return {
+    id: String(rawClient.id || ''),
+    name: String(rawClient.name || 'Cliente'),
+    phone: String(rawClient.phone || ''),
+    phoneNormalized: String(
+      rawClient.phoneNormalized ||
+        rawClient.phone_normalized ||
+        rawClient.phone ||
+        ''
+    ).replace(/\D/g, ''),
+    phoneHistory: Array.isArray(rawPhoneHistory)
+      ? rawPhoneHistory.map(String)
+      : [],
+    email: rawClient.email
+      ? String(rawClient.email)
+      : undefined,
+    cpf: rawClient.cpf
+      ? String(rawClient.cpf)
+      : undefined,
+    notes: rawClient.notes
+      ? String(rawClient.notes)
+      : undefined,
+    preferredProfessionalId: rawClient.preferredProfessionalId ||
+      rawClient.preferred_professional_id
+      ? String(
+          rawClient.preferredProfessionalId ||
+            rawClient.preferred_professional_id
+        )
+      : undefined
+  } as Client;
+}
+
+
 function mapPublicConfig(rawConfig: Record<string, unknown>): EstablishmentConfig {
   return {
     name: String(rawConfig.name || ''),
@@ -459,6 +499,7 @@ export default function ProfessionalDashboard({
   const {
     config: stateConfig,
     appointments: stateAppointments,
+    clients: stateClients,
     services: stateServices,
     professionals: stateProfessionals
   } = state;
@@ -486,12 +527,14 @@ export default function ProfessionalDashboard({
   const [supabaseAppointments, setSupabaseAppointments] = useState<Appointment[] | null>(null);
   const [tokenProfessional, setTokenProfessional] = useState<Professional | null>(null);
   const [tokenServices, setTokenServices] = useState<Service[] | null>(null);
+  const [tokenClients, setTokenClients] = useState<Client[] | null>(null);
   const [tokenConfig, setTokenConfig] = useState<EstablishmentConfig | null>(null);
   const [commissionPayments, setCommissionPayments] =
     useState<ProfessionalCommissionPaymentRecord[]>([]);
 
   const config = tokenConfig || stateConfig;
   const services = tokenServices || stateServices;
+  const clients = tokenClients || stateClients || [];
   const professionals = tokenProfessional ? [tokenProfessional] : stateProfessionals;
   const effectiveProfessionalId = tokenProfessional?.id || professionalId;
   const appointments = supabaseAppointments || stateAppointments;
@@ -539,10 +582,17 @@ export default function ProfessionalDashboard({
                 mapPublicCommissionPayment(payment)
             )
           : [];
+        const loadedClients = Array.isArray(firstRow.clients)
+          ? firstRow.clients.map(
+              (client: Record<string, unknown>) =>
+                mapPublicClient(client)
+            )
+          : [];
 
         setTokenConfig(mapPublicConfig(firstRow.config || {}));
         setTokenProfessional(loadedProfessional);
         setTokenServices(loadedServices);
+        setTokenClients(loadedClients);
         setSupabaseAppointments(loadedAppointments);
         setCommissionPayments(loadedCommissionPayments);
         return;
@@ -997,6 +1047,7 @@ export default function ProfessionalDashboard({
           professional={currentProfessional}
           services={services}
           myServices={myServices}
+          clients={clients}
           formState={manualFormState}
           onChangeFormState={handleChangeManualFormState}
           onClose={handleCloseManualAppointmentModal}
