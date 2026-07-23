@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   AlertTriangle,
   ChevronRight,
@@ -17,6 +17,7 @@ import { formatDateBr } from '../owner.utils';
 import {
   AgendaBlockedInterval,
   AgendaScheduleDay,
+  addDays,
   getAppointmentDate,
   getAppointmentTime,
   getCurrentTimeInMinutes,
@@ -38,9 +39,9 @@ export default function ProfessionalAgendaView({
   context
 }: ProfessionalAgendaViewProps) {
   const {
+    agendaLookaheadDays,
     appointments,
     blockedIntervals,
-    dateOptions,
     onOpenRescheduleAppointment,
     onUpdateAppointmentStatus,
     openDays,
@@ -66,6 +67,35 @@ export default function ProfessionalAgendaView({
     todayStr
   } = context;
 
+  const visibleOwnerAgendaDays = useMemo(() => {
+    const configuredDays = Number(agendaLookaheadDays);
+    const safeDays = Number.isFinite(configuredDays) && configuredDays > 0
+      ? Math.min(Math.floor(configuredDays), 90)
+      : 10;
+
+    return Array.from({ length: safeDays }, (_, index) => {
+      return addDays(todayStr, index);
+    });
+  }, [
+    agendaLookaheadDays,
+    todayStr
+  ]);
+
+  useEffect(() => {
+    if (
+      !selectedDate ||
+      selectedDate < todayStr ||
+      !visibleOwnerAgendaDays.includes(selectedDate)
+    ) {
+      setSelectedDate(todayStr);
+    }
+  }, [
+    selectedDate,
+    setSelectedDate,
+    todayStr,
+    visibleOwnerAgendaDays
+  ]);
+
 const renderProfessionalAgenda = () => {
     if (!selectedProfessional) {
       return (
@@ -89,7 +119,7 @@ const renderProfessionalAgenda = () => {
     });
 
     const updateLocalScheduleDay = (scheduleDay: AgendaScheduleDay) => {
-      setOpenDays((currentDays) => {
+      setOpenDays((currentDays: AgendaScheduleDay[]) => {
         const nextMap = new Map<string, AgendaScheduleDay>();
 
         currentDays.forEach((currentDay: any) => {
@@ -192,7 +222,7 @@ const renderProfessionalAgenda = () => {
           getAppointmentDate(appointment) === selectedDateSafe
         );
       })
-      .sort((first, second) =>
+      .sort((first: Appointment, second: Appointment) =>
         getAppointmentTime(first).localeCompare(getAppointmentTime(second)),
       );
 
@@ -666,7 +696,7 @@ const renderProfessionalAgenda = () => {
 
             <div className="border-t border-slate-200 pt-3">
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {dateOptions.map((dateOption: any) => {
+                {visibleOwnerAgendaDays.map((dateOption: string) => {
                   const isSelected = selectedDateSafe === dateOption;
 
                   return (
