@@ -12,7 +12,6 @@ import { LocalState } from '../../data';
 import {
   Appointment,
   AppointmentStatus,
-  Client,
   PaymentType,
   Professional,
   Service
@@ -110,7 +109,7 @@ export interface ManualAppointmentModalProps {
   professional: Professional;
   services: Service[];
   myServices: Service[];
-  clients: Client[];
+  professionalAccessToken?: string;
   formState: ProfessionalManualAppointmentFormState;
   onChangeFormState: (
     updates: Partial<ProfessionalManualAppointmentFormState>

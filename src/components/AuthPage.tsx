@@ -99,6 +99,28 @@ function readBooleanRpcResult(data: unknown): boolean {
   return false;
 }
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  let timeoutId: number | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const onlyNumbers = (value: string) => value.replace(/\D/g, '');
 
@@ -439,71 +461,117 @@ export default function AuthPage({
   const handleOwnerLogin = async () => {
     const loginEmail = normalizeEmail(email);
 
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password,
-    });
+    try {
+      const { error: loginError } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password,
+        }),
+        12000,
+        'O login demorou mais que o esperado. Verifique sua conexão e tente novamente.',
+      );
 
-    if (loginError) {
-      setError('E-mail ou senha inválidos. Confira os dados e tente novamente.');
-      return;
-    }
+      if (loginError) {
+        setError('E-mail ou senha inválidos. Confira os dados e tente novamente.');
+        return;
+      }
 
-    const pending = loadPendingTrial();
-    if (pending && pending.email === loginEmail) {
-      setMessage('Conta autenticada. Concluindo a criação da sua agenda...');
-      const completed = await completePublicTrial(pending);
-      if (completed) return;
-    }
+      const pending = loadPendingTrial();
+      if (pending && pending.email === loginEmail) {
+        setMessage('Conta autenticada. Concluindo a criação da sua agenda...');
+        const completed = await completePublicTrial(pending);
+        if (completed) return;
+      }
 
-    const { data: masterAccessData, error: masterAccessError } =
-      await supabase.rpc('is_master_user');
+      const [masterAccessResult, ownerContextResult] = await withTimeout(
+        Promise.all([
+          supabase.rpc('is_master_user'),
+          supabase.rpc('get_my_owner_context'),
+        ]),
+        12000,
+        'A validação do acesso demorou mais que o esperado. Tente novamente.',
+      );
 
-    if (masterAccessError) {
-      await supabase.auth.signOut();
-      setError(masterAccessError.message || 'Não foi possível validar o tipo de acesso do usuário.');
-      return;
-    }
+      const {
+        data: masterAccessData,
+        error: masterAccessError,
+      } = masterAccessResult;
 
-    if (readBooleanRpcResult(masterAccessData)) {
+      const {
+        data: ownerContextData,
+        error: contextError,
+      } = ownerContextResult;
+
+      if (masterAccessError) {
+        await supabase.auth.signOut();
+        setError(
+          masterAccessError.message ||
+            'Não foi possível validar o tipo de acesso do usuário.',
+        );
+        return;
+      }
+
+      if (readBooleanRpcResult(masterAccessData)) {
+        onAuthSuccess({
+          email: loginEmail,
+          role: 'developer',
+          name: 'Rodrigo Souza',
+        });
+        return;
+      }
+
+      if (contextError) {
+        await supabase.auth.signOut();
+        setError(
+          contextError.message ||
+            'Não foi possível carregar os dados da empresa.',
+        );
+        return;
+      }
+
+      const ownerContext = (
+        Array.isArray(ownerContextData) ? ownerContextData[0] : null
+      ) as OwnerContext | null;
+
+      const ownerIsActive =
+        ownerContext?.user_active === true ||
+        ownerContext?.is_active === true;
+
+      if (!ownerContext?.tenant_id || !ownerIsActive) {
+        await supabase.auth.signOut();
+        setError(
+          'O acesso desta empresa está suspenso temporariamente. Entre em contato para mais informações.',
+        );
+        return;
+      }
+
+      if (!['owner', 'manager', 'admin'].includes(ownerContext.user_role)) {
+        await supabase.auth.signOut();
+        setError(
+          'Este usuário não possui permissão para acessar o painel do proprietário.',
+        );
+        return;
+      }
+
       onAuthSuccess({
-        email: loginEmail,
-        role: 'developer',
-        name: 'Rodrigo Souza',
+        email: ownerContext.email || loginEmail,
+        role: 'owner',
+        name:
+          ownerContext.full_name ||
+          ownerContext.tenant_name ||
+          'Responsável',
+        tenantId: ownerContext.tenant_id,
+        tenantSlug: ownerContext.tenant_slug,
       });
-      return;
-    }
-
-    const { data, error: contextError } = await supabase.rpc('get_my_owner_context');
-
-    if (contextError) {
+    } catch (loginFlowError) {
       await supabase.auth.signOut();
-      setError(contextError.message || 'Não foi possível carregar os dados da empresa.');
-      return;
+
+      setError(
+        loginFlowError instanceof Error
+          ? loginFlowError.message
+          : 'Não foi possível concluir o acesso. Tente novamente.',
+      );
     }
-
-    const ownerContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
-    const ownerIsActive = ownerContext?.user_active === true || ownerContext?.is_active === true;
-
-    if (!ownerContext?.tenant_id || !ownerIsActive) {
-      await supabase.auth.signOut();
-      setError('O acesso desta empresa está suspenso temporariamente. Entre em contato para mais informações.');
-      return;
-    }
-
-    if (!['owner', 'manager', 'admin'].includes(ownerContext.user_role)) {
-      await supabase.auth.signOut();
-      setError('Este usuário não possui permissão para acessar o painel do proprietário.');
-      return;
-    }
-
-    onAuthSuccess({
-      email: ownerContext.email || loginEmail,
-      role: 'owner',
-      name: ownerContext.full_name || ownerContext.tenant_name || 'Responsável',
-      tenantId: ownerContext.tenant_id,
-      tenantSlug: ownerContext.tenant_slug,
-    });
   };
 
   const validateFirstStep = () => {
