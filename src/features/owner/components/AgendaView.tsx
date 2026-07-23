@@ -57,6 +57,15 @@ export type {
   AgendaCreateAppointmentResult
 } from '../agenda/agenda.utils';
 
+function normalizeClientName(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trimStart()
+    .toUpperCase();
+}
+
 export default function AgendaView({
   appointments,
   professionals,
@@ -365,8 +374,7 @@ export default function AgendaView({
 
   const canSubmit = Boolean(
     canGoClientData &&
-    clientName.trim() &&
-    normalizePhone(clientPhone).length >= 10,
+    clientName.trim(),
   );
 
   const resetFlow = () => {
@@ -629,6 +637,41 @@ export default function AgendaView({
     setSelectedTime("");
   };
 
+  const clientNameMatches = useMemo(() => {
+    const normalizedTypedName = normalizeText(clientName);
+
+    if (!normalizedTypedName) {
+      return [];
+    }
+
+    return clients
+      .filter((client) => {
+        const normalizedSavedName = normalizeText(client.name || "");
+
+        return normalizedSavedName.startsWith(normalizedTypedName);
+      })
+      .sort((first, second) => {
+        return first.name.localeCompare(second.name, "pt-BR");
+      })
+      .slice(0, 8);
+  }, [
+    clientName,
+    clients
+  ]);
+
+  const handleClientNameChange = (value: string) => {
+    setClientName(normalizeClientName(value));
+  };
+
+  const handleSelectClientByName = (client: Client) => {
+    setClientName(normalizeClientName(client.name));
+    setClientPhone(formatPhoneInput(client.phone || ""));
+
+    if (!clientNotes.trim() && client.notes) {
+      setClientNotes(client.notes);
+    }
+  };
+
   const findClientByPhone = (phone: string) => {
     const normalizedPhone = normalizePhone(phone);
 
@@ -662,7 +705,7 @@ export default function AgendaView({
     setClientPhone(formattedPhone);
 
     if (matchedClient) {
-      setClientName(matchedClient.name);
+      setClientName(normalizeClientName(matchedClient.name));
 
       if (!clientNotes.trim() && matchedClient.notes) {
         setClientNotes(matchedClient.notes);
@@ -727,7 +770,7 @@ export default function AgendaView({
     }
 
     const createdAppointmentResult = await onCreateAppointment({
-      clientName: clientName.trim(),
+      clientName: normalizeClientName(clientName).trim(),
       clientPhone,
       serviceId: selectedServiceId,
       professionalId: selectedProfessionalId,
@@ -887,6 +930,7 @@ export default function AgendaView({
     canGoClientData,
     canSubmit,
     clientName,
+    clientNameMatches,
     clientNotes,
     clientPhone,
     config,
@@ -896,7 +940,9 @@ export default function AgendaView({
     getSlotsForDate,
     getSlotsForProfessionalAcrossPeriod,
     getSlotsForProfessionalOnSelectedDate,
+    handleClientNameChange,
     handleClientPhoneChange,
+    handleSelectClientByName,
     handleSelectDateFirst,
     handleSelectDateTimeDate,
     handleSelectProfessional,

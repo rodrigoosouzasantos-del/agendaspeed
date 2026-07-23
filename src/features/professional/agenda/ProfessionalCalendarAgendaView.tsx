@@ -794,10 +794,32 @@ export default function ProfessionalCalendarAgendaView({
     extraTimes
   ]);
 
-  const summary = useMemo(() => {
-    return calculateAgendaSummary(timeSlots);
+  const visibleTimeSlots = useMemo(() => {
+    const todayStr = getLocalDateStr();
+
+    if (selectedDate !== todayStr) {
+      return timeSlots;
+    }
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return timeSlots.filter((slot) => {
+      if (slot.status === 'booked') {
+        return true;
+      }
+
+      return timeToMinutes(slot.endTime) > currentMinutes;
+    });
   }, [
+    selectedDate,
     timeSlots
+  ]);
+
+  const summary = useMemo(() => {
+    return calculateAgendaSummary(visibleTimeSlots);
+  }, [
+    visibleTimeSlots
   ]);
 
 
@@ -1212,7 +1234,7 @@ export default function ProfessionalCalendarAgendaView({
         </div>
 
         <div className="space-y-2">
-          {timeSlots.length === 0 ? (
+          {visibleTimeSlots.length === 0 ? (
             <div className="border border-dashed rounded-2xl p-10 text-center">
               <Clock className="w-8 h-8 text-neutral-300 mx-auto" />
 
@@ -1225,7 +1247,7 @@ export default function ProfessionalCalendarAgendaView({
               </p>
             </div>
           ) : (
-            timeSlots.map((slot: ProfessionalAgendaTimeSlot) => (
+            visibleTimeSlots.map((slot: ProfessionalAgendaTimeSlot) => (
               <ProfessionalAgendaSlotRow
                 key={slot.id}
                 slot={slot}

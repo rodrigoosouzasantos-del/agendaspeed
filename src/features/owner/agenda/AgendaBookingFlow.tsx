@@ -11,6 +11,10 @@ import {
 } from 'lucide-react';
 
 import {
+  Client
+} from '../../../types';
+
+import {
   formatCurrency,
   formatDateBr
 } from '../owner.utils';
@@ -41,6 +45,7 @@ export default function AgendaBookingFlow({
     canGoClientData,
     canSubmit,
     clientName,
+    clientNameMatches,
     clientNotes,
     clientPhone,
     config,
@@ -50,7 +55,9 @@ export default function AgendaBookingFlow({
     getSlotsForDate,
     getSlotsForProfessionalAcrossPeriod,
     getSlotsForProfessionalOnSelectedDate,
+    handleClientNameChange,
     handleClientPhoneChange,
+    handleSelectClientByName,
     handleSelectDateFirst,
     handleSelectDateTimeDate,
     handleSelectProfessional,
@@ -71,7 +78,6 @@ export default function AgendaBookingFlow({
     serviceSearch,
     services,
     servicesForSelectedProfessional,
-    setClientName,
     setClientNotes,
     setCurrentStep,
     setProfessionalSearch,
@@ -713,18 +719,65 @@ const renderProfessionalManagerCards = () => {
 
         <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
-            <div>
+            <div className="relative">
               <label className="text-xs font-black text-neutral-500 uppercase tracking-widest font-mono block mb-1.5">
                 Nome do cliente
               </label>
 
-              <input
-                value={clientName}
-                onChange={(event: any) => setClientName(event.target.value)}
-                placeholder="Ex.: JOSE DA PADARIA"
-                className="w-full bg-neutral-50 border rounded-xl px-3 py-2 text-sm font-semibold uppercase outline-none focus:border-[#0f4c5c]"
-                autoFocus
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+
+                <input
+                  value={clientName}
+                  onChange={(event: any) =>
+                    handleClientNameChange(event.target.value)
+                  }
+                  placeholder="Ex.: JOSE DA PADARIA"
+                  className="w-full rounded-xl border bg-neutral-50 py-2 pl-9 pr-3 text-sm font-semibold uppercase outline-none focus:border-[#0f4c5c]"
+                  autoFocus
+                />
+              </div>
+
+              {clientName.trim() && clientNameMatches.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                  <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Clientes encontrados
+                    </p>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto p-1.5">
+                    {clientNameMatches.map((client: Client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleSelectClientByName(client)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-[#0f4c5c]/5"
+                      >
+                        <span className="min-w-0">
+                          <strong className="block truncate text-sm font-semibold text-neutral-950">
+                            {client.name}
+                          </strong>
+
+                          <span className="mt-0.5 block text-[11px] font-medium text-neutral-500">
+                            {client.phone
+                              ? `WhatsApp: ${client.phone}`
+                              : "Cliente sem WhatsApp cadastrado"}
+                          </span>
+                        </span>
+
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {clientName.trim() && clientNameMatches.length === 0 && (
+                <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                  Nenhum cliente cadastrado com esse início de nome. O agendamento poderá ser salvo como novo cliente.
+                </p>
+              )}
             </div>
 
             <div>
