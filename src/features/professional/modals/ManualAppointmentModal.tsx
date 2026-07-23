@@ -1,10 +1,30 @@
 import React from 'react';
 
-import { X } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  MessageCircle,
+  Scissors,
+  UserRound,
+  X
+} from 'lucide-react';
 
 import { ManualAppointmentModalProps } from '../professional.types';
 
 import { formatCurrency } from '../professional.utils';
+
+function formatDateBr(value: string): string {
+  if (!value) return 'Data não informada';
+
+  const [year, month, day] = value.split('-');
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${day}/${month}/${year}`;
+}
 
 export default function ManualAppointmentModal({
   myServices,
@@ -13,160 +33,209 @@ export default function ManualAppointmentModal({
   onClose,
   onSubmit
 }: ManualAppointmentModalProps) {
+  const selectedService = myServices.find((service) => {
+    return service.id === formState.serviceId;
+  });
+
   return (
     <div
       id="add-manual-appt-modal-overlay"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-5"
     >
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border shadow-2xl relative space-y-4 text-left">
-        <div className="flex items-center justify-between border-b pb-3">
-          <h3 className="text-lg font-black text-neutral-900">
-            Agendar Novo Cliente
-          </h3>
+      <div className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 bg-neutral-50 px-5 py-4 sm:px-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-orange-600" />
+
+              <h3 className="text-lg font-semibold tracking-tight text-neutral-950">
+                Novo agendamento
+              </h3>
+            </div>
+
+            <p className="mt-1 text-xs font-normal text-neutral-500">
+              Complete os dados do atendimento seguindo o mesmo padrão da Agenda Geral.
+            </p>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-700 transition"
+            className="rounded-xl p-2 text-neutral-400 transition hover:bg-neutral-200 hover:text-neutral-700"
+            aria-label="Fechar"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4"
+          className="overflow-y-auto"
         >
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-              Nome do Cliente
-            </label>
+          <div className="space-y-5 p-5 sm:p-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                <div className="flex items-center gap-2 text-orange-700">
+                  <CalendarDays className="h-4 w-4" />
 
-            <input
-              type="text"
-              placeholder="Ex: Amanda Silva"
-              value={formState.clientName}
-              onChange={(event) => {
-                onChangeFormState({
-                  clientName: event.target.value
-                });
-              }}
-              className="w-full bg-neutral-50 border rounded-xl py-2.5 px-3.5 text-xs outline-none transition"
-              required
-            />
-          </div>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                    Data escolhida
+                  </span>
+                </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-              Telefone WhatsApp
-            </label>
+                <p className="mt-2 text-base font-medium text-neutral-950">
+                  {formatDateBr(formState.date)}
+                </p>
+              </div>
 
-            <input
-              type="tel"
-              placeholder="Ex: 11999998888"
-              value={formState.clientPhone}
-              onChange={(event) => {
-                onChangeFormState({
-                  clientPhone: event.target.value
-                });
-              }}
-              className="w-full bg-neutral-50 border rounded-xl py-2.5 px-3.5 text-xs outline-none transition"
-              required
-            />
-          </div>
+              <div className="rounded-2xl border border-[#0f4c5c]/10 bg-[#0f4c5c]/5 p-4">
+                <div className="flex items-center gap-2 text-[#0f4c5c]">
+                  <Clock3 className="h-4 w-4" />
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-              Serviço de Atendimento
-            </label>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                    Horário escolhido
+                  </span>
+                </div>
 
-            <select
-              value={formState.serviceId}
-              onChange={(event) => {
-                onChangeFormState({
-                  serviceId: event.target.value
-                });
-              }}
-              className="w-full bg-neutral-50 border rounded-xl py-2.5 px-3 text-xs outline-none"
-              required
-            >
-              <option value="">
-                Selecione um serviço...
-              </option>
+                <p className="mt-2 text-base font-medium text-neutral-950">
+                  {formState.time || 'Horário não informado'}
+                </p>
+              </div>
+            </div>
 
-              {myServices.map((service) => (
-                <option
-                  key={service.id}
-                  value={service.id}
-                >
-                  {service.name} ({formatCurrency(service.price)})
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+              <div className="flex items-center gap-2">
+                <Scissors className="h-4 w-4 text-orange-600" />
+
+                <h4 className="text-sm font-medium text-neutral-950">
+                  Serviço
+                </h4>
+              </div>
+
+              <select
+                value={formState.serviceId}
+                onChange={(event) => {
+                  onChangeFormState({
+                    serviceId: event.target.value
+                  });
+                }}
+                className="mt-3 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                required
+              >
+                <option value="">
+                  Selecione um serviço...
                 </option>
-              ))}
-            </select>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-                Data
+                {myServices.map((service) => (
+                  <option
+                    key={service.id}
+                    value={service.id}
+                  >
+                    {service.name} • {service.duration} min • {formatCurrency(service.price)}
+                  </option>
+                ))}
+              </select>
+
+              {selectedService && (
+                <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3">
+                  <p className="text-sm font-medium text-neutral-950">
+                    {selectedService.name}
+                  </p>
+
+                  <p className="mt-1 text-xs font-normal text-neutral-500">
+                    {selectedService.duration} minutos • {formatCurrency(selectedService.price)}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+              <div className="flex items-center gap-2">
+                <UserRound className="h-4 w-4 text-orange-600" />
+
+                <h4 className="text-sm font-medium text-neutral-950">
+                  Dados do cliente
+                </h4>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-neutral-600">
+                    Nome do cliente
+                  </label>
+
+                  <input
+                    type="text"
+                    placeholder="Ex.: Amanda Silva"
+                    value={formState.clientName}
+                    onChange={(event) => {
+                      onChangeFormState({
+                        clientName: event.target.value.toUpperCase()
+                      });
+                    }}
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </label>
+
+                  <input
+                    type="tel"
+                    placeholder="(11) 99999-8888"
+                    value={formState.clientPhone}
+                    onChange={(event) => {
+                      onChangeFormState({
+                        clientPhone: event.target.value
+                      });
+                    }}
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                    required
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+              <label className="block text-xs font-medium text-neutral-600">
+                Observações
               </label>
 
-              <input
-                type="date"
-                value={formState.date}
+              <textarea
+                placeholder="Inclua alguma observação importante para o atendimento."
+                value={formState.notes}
                 onChange={(event) => {
                   onChangeFormState({
-                    date: event.target.value
+                    notes: event.target.value
                   });
                 }}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
-                required
+                rows={3}
+                className="mt-2 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-                Horário
-              </label>
-
-              <input
-                type="time"
-                value={formState.time}
-                onChange={(event) => {
-                  onChangeFormState({
-                    time: event.target.value
-                  });
-                }}
-                className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
-                required
-              />
-            </div>
+            </section>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block">
-              Observações
-            </label>
+          <div className="flex flex-col-reverse gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
+            >
+              Cancelar
+            </button>
 
-            <textarea
-              placeholder="Se houver observações..."
-              value={formState.notes}
-              onChange={(event) => {
-                onChangeFormState({
-                  notes: event.target.value
-                });
-              }}
-              rows={2}
-              className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
-            />
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-orange-700"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Confirmar agendamento
+            </button>
           </div>
-
-          <button
-            type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold py-3 rounded-xl transition"
-          >
-            Confirmar Agendamento Manual
-          </button>
         </form>
       </div>
     </div>

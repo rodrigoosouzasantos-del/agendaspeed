@@ -85,13 +85,19 @@ export default function AgendaView({
   const [blockedIntervals, setBlockedIntervals] = useState<AgendaBlockedInterval[]>([]);
   const [outsideScaleConfirmRequest, setOutsideScaleConfirmRequest] =
     useState<OutsideScaleConfirmRequest>(null);
-  const [overtimeConfirmRequest, setOvertimeConfirmRequest] = useState<{
-    service: Service;
-    serviceEndTime: string;
-    workHoursStart: string;
-    workHoursEnd: string;
-  } | null>(null);
+  const [scheduleExceptionConfirmRequest, setScheduleExceptionConfirmRequest] =
+    useState<{
+      type: 'overtime' | 'lunch_overlap';
+      service: Service;
+      serviceEndTime: string;
+      workHoursStart: string;
+      workHoursEnd: string;
+      lunchStart: string;
+      lunchEnd: string;
+    } | null>(null);
   const [allowOvertimeForSelection, setAllowOvertimeForSelection] =
+    useState(false);
+  const [allowLunchOverlapForSelection, setAllowLunchOverlapForSelection] =
     useState(false);
   const [openDays, setOpenDays] = useState<AgendaScheduleDay[]>([]);
   const [scheduleDayActionLoading, setScheduleDayActionLoading] = useState(false);
@@ -376,8 +382,9 @@ export default function AgendaView({
     setWhatsAppConfirmUrl("");
     setServiceSearch("");
     setProfessionalSearch("");
-    setOvertimeConfirmRequest(null);
+    setScheduleExceptionConfirmRequest(null);
     setAllowOvertimeForSelection(false);
+    setAllowLunchOverlapForSelection(false);
   };
 
   const openProfessionalAgendaManager = (professionalId: string) => {
@@ -524,28 +531,32 @@ export default function AgendaView({
       });
 
       if (!serviceSlotAvailability.available) {
-        const normalizedReason = normalizeText(
-          serviceSlotAvailability.reason || ""
-        );
-        const isOvertimeReason =
-          normalizedReason.includes("fora do expediente") ||
-          normalizedReason.includes("ultrapassa") ||
-          normalizedReason.includes("horario de trabalho") ||
-          normalizedReason.includes("expediente do profissional");
+        const exceptionType = serviceSlotAvailability.exceptionType;
 
-        if (isOvertimeReason) {
-          const startMinutes = Number(selectedTime.slice(0, 2)) * 60 +
+        if (
+          exceptionType === 'overtime' ||
+          exceptionType === 'lunch_overlap'
+        ) {
+          const startMinutes =
+            Number(selectedTime.slice(0, 2)) * 60 +
             Number(selectedTime.slice(3, 5));
           const serviceEndMinutes =
             startMinutes + Math.max(1, Number(service.duration) || 30);
           const serviceEndHour = Math.floor(serviceEndMinutes / 60);
           const serviceEndMinute = serviceEndMinutes % 60;
 
-          setOvertimeConfirmRequest({
+          setScheduleExceptionConfirmRequest({
+            type: exceptionType,
             service,
             serviceEndTime: `${String(serviceEndHour).padStart(2, "0")}:${String(serviceEndMinute).padStart(2, "0")}`,
-            workHoursStart: selectedProfessionalForAgenda.workHoursStart.slice(0, 5),
-            workHoursEnd: selectedProfessionalForAgenda.workHoursEnd.slice(0, 5),
+            workHoursStart:
+              selectedProfessionalForAgenda.workHoursStart.slice(0, 5),
+            workHoursEnd:
+              selectedProfessionalForAgenda.workHoursEnd.slice(0, 5),
+            lunchStart:
+              selectedProfessionalForAgenda.lunchStart.slice(0, 5),
+            lunchEnd:
+              selectedProfessionalForAgenda.lunchEnd.slice(0, 5),
           });
           return;
         }
@@ -556,6 +567,7 @@ export default function AgendaView({
       }
 
       setAllowOvertimeForSelection(false);
+      setAllowLunchOverlapForSelection(false);
       setCurrentStep("clientData");
       return;
     }
@@ -703,7 +715,14 @@ export default function AgendaView({
       openDays,
     });
 
-    if (!slotAvailability.available && !allowOvertimeForSelection) {
+    const scheduleExceptionWasAuthorized =
+      slotAvailability.exceptionType === 'overtime'
+        ? allowOvertimeForSelection
+        : slotAvailability.exceptionType === 'lunch_overlap'
+          ? allowLunchOverlapForSelection
+          : false;
+
+    if (!slotAvailability.available && !scheduleExceptionWasAuthorized) {
       return;
     }
 
@@ -717,6 +736,7 @@ export default function AgendaView({
       notes: clientNotes,
       paymentType: "pendente",
       allowOvertime: allowOvertimeForSelection,
+      allowLunchOverlap: allowLunchOverlapForSelection,
     } as AgendaCreateAppointmentPayload);
 
     if (
@@ -961,7 +981,7 @@ export default function AgendaView({
         </>
       )}
 
-      {overtimeConfirmRequest && (
+      {scheduleExceptionConfirmRequest && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
             <div className="h-1.5 bg-amber-500" />
@@ -972,22 +992,24 @@ export default function AgendaView({
               </div>
 
               <h2 className="mt-4 text-lg font-semibold text-neutral-950">
-                Serviço ultrapassa o expediente
+                {scheduleExceptionConfirmRequest.type === 'lunch_overlap'
+                  ? 'Serviço ultrapassa o intervalo de almoço'
+                  : 'Serviço ultrapassa o expediente'}
               </h2>
 
               <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
-                Este serviço termina às {overtimeConfirmRequest.serviceEndTime},
-                mas o expediente do profissional é das{" "}
-                {overtimeConfirmRequest.workHoursStart} às{" "}
-                {overtimeConfirmRequest.workHoursEnd}. Deseja agendar mesmo assim?
+                {scheduleExceptionConfirmRequest.type === 'lunch_overlap'
+                  ? `Este serviço termina às ${scheduleExceptionConfirmRequest.serviceEndTime} e ultrapassa o intervalo de almoço do profissional, definido das ${scheduleExceptionConfirmRequest.lunchStart} às ${scheduleExceptionConfirmRequest.lunchEnd}. Deseja agendar mesmo assim?`
+                  : `Este serviço termina às ${scheduleExceptionConfirmRequest.serviceEndTime}, mas o expediente do profissional é das ${scheduleExceptionConfirmRequest.workHoursStart} às ${scheduleExceptionConfirmRequest.workHoursEnd}. Deseja agendar mesmo assim?`}
               </p>
 
               <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
-                    setOvertimeConfirmRequest(null);
+                    setScheduleExceptionConfirmRequest(null);
                     setAllowOvertimeForSelection(false);
+                    setAllowLunchOverlapForSelection(false);
                     setSelectedServiceId("");
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -998,8 +1020,18 @@ export default function AgendaView({
                 <button
                   type="button"
                   onClick={() => {
-                    setAllowOvertimeForSelection(true);
-                    setOvertimeConfirmRequest(null);
+                    if (
+                      scheduleExceptionConfirmRequest.type ===
+                      'lunch_overlap'
+                    ) {
+                      setAllowLunchOverlapForSelection(true);
+                      setAllowOvertimeForSelection(false);
+                    } else {
+                      setAllowOvertimeForSelection(true);
+                      setAllowLunchOverlapForSelection(false);
+                    }
+
+                    setScheduleExceptionConfirmRequest(null);
                     setCurrentStep("clientData");
                   }}
                   className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"

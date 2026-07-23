@@ -198,7 +198,10 @@ function mapSupabaseAppointmentToProfessionalAppointment(
 
 function buildProfessionalAppointmentPayload(
   appointment: Omit<Appointment, 'id'>,
-  allowOvertime = false
+  options: {
+    allowOvertime?: boolean;
+    allowLunchOverlap?: boolean;
+  } = {}
 ) {
   const [date, time] = appointment.dateTime.split('T');
 
@@ -211,7 +214,8 @@ function buildProfessionalAppointmentPayload(
     client_email: appointment.clientEmail || null,
     payment_type: appointment.paymentType || 'pendente',
     notes: appointment.notes || 'Agendamento criado pelo profissional.',
-    allow_overtime: allowOvertime
+    allow_overtime: options.allowOvertime === true,
+    allow_lunch_overlap: options.allowLunchOverlap === true
   };
 }
 
@@ -464,11 +468,15 @@ export default function ProfessionalDashboard({
   const [showAddModal, setShowAddModal] = useState(false);
   const [feedbackMessage, setFeedbackMessage] =
     useState<ProfessionalDashboardFeedbackState | null>(null);
-  const [overtimeConfirmation, setOvertimeConfirmation] = useState<{
-    appointment: Appointment;
-    serviceEndTime: string;
-    workHoursEnd: string;
-  } | null>(null);
+  const [scheduleExceptionConfirmation, setScheduleExceptionConfirmation] =
+    useState<{
+      type: 'overtime' | 'lunch_overlap';
+      appointment: Appointment;
+      serviceEndTime: string;
+      workHoursEnd: string;
+      lunchStart: string;
+      lunchEnd: string;
+    } | null>(null);
 
   const [manualFormState, setManualFormState] =
     useState<ProfessionalManualAppointmentFormState>(
@@ -707,20 +715,23 @@ export default function ProfessionalDashboard({
 
   const saveManualAppointment = async (
     newAppointment: Appointment,
-    allowOvertime: boolean
+    options: {
+      allowOvertime?: boolean;
+      allowLunchOverlap?: boolean;
+    } = {}
   ) => {
     const { data, error } = professionalAccessToken
       ? await supabase.rpc('create_professional_access_appointment', {
         p_token: professionalAccessToken,
         p_appointment: buildProfessionalAppointmentPayload(
           newAppointment,
-          allowOvertime
+          options
         )
       })
       : await supabase.rpc('create_my_owner_appointment', {
         p_appointment: buildProfessionalAppointmentPayload(
           newAppointment,
-          allowOvertime
+          options
         )
       });
 
@@ -748,7 +759,7 @@ export default function ProfessionalDashboard({
 
     onAddManualAppointment(savedAppointment);
 
-    setOvertimeConfirmation(null);
+    setScheduleExceptionConfirmation(null);
     setShowAddModal(false);
     handleResetManualAppointmentForm();
   };
@@ -803,23 +814,53 @@ export default function ProfessionalDashboard({
       services
     });
 
+    const serviceStartMinutes = timeToMinutes(manualFormState.time);
     const serviceEndMinutes =
-      timeToMinutes(manualFormState.time) +
+      serviceStartMinutes +
       Math.max(1, Number(selectedService.duration) || 30);
     const professionalEndMinutes = timeToMinutes(
       currentProfessional.workHoursEnd
     );
+    const professionalRecord = currentProfessional as Professional & {
+      noLunchBreak?: boolean;
+    };
+    const hasLunchBreak = !professionalRecord.noLunchBreak;
+    const lunchStartMinutes = timeToMinutes(
+      currentProfessional.lunchStart
+    );
+    const lunchEndMinutes = timeToMinutes(
+      currentProfessional.lunchEnd
+    );
+    const overlapsLunch =
+      hasLunchBreak &&
+      serviceStartMinutes < lunchEndMinutes &&
+      serviceEndMinutes > lunchStartMinutes;
 
     if (serviceEndMinutes > professionalEndMinutes) {
-      setOvertimeConfirmation({
+      setScheduleExceptionConfirmation({
+        type: 'overtime',
         appointment: newAppointment,
         serviceEndTime: minutesToTime(serviceEndMinutes),
-        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5)
+        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5),
+        lunchStart: currentProfessional.lunchStart.slice(0, 5),
+        lunchEnd: currentProfessional.lunchEnd.slice(0, 5)
       });
       return;
     }
 
-    await saveManualAppointment(newAppointment, false);
+    if (overlapsLunch) {
+      setScheduleExceptionConfirmation({
+        type: 'lunch_overlap',
+        appointment: newAppointment,
+        serviceEndTime: minutesToTime(serviceEndMinutes),
+        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5),
+        lunchStart: currentProfessional.lunchStart.slice(0, 5),
+        lunchEnd: currentProfessional.lunchEnd.slice(0, 5)
+      });
+      return;
+    }
+
+    await saveManualAppointment(newAppointment);
   };
 
   const handleModifyAppointmentSync = async (
@@ -963,17 +1004,27 @@ export default function ProfessionalDashboard({
         />
       )}
 
-      {overtimeConfirmation && (
+      {scheduleExceptionConfirmation && (
         <ProfessionalAgendaConfirmModal
-          title="Serviço ultrapassa o expediente"
-          description={`Este serviço termina às ${overtimeConfirmation.serviceEndTime}, mas o expediente termina às ${overtimeConfirmation.workHoursEnd}. Deseja agendar mesmo assim?`}
+          title={
+            scheduleExceptionConfirmation.type === 'lunch_overlap'
+              ? 'Serviço ultrapassa o intervalo de almoço'
+              : 'Serviço ultrapassa o expediente'
+          }
+          description={
+            scheduleExceptionConfirmation.type === 'lunch_overlap'
+              ? `Este serviço termina às ${scheduleExceptionConfirmation.serviceEndTime} e ultrapassa o intervalo de almoço, definido das ${scheduleExceptionConfirmation.lunchStart} às ${scheduleExceptionConfirmation.lunchEnd}. Deseja agendar mesmo assim?`
+              : `Este serviço termina às ${scheduleExceptionConfirmation.serviceEndTime}, mas o expediente termina às ${scheduleExceptionConfirmation.workHoursEnd}. Deseja agendar mesmo assim?`
+          }
           cancelLabel="Não, escolher outro horário"
           confirmLabel="Sim, agendar"
-          onCancel={() => setOvertimeConfirmation(null)}
+          onCancel={() => setScheduleExceptionConfirmation(null)}
           onConfirm={() => {
             void saveManualAppointment(
-              overtimeConfirmation.appointment,
-              true
+              scheduleExceptionConfirmation.appointment,
+              scheduleExceptionConfirmation.type === 'lunch_overlap'
+                ? { allowLunchOverlap: true }
+                : { allowOvertime: true }
             );
           }}
         />

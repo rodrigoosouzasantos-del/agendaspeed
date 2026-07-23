@@ -16,6 +16,8 @@ export interface AgendaCreateAppointmentPayload {
   time: string;
   notes: string;
   paymentType: PaymentType;
+  allowOvertime?: boolean;
+  allowLunchOverlap?: boolean;
 }
 
 export interface AgendaCreateAppointmentResult {
@@ -416,9 +418,16 @@ export function slotOverlapsBlockedInterval(params: {
   }) || null;
 }
 
+export type SlotAvailabilityExceptionType =
+  | 'overtime'
+  | 'lunch_overlap';
+
 export interface SlotAvailabilityResult {
   available: boolean;
   reason?: string;
+  exceptionType?: SlotAvailabilityExceptionType;
+  slotStart?: number;
+  slotEnd?: number;
 }
 
 export function checkProfessionalSlotAvailability(params: {
@@ -493,6 +502,9 @@ export function checkProfessionalSlotAvailability(params: {
   if (slotStart < workStart || slotEnd > workEnd) {
     return {
       available: false,
+      exceptionType: 'overtime',
+      slotStart,
+      slotEnd,
       reason: `Este serviço termina às ${minutesToTime(slotEnd)}, fora do expediente do profissional (${professional.workHoursStart} às ${professional.workHoursEnd}).`,
     };
   }
@@ -502,7 +514,10 @@ export function checkProfessionalSlotAvailability(params: {
   if (overlapsLunch) {
     return {
       available: false,
-      reason: `Este serviço invade o intervalo de almoço do profissional (${professional.lunchStart} às ${professional.lunchEnd}).`,
+      exceptionType: 'lunch_overlap',
+      slotStart,
+      slotEnd,
+      reason: `Este serviço termina às ${minutesToTime(slotEnd)} e ultrapassa o intervalo de almoço do profissional (${professional.lunchStart} às ${professional.lunchEnd}).`,
     };
   }
 

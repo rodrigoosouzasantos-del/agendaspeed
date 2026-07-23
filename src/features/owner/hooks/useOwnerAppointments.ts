@@ -149,7 +149,7 @@ export function useOwnerAppointments({
       if (document.visibilityState === "visible" && isOperationalTab) {
         void loadAppointmentsFromSupabase(false);
       }
-    }, 10000);
+    }, 40000);
 
     const appointmentsChannel = supabase
       .channel("owner-appointments-changes")
@@ -395,14 +395,17 @@ export function useOwnerAppointments({
       depositPaid: false,
     };
 
-    const allowOvertime =
-      (payload as AgendaCreateAppointmentPayload & {
+    const appointmentPermissions =
+      payload as AgendaCreateAppointmentPayload & {
         allowOvertime?: boolean;
-      }).allowOvertime === true;
+        allowLunchOverlap?: boolean;
+      };
 
     const ownerAppointmentPayload = {
       ...buildOwnerAppointmentPayload(appointmentToSave),
-      allow_overtime: allowOvertime,
+      allow_overtime: appointmentPermissions.allowOvertime === true,
+      allow_lunch_overlap:
+        appointmentPermissions.allowLunchOverlap === true,
     };
 
     const { data, error } = await supabase.rpc("create_my_owner_appointment", {

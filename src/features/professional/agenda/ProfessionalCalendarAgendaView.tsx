@@ -314,7 +314,7 @@ function ProfessionalAgendaSlotRow({
     return (
       <div className={`border rounded-2xl p-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center ${getSlotStatusClassName(slot.status)}`}>
         <div className="md:col-span-2">
-          <span className="text-sm font-black font-mono">
+          <span className="text-sm font-medium font-mono">
             {slot.time}
           </span>
 
@@ -323,16 +323,27 @@ function ProfessionalAgendaSlotRow({
           </span>
         </div>
 
-        <div className="md:col-span-10">
-          <span className="text-sm font-black">
-            Almoço
+        <div className="md:col-span-6">
+          <span className="text-sm font-medium">
+            Intervalo de almoço
           </span>
 
           <p className="text-xs opacity-80 mt-0.5">
-            Horário reservado para intervalo.
+            O profissional pode criar um agendamento extraordinário neste horário.
           </p>
 
           {renderSlotHistoricalAppointments(slot)}
+        </div>
+
+        <div className="md:col-span-4 flex items-center md:justify-end">
+          <button
+            type="button"
+            onClick={() => onAddManualAppointmentAtTime(slot.time)}
+            className="text-xs font-medium px-3 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 transition flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Agendar mesmo assim
+          </button>
         </div>
       </div>
     );
@@ -1004,6 +1015,7 @@ export default function ProfessionalCalendarAgendaView({
       return;
     }
 
+    setShowDayAgendaModal(false);
     onOpenManualAppointmentAtDateTime(selectedDate, time);
   };
 
