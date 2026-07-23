@@ -349,7 +349,9 @@ function getAppointmentServiceDescription(
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('en-CA', {
+    timeZone: 'America/Sao_Paulo'
+  });
 }
 
 function escapeHtml(value: string): string {
