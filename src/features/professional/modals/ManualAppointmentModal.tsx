@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 import {
   CalendarDays,
@@ -13,6 +13,8 @@ import {
 import { ManualAppointmentModalProps } from '../professional.types';
 
 import { formatCurrency } from '../professional.utils';
+
+import { supabase } from '../../../lib/supabase';
 
 function formatDateBr(value: string): string {
   if (!value) return 'Data não informada';
@@ -50,15 +52,65 @@ function formatPhoneInput(value: string): string {
 
 export default function ManualAppointmentModal({
   myServices,
-  clients,
+  professionalAccessToken,
   formState,
   onChangeFormState,
   onClose,
   onSubmit
 }: ManualAppointmentModalProps) {
+  const lastSearchedPhoneRef = useRef('');
+
   const selectedService = myServices.find((service) => {
     return service.id === formState.serviceId;
   });
+
+  const handlePhoneChange = async (value: string) => {
+    const nextPhone = formatPhoneInput(value);
+    const normalizedPhone = normalizePhone(nextPhone);
+
+    onChangeFormState({
+      clientPhone: nextPhone
+    });
+
+    if (
+      !professionalAccessToken ||
+      normalizedPhone.length < 10 ||
+      lastSearchedPhoneRef.current === normalizedPhone
+    ) {
+      return;
+    }
+
+    lastSearchedPhoneRef.current = normalizedPhone;
+
+    const { data, error } = await supabase.rpc(
+      'find_professional_access_client_by_phone',
+      {
+        p_token: professionalAccessToken,
+        p_phone: normalizedPhone
+      }
+    );
+
+    if (error) {
+      console.error(
+        'Erro ao buscar cliente pelo WhatsApp:',
+        error.message
+      );
+      return;
+    }
+
+    const matchedClient = Array.isArray(data)
+      ? data[0]
+      : null;
+
+    if (!matchedClient?.found || !matchedClient?.name) {
+      return;
+    }
+
+    onChangeFormState({
+      clientPhone: nextPhone,
+      clientName: String(matchedClient.name).toUpperCase()
+    });
+  };
 
   return (
     <div
@@ -195,39 +247,7 @@ export default function ManualAppointmentModal({
                     placeholder="(11) 99999-8888"
                     value={formatPhoneInput(formState.clientPhone)}
                     onChange={(event) => {
-                      const nextPhone = formatPhoneInput(event.target.value);
-                      const normalizedPhone = normalizePhone(nextPhone);
-                      const matchedClient =
-                        normalizedPhone.length >= 10
-                          ? clients.find((client) => {
-                              const mainPhone = normalizePhone(
-                                client.phone || ''
-                              );
-                              const normalizedStoredPhone = normalizePhone(
-                                client.phoneNormalized || ''
-                              );
-                              const historyPhones =
-                                client.phoneHistory || [];
-
-                              return (
-                                mainPhone === normalizedPhone ||
-                                normalizedStoredPhone === normalizedPhone ||
-                                historyPhones.some((historyPhone) => {
-                                  return (
-                                    normalizePhone(historyPhone) ===
-                                    normalizedPhone
-                                  );
-                                })
-                              );
-                            }) || null
-                          : null;
-
-                      onChangeFormState({
-                        clientPhone: nextPhone,
-                        clientName: matchedClient
-                          ? matchedClient.name.toUpperCase()
-                          : formState.clientName
-                      });
+                      void handlePhoneChange(event.target.value);
                     }}
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
                     required
