@@ -484,7 +484,13 @@ export default function OwnerDashboard({
               appointments={appointments}
               professionals={professionals}
               services={services}
-              config={config}
+              config={{
+                ...config,
+                maxFutureDays: Math.max(
+                  1,
+                  Number(bookingMaxFutureDays) || 10
+                )
+              }}
               clients={clients}
               quickOpenProfessionalAgendaId={quickOpenProfessionalAgendaId}
               quickOpenProfessionalAgendaKey={quickOpenProfessionalAgendaKey}
