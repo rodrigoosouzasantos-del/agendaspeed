@@ -686,21 +686,47 @@ export default function ReceiptsView({
     paymentType === 'dinheiro'
       ? Math.max(0, normalizedCashAmountPaid - total)
       : 0;
+  const normalizedSplitCashReceived = Math.max(0, Number(splitCashAmount) || 0);
+  const normalizedSplitPixAmount = Math.max(0, Number(splitPixAmount) || 0);
+  const normalizedSplitDebitAmount = Math.max(0, Number(splitDebitAmount) || 0);
+  const normalizedSplitCreditAmount = Math.max(0, Number(splitCreditAmount) || 0);
+  const appliedSplitPixAmount = Math.min(normalizedSplitPixAmount, total);
+  const appliedSplitDebitAmount = Math.min(
+    normalizedSplitDebitAmount,
+    Math.max(0, total - appliedSplitPixAmount)
+  );
+  const appliedSplitCreditAmount = Math.min(
+    normalizedSplitCreditAmount,
+    Math.max(0, total - appliedSplitPixAmount - appliedSplitDebitAmount)
+  );
+  const splitCashAmountDue = Math.max(
+    0,
+    total -
+      appliedSplitPixAmount -
+      appliedSplitDebitAmount -
+      appliedSplitCreditAmount
+  );
+  const appliedSplitCashAmount = Math.min(
+    normalizedSplitCashReceived,
+    splitCashAmountDue
+  );
   const splitTotal =
-    Math.max(0, Number(splitCashAmount) || 0) +
-    Math.max(0, Number(splitPixAmount) || 0) +
-    Math.max(0, Number(splitDebitAmount) || 0) +
-    Math.max(0, Number(splitCreditAmount) || 0);
-  const splitChange = useSplitPayment ? Math.max(0, splitTotal - total) : 0;
+    appliedSplitCashAmount +
+    appliedSplitPixAmount +
+    appliedSplitDebitAmount +
+    appliedSplitCreditAmount;
+  const splitChange = useSplitPayment
+    ? Math.max(0, normalizedSplitCashReceived - appliedSplitCashAmount)
+    : 0;
   const splitRemaining = useSplitPayment ? Math.max(0, total - splitTotal) : 0;
 
   const structuredPayments = useMemo<ReceiptPaymentDraft[]>(() => {
     if (useSplitPayment) {
       return [
-        { paymentType: 'dinheiro' as PaymentType, amount: Math.max(0, Number(splitCashAmount) || 0) },
-        { paymentType: 'pix' as PaymentType, amount: Math.max(0, Number(splitPixAmount) || 0) },
-        { paymentType: 'debito' as PaymentType, amount: Math.max(0, Number(splitDebitAmount) || 0) },
-        { paymentType: 'credito' as PaymentType, amount: Math.max(0, Number(splitCreditAmount) || 0) }
+        { paymentType: 'dinheiro' as PaymentType, amount: appliedSplitCashAmount },
+        { paymentType: 'pix' as PaymentType, amount: appliedSplitPixAmount },
+        { paymentType: 'debito' as PaymentType, amount: appliedSplitDebitAmount },
+        { paymentType: 'credito' as PaymentType, amount: appliedSplitCreditAmount }
       ].filter((payment) => payment.amount > 0);
     }
 
@@ -722,12 +748,12 @@ export default function ReceiptsView({
         }]
       : [];
   }, [
+    appliedSplitCashAmount,
+    appliedSplitCreditAmount,
+    appliedSplitDebitAmount,
+    appliedSplitPixAmount,
     normalizedCashAmountPaid,
     paymentType,
-    splitCashAmount,
-    splitCreditAmount,
-    splitDebitAmount,
-    splitPixAmount,
     total,
     useSplitPayment
   ]);

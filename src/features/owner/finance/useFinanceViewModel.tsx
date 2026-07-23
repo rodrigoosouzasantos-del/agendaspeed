@@ -282,6 +282,41 @@ function getAppointmentDateStr(dateTime: string): string {
   return dateTime.split('T')[0];
 }
 
+function getSaoPauloDateStr(dateValue?: string): string {
+  if (!dateValue) {
+    return '';
+  }
+
+  const normalizedValue = dateValue.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  const parsedDate = new Date(normalizedValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return normalizedValue.slice(0, 10);
+  }
+
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(parsedDate);
+
+  const year = dateParts.find((part) => part.type === 'year')?.value;
+  const month = dateParts.find((part) => part.type === 'month')?.value;
+  const day = dateParts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    return normalizedValue.slice(0, 10);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 function getCashBookStorageKey(period: FinancePeriod): string {
   const monthKey = period.startDate.slice(0, 7) || 'geral';
 
@@ -792,7 +827,7 @@ export function useFinanceViewModel({
     }
 
     return receipts.filter((receipt) => {
-      const receiptDate = receipt.paidAt.slice(0, 10);
+      const receiptDate = getSaoPauloDateStr(receipt.paidAt);
 
       return (
         receipt.status !== 'cancelled' &&
@@ -1633,7 +1668,7 @@ export function useFinanceViewModel({
     const receiptRows: FinancialMovementRow[] = filteredReceipts.flatMap<
       FinancialMovementRow
     >((receipt) => {
-      const receiptDate = receipt.paidAt.slice(0, 10);
+      const receiptDate = getSaoPauloDateStr(receipt.paidAt);
       const description =
         receipt.items
           .map((item) => item.itemDescription || item.serviceName)
@@ -1665,7 +1700,7 @@ export function useFinanceViewModel({
           })
           .map<FinancialMovementRow>((payment) => {
             const paymentDate =
-              payment.createdAt?.slice(0, 10) ||
+              getSaoPauloDateStr(payment.createdAt) ||
               receiptDate;
 
             return {
