@@ -1,11 +1,14 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ChevronRight,
+  Loader2,
   MessageCircle,
   Scissors,
+  Search,
   UserRound,
   X
 } from 'lucide-react';
@@ -60,6 +63,14 @@ function normalizeClientName(value: string): string {
     .toUpperCase();
 }
 
+
+interface ProfessionalClientSearchResult {
+  id: string;
+  name: string;
+  phone: string;
+  notes: string;
+}
+
 export default function ManualAppointmentModal({
   myServices,
   professionalAccessToken,
@@ -69,10 +80,101 @@ export default function ManualAppointmentModal({
   onSubmit
 }: ManualAppointmentModalProps) {
   const lastSearchedPhoneRef = useRef('');
+  const [clientSearchResults, setClientSearchResults] = useState<
+    ProfessionalClientSearchResult[]
+  >([]);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState('');
 
   const selectedService = myServices.find((service) => {
     return service.id === formState.serviceId;
   });
+
+  useEffect(() => {
+    const normalizedName = normalizeClientName(formState.clientName).trim();
+
+    if (
+      !professionalAccessToken ||
+      selectedClientId ||
+      normalizedName.length < 1
+    ) {
+      setClientSearchResults([]);
+      setIsSearchingClients(false);
+      return;
+    }
+
+    let isCurrentSearch = true;
+
+    const timeoutId = window.setTimeout(async () => {
+      setIsSearchingClients(true);
+
+      const { data, error } = await supabase.rpc(
+        'find_professional_access_clients_by_name',
+        {
+          p_token: professionalAccessToken,
+          p_name: normalizedName,
+          p_limit: 8
+        }
+      );
+
+      if (!isCurrentSearch) {
+        return;
+      }
+
+      setIsSearchingClients(false);
+
+      if (error) {
+        console.error(
+          'Erro ao buscar clientes pelo nome:',
+          error.message
+        );
+        setClientSearchResults([]);
+        return;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+
+      setClientSearchResults(
+        rows
+          .map((row: Record<string, unknown>) => ({
+            id: String(row.id || row.client_id || ''),
+            name: normalizeClientName(String(row.name || row.client_name || '')),
+            phone: formatPhoneInput(String(row.phone || row.client_phone || '')),
+            notes: String(row.notes || '')
+          }))
+          .filter((client) => Boolean(client.id && client.name))
+      );
+    }, 180);
+
+    return () => {
+      isCurrentSearch = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    formState.clientName,
+    professionalAccessToken,
+    selectedClientId
+  ]);
+
+  const handleClientNameChange = (value: string) => {
+    setSelectedClientId('');
+    onChangeFormState({
+      clientName: normalizeClientName(value)
+    });
+  };
+
+  const handleSelectClientByName = (
+    client: ProfessionalClientSearchResult
+  ) => {
+    setSelectedClientId(client.id);
+    setClientSearchResults([]);
+
+    onChangeFormState({
+      clientName: client.name,
+      clientPhone: client.phone,
+      notes: formState.notes.trim() || client.notes
+    });
+  };
 
   const handlePhoneChange = async (value: string) => {
     const nextPhone = formatPhoneInput(value);
@@ -116,9 +218,14 @@ export default function ManualAppointmentModal({
       return;
     }
 
+    setSelectedClientId(
+      String(matchedClient.id || matchedClient.client_id || normalizedPhone)
+    );
+    setClientSearchResults([]);
+
     onChangeFormState({
       clientPhone: nextPhone,
-      clientName: String(matchedClient.name).toUpperCase()
+      clientName: normalizeClientName(String(matchedClient.name))
     });
   };
 
@@ -244,24 +351,65 @@ export default function ManualAppointmentModal({
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
+                <div className="relative space-y-1.5">
                   <label className="block text-xs font-medium text-neutral-600">
                     Nome do cliente
                   </label>
 
-                  <input
-                    type="text"
-                    placeholder="Ex.: JOSE DA PADARIA"
-                    value={formState.clientName}
-                    onChange={(event) => {
-                      onChangeFormState({
-                        clientName: normalizeClientName(event.target.value)
-                      });
-                    }}
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
-                    autoFocus
-                    required
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+
+                    <input
+                      type="text"
+                      placeholder="Ex.: JOSE DA PADARIA"
+                      value={formState.clientName}
+                      onChange={(event) => {
+                        handleClientNameChange(event.target.value);
+                      }}
+                      className="w-full rounded-xl border border-neutral-200 bg-neutral-50 py-3 pl-10 pr-10 text-sm uppercase text-neutral-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                      autoFocus
+                      required
+                    />
+
+                    {isSearchingClients && (
+                      <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-orange-500" />
+                    )}
+                  </div>
+
+                  {clientSearchResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
+                      <div className="border-b border-neutral-100 bg-neutral-50 px-3 py-2">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                          Clientes encontrados
+                        </p>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto p-1.5">
+                        {clientSearchResults.map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => handleSelectClientByName(client)}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-orange-50"
+                          >
+                            <span className="min-w-0">
+                              <strong className="block truncate text-sm font-medium text-neutral-950">
+                                {client.name}
+                              </strong>
+
+                              <span className="mt-0.5 block text-[11px] text-neutral-500">
+                                {client.phone
+                                  ? `WhatsApp: ${client.phone}`
+                                  : 'Cliente sem WhatsApp cadastrado'}
+                              </span>
+                            </span>
+
+                            <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

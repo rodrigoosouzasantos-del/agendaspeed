@@ -809,7 +809,7 @@ export default function ProfessionalCalendarAgendaView({
         return true;
       }
 
-      return timeToMinutes(slot.endTime) > currentMinutes;
+      return timeToMinutes(slot.time) > currentMinutes;
     });
   }, [
     selectedDate,

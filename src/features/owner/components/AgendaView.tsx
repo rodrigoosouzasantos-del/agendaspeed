@@ -85,6 +85,7 @@ export default function AgendaView({
   const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [clientName, setClientName] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientNotes, setClientNotes] = useState("");
   const [whatsAppConfirmUrl, setWhatsAppConfirmUrl] = useState("");
@@ -362,6 +363,7 @@ export default function AgendaView({
     appointments,
     blockedIntervals,
     openDays,
+    selectedClientId,
     selectedDate,
     selectedProfessional,
     selectedService,
@@ -385,6 +387,7 @@ export default function AgendaView({
     setSelectedProfessionalId("");
     setSelectedTime("");
     setClientName("");
+    setSelectedClientId("");
     setClientPhone("");
     setClientNotes("");
     setWhatsAppConfirmUrl("");
@@ -640,7 +643,7 @@ export default function AgendaView({
   const clientNameMatches = useMemo(() => {
     const normalizedTypedName = normalizeText(clientName);
 
-    if (!normalizedTypedName) {
+    if (!normalizedTypedName || selectedClientId) {
       return [];
     }
 
@@ -656,14 +659,17 @@ export default function AgendaView({
       .slice(0, 8);
   }, [
     clientName,
-    clients
+    clients,
+    selectedClientId
   ]);
 
   const handleClientNameChange = (value: string) => {
+    setSelectedClientId("");
     setClientName(normalizeClientName(value));
   };
 
   const handleSelectClientByName = (client: Client) => {
+    setSelectedClientId(client.id);
     setClientName(normalizeClientName(client.name));
     setClientPhone(formatPhoneInput(client.phone || ""));
 
@@ -705,6 +711,7 @@ export default function AgendaView({
     setClientPhone(formattedPhone);
 
     if (matchedClient) {
+      setSelectedClientId(matchedClient.id);
       setClientName(normalizeClientName(matchedClient.name));
 
       if (!clientNotes.trim() && matchedClient.notes) {
