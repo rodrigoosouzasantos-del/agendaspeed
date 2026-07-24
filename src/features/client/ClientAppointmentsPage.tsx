@@ -1287,7 +1287,7 @@ export default function ClientAppointmentsPage({
                   appointment.status === 'confirmed' ||
                   actionLoadingId === `${appointment.id}-confirm`
                 }
-                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-green-900 bg-green-700 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(21,128,61,0.20)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-[#10232A] bg-[#10232A] px-4 py-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(16,35,42,0.20)] transition hover:bg-[#1A3038] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {appointment.status === 'confirmed' ? 'Presença confirmada' : 'Confirmar presença'}
@@ -1297,9 +1297,9 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={() => handleOpenReschedule(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-reschedule`}
-                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-blue-950 bg-slate-950 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition hover:bg-blue-950 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-[#B9CDD2] bg-[#E7EFF1] px-4 py-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-[#10232A] shadow-[0_10px_20px_rgba(16,35,42,0.10)] transition hover:bg-[#D8E6E9] disabled:opacity-60"
               >
-                <RefreshCcw className="h-4 w-4 text-blue-300" />
+                <RefreshCcw className="h-4 w-4 text-[#10232A]" />
                 Remarcar horário
               </button>
 
@@ -1307,7 +1307,7 @@ export default function ClientAppointmentsPage({
                 type="button"
                 onClick={() => handleCancelAppointment(appointment)}
                 disabled={actionLoadingId === `${appointment.id}-cancel`}
-                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-red-950 bg-red-700 px-4 py-3 font-mono text-xs font-extrabold uppercase tracking-[0.06em] text-white shadow-[0_10px_20px_rgba(185,28,28,0.18)] transition hover:bg-red-800 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-[#E8C5C8] bg-[#FCEBEC] px-4 py-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-[#8F3540] shadow-[0_10px_20px_rgba(143,53,64,0.10)] transition hover:bg-[#F7DCDF] disabled:opacity-60"
               >
                 <XCircle className="h-4 w-4" />
                 Cancelar
