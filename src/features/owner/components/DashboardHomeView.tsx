@@ -43,6 +43,15 @@ import {
   getAppointmentTime
 } from '../owner.utils';
 
+import {
+  extractClientPublicToken,
+  getAgendaSpeedPublicOrigin
+} from '../owner.data';
+
+import {
+  supabase
+} from '../../../lib/supabase';
+
 interface DashboardHomeViewProps {
   baseDateStr: string;
   appointments: Appointment[];
@@ -522,28 +531,23 @@ function countProfessionalSlotsForDate(params: {
   return Math.max(0, totalSlots - busyAppointments.length);
 }
 
-function buildClientAppointmentLink(appointment: Appointment): string {
-  const token = encodeURIComponent(appointment.id);
-
-  return `${window.location.origin}/meus-agendamentos/${token}`;
-}
-
 function buildWhatsAppConfirmationUrl(params: {
   appointment: Appointment;
   professionalName: string;
   serviceName: string;
   targetDateLabel: string;
+  appointmentLink: string;
 }) {
   const {
     appointment,
     professionalName,
     serviceName,
-    targetDateLabel
+    targetDateLabel,
+    appointmentLink
   } = params;
 
   const phone = onlyDigits(appointment.clientPhone);
   const time = getAppointmentTime(appointment);
-  const appointmentLink = buildClientAppointmentLink(appointment);
 
   const message = encodeURIComponent([
     `Olá, ${appointment.clientName}! 😊`,
@@ -720,6 +724,8 @@ export default function DashboardHomeView({
   const [activeFilter, setActiveFilter] =
     useState<DashboardFilter>('all');
   const [timeRefreshVersion, setTimeRefreshVersion] = useState(0);
+  const [resendingAppointmentId, setResendingAppointmentId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const refreshIntervalId = window.setInterval(() => {
@@ -959,6 +965,76 @@ export default function DashboardHomeView({
     onUpdateAppointmentStatus(appointmentId, status);
   };
 
+  const handleResendConfirmation = async (params: {
+    appointment: Appointment;
+    professionalName: string;
+    serviceName: string;
+    targetDateLabel: string;
+  }) => {
+    const {
+      appointment,
+      professionalName,
+      serviceName,
+      targetDateLabel
+    } = params;
+
+    if (resendingAppointmentId) {
+      return;
+    }
+
+    const whatsappWindow = window.open('', '_blank');
+
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+    }
+
+    setResendingAppointmentId(appointment.id);
+
+    try {
+      const tokenResult = await supabase.rpc(
+        'get_my_client_public_access_token_by_appointment',
+        {
+          p_appointment_id: appointment.id
+        }
+      );
+
+      if (tokenResult.error) {
+        throw tokenResult.error;
+      }
+
+      const clientPublicToken = extractClientPublicToken(tokenResult.data);
+
+      if (!clientPublicToken) {
+        throw new Error('Token público do cliente não encontrado.');
+      }
+
+      const appointmentLink =
+        `${getAgendaSpeedPublicOrigin()}/meus-agendamentos/${encodeURIComponent(clientPublicToken)}`;
+
+      const whatsappUrl = buildWhatsAppConfirmationUrl({
+        appointment,
+        professionalName,
+        serviceName,
+        targetDateLabel,
+        appointmentLink
+      });
+
+      if (whatsappWindow) {
+        whatsappWindow.location.href = whatsappUrl;
+      } else {
+        window.location.href = whatsappUrl;
+      }
+    } catch (error) {
+      whatsappWindow?.close();
+      console.error('Erro ao reenviar confirmação:', error);
+      window.alert(
+        'Não foi possível gerar o link de confirmação. Tente novamente.'
+      );
+    } finally {
+      setResendingAppointmentId(null);
+    }
+  };
+
   const renderHistoricalAppointments = (historyItems: Appointment[] = []) => {
     if (historyItems.length === 0) {
       return null;
@@ -1152,20 +1228,24 @@ export default function DashboardHomeView({
                     </span>
 
                     {isPendingStatus(appointment.status) && (
-                      <a
-                        href={buildWhatsAppConfirmationUrl({
-                          appointment,
-                          professionalName,
-                          serviceName: service?.name || 'Serviço',
-                          targetDateLabel: targetDateLabel.toLowerCase()
-                        })}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#0f4c5c]/20 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-tight text-[#0f4c5c] shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleResendConfirmation({
+                            appointment,
+                            professionalName,
+                            serviceName: service?.name || 'Serviço',
+                            targetDateLabel: targetDateLabel.toLowerCase()
+                          });
+                        }}
+                        disabled={resendingAppointmentId !== null}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#0f4c5c]/20 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-tight text-[#0f4c5c] shadow-sm transition hover:border-[#0f4c5c]/40 hover:bg-[#0f4c5c]/5 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
-                        Reenviar confirmação
-                      </a>
+                        {resendingAppointmentId === appointment.id
+                          ? 'Gerando link...'
+                          : 'Reenviar confirmação'}
+                      </button>
                     )}
                   </div>
                 </div>
