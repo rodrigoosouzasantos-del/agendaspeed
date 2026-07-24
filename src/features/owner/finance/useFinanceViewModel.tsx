@@ -293,7 +293,18 @@ function getSaoPauloDateStr(dateValue?: string): string {
     return normalizedValue;
   }
 
-  const parsedDate = new Date(normalizedValue);
+  const normalizedTimestamp = normalizedValue.replace(
+    /^(\d{4}-\d{2}-\d{2})\s/,
+    '$1T'
+  );
+  const hasExplicitTimezone =
+    /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(normalizedTimestamp);
+  const timestampToParse =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(normalizedTimestamp) &&
+    !hasExplicitTimezone
+      ? `${normalizedTimestamp}Z`
+      : normalizedTimestamp;
+  const parsedDate = new Date(timestampToParse);
 
   if (Number.isNaN(parsedDate.getTime())) {
     return normalizedValue.slice(0, 10);
