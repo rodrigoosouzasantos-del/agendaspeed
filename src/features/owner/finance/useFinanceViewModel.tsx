@@ -184,9 +184,12 @@ export interface FinanceViewProps {
   onDeleteExpensePayment?: (
     paymentId: string
   ) => void | Promise<void>;
+  onPeriodChange?: (
+    period: FinancePeriod
+  ) => void | Promise<void>;
 }
 
-interface FinancePeriod {
+export interface FinancePeriod {
   startDate: string;
   endDate: string;
 }
@@ -574,7 +577,8 @@ export function useFinanceViewModel({
   onDeleteExpenseTemplate,
   onPayExpense,
   onUpdateExpensePayment,
-  onDeleteExpensePayment
+  onDeleteExpensePayment,
+  onPeriodChange
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -1866,6 +1870,10 @@ export function useFinanceViewModel({
     }
 
     setPeriod(draftPeriod);
+    void onPeriodChange?.({
+      startDate: draftPeriod.startDate,
+      endDate: draftPeriod.endDate
+    });
 
     const nextStoredValue =
       localStorage.getItem(getCashBookStorageKey(draftPeriod));
