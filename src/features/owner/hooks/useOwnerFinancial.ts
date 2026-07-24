@@ -5,6 +5,7 @@ import { OwnerDashboardProps } from "../owner.types";
 import { calculateOwnerFinancialSummary, updateClientsAfterAppointmentStatusChange } from "../owner.utils";
 import { supabase } from "../../../lib/supabase";
 import { PendingReceiptPaymentPayload, ReceiptPayload } from "../components/ReceiptsView";
+import type { FinancePeriod } from "../finance/useFinanceViewModel";
 import {
   SUPABASE_RECEIPTS_SELECT, SUPABASE_RECEIPT_ITEMS_SELECT, SUPABASE_RECEIPT_PAYMENTS_SELECT, SUPABASE_CASH_EXPENSES_SELECT,
   SupabaseReceiptResponse, SupabaseReceiptItemResponse, SupabaseReceiptPaymentResponse, SupabaseCashExpenseResponse,
@@ -18,10 +19,58 @@ interface UseOwnerFinancialParams {
   appointments: Appointment[]; clients: Client[]; services: Service[]; products: Product[]; professionals: Professional[];
   setLiveAppointments: Dispatch<SetStateAction<Appointment[]>>;
   loadClientsFromSupabase: (showLoading?: boolean) => Promise<Client[]>; showOwnerFeedback: ShowOwnerFeedback;
+  financePeriod?: FinancePeriod;
+}
+
+const FINANCIAL_QUERY_BATCH_SIZE = 200;
+const MAX_FINANCIAL_PERIOD_DAYS = 31;
+
+function addDaysToDateKey(dateKey: string, amount: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount));
+  return date.toISOString().slice(0, 10);
+}
+
+function getInclusivePeriodDays(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate}T12:00:00Z`).getTime();
+  const end = new Date(`${endDate}T12:00:00Z`).getTime();
+  return Math.floor((end - start) / 86_400_000) + 1;
+}
+
+function normalizeFinancePeriod(
+  financePeriod: FinancePeriod | undefined,
+  today: string,
+): FinancePeriod {
+  const currentMonthStart = `${today.slice(0, 7)}-01`;
+  const requestedStart = financePeriod?.startDate || currentMonthStart;
+  const requestedEnd = financePeriod?.endDate || today;
+  const isValidDateKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+  if (
+    !isValidDateKey(requestedStart) ||
+    !isValidDateKey(requestedEnd) ||
+    requestedStart > requestedEnd ||
+    getInclusivePeriodDays(requestedStart, requestedEnd) >
+      MAX_FINANCIAL_PERIOD_DAYS
+  ) {
+    return {
+      startDate: currentMonthStart,
+      endDate: today,
+    };
+  }
+
+  return {
+    startDate: requestedStart,
+    endDate: requestedEnd,
+  };
+}
+
+function toSaoPauloStartTimestamp(dateKey: string): string {
+  return `${dateKey}T00:00:00-03:00`;
 }
 
 export function useOwnerFinancial(params: UseOwnerFinancialParams) {
-  const { tenantId, state, onUpdateState, appointments, clients, services, products, professionals, setLiveAppointments, loadClientsFromSupabase, showOwnerFeedback } = params;
+  const { tenantId, state, onUpdateState, appointments, clients, services, products, professionals, setLiveAppointments, loadClientsFromSupabase, showOwnerFeedback, financePeriod } = params;
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
   const [isLoadingFinancialRecords, setIsLoadingFinancialRecords] = useState(true);
@@ -46,10 +95,30 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
 
     setFinancialRecordsLoadError("");
 
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    });
+    const currentMonthStart = `${today.slice(0, 7)}-01`;
+    const selectedPeriod = normalizeFinancePeriod(financePeriod, today);
+    const selectedPeriodEndExclusive = addDaysToDateKey(
+      selectedPeriod.endDate,
+      1,
+    );
+    const currentMonthEndExclusive = addDaysToDateKey(
+      `${today.slice(0, 7)}-01`,
+      32,
+    ).slice(0, 7) + "-01";
+    const receiptPeriodFilter = [
+      `status.eq.pending`,
+      `and(paid_at.gte.${toSaoPauloStartTimestamp(currentMonthStart)},paid_at.lt.${toSaoPauloStartTimestamp(currentMonthEndExclusive)})`,
+      `and(paid_at.gte.${toSaoPauloStartTimestamp(selectedPeriod.startDate)},paid_at.lt.${toSaoPauloStartTimestamp(selectedPeriodEndExclusive)})`,
+    ].join(",");
+
     const receiptsResult = await supabase
       .from("receipts")
       .select(SUPABASE_RECEIPTS_SELECT)
       .eq("tenant_id", tenantId)
+      .or(receiptPeriodFilter)
       .order("paid_at", { ascending: false });
 
     if (receiptsResult.error) {
@@ -75,21 +144,38 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
     let receiptItemRows: SupabaseReceiptItemResponse[] = [];
     let receiptPaymentRows: SupabaseReceiptPaymentResponse[] = [];
 
-    if (receiptIds.length > 0) {
-      const receiptItemsResult = await supabase
-        .from("receipt_items")
-        .select(SUPABASE_RECEIPT_ITEMS_SELECT)
-        .eq("tenant_id", tenantId)
-        .in("receipt_id", receiptIds);
+    for (
+      let batchStart = 0;
+      batchStart < receiptIds.length;
+      batchStart += FINANCIAL_QUERY_BATCH_SIZE
+    ) {
+      const receiptIdBatch = receiptIds.slice(
+        batchStart,
+        batchStart + FINANCIAL_QUERY_BATCH_SIZE,
+      );
+      const [receiptItemsResult, receiptPaymentsResult] = await Promise.all([
+        supabase
+          .from("receipt_items")
+          .select(SUPABASE_RECEIPT_ITEMS_SELECT)
+          .eq("tenant_id", tenantId)
+          .in("receipt_id", receiptIdBatch),
+        supabase
+          .from("receipt_payments")
+          .select(SUPABASE_RECEIPT_PAYMENTS_SELECT)
+          .eq("tenant_id", tenantId)
+          .in("receipt_id", receiptIdBatch),
+      ]);
 
-      if (receiptItemsResult.error) {
+      if (receiptItemsResult.error || receiptPaymentsResult.error) {
+        const loadError =
+          receiptItemsResult.error || receiptPaymentsResult.error;
         console.error(
-          "Erro ao carregar itens dos recebimentos:",
-          receiptItemsResult.error.message,
+          "Erro ao carregar detalhes dos recebimentos:",
+          loadError?.message,
         );
         setFinancialRecordsLoadError(
-          receiptItemsResult.error.message ||
-            "Erro ao carregar itens dos recebimentos.",
+          loadError?.message ||
+            "Erro ao carregar os detalhes dos recebimentos.",
         );
         setIsLoadingFinancialRecords(false);
         return {
@@ -98,41 +184,27 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
         };
       }
 
-      receiptItemRows = (Array.isArray(receiptItemsResult.data)
-        ? receiptItemsResult.data
-        : []) as SupabaseReceiptItemResponse[];
-
-      const receiptPaymentsResult = await supabase
-        .from("receipt_payments")
-        .select(SUPABASE_RECEIPT_PAYMENTS_SELECT)
-        .eq("tenant_id", tenantId)
-        .in("receipt_id", receiptIds);
-
-      if (receiptPaymentsResult.error) {
-        console.error(
-          "Erro ao carregar pagamentos dos recebimentos:",
-          receiptPaymentsResult.error.message,
-        );
-        setFinancialRecordsLoadError(
-          receiptPaymentsResult.error.message ||
-            "Erro ao carregar pagamentos dos recebimentos.",
-        );
-        setIsLoadingFinancialRecords(false);
-        return {
-          receipts,
-          cashExpenses,
-        };
-      }
-
-      receiptPaymentRows = (Array.isArray(receiptPaymentsResult.data)
-        ? receiptPaymentsResult.data
-        : []) as SupabaseReceiptPaymentResponse[];
+      receiptItemRows.push(
+        ...((Array.isArray(receiptItemsResult.data)
+          ? receiptItemsResult.data
+          : []) as SupabaseReceiptItemResponse[]),
+      );
+      receiptPaymentRows.push(
+        ...((Array.isArray(receiptPaymentsResult.data)
+          ? receiptPaymentsResult.data
+          : []) as SupabaseReceiptPaymentResponse[]),
+      );
     }
 
+    const expensePeriodFilter = [
+      `and(expense_date.gte.${currentMonthStart},expense_date.lt.${currentMonthEndExclusive})`,
+      `and(expense_date.gte.${selectedPeriod.startDate},expense_date.lt.${selectedPeriodEndExclusive})`,
+    ].join(",");
     const expensesResult = await supabase
       .from("cash_expenses")
       .select(SUPABASE_CASH_EXPENSES_SELECT)
       .eq("tenant_id", tenantId)
+      .or(expensePeriodFilter)
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -218,7 +290,7 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
     };
     // Carrega caixa real quando o tenant é identificado. Supabase é a fonte oficial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId]);
+  }, [tenantId, financePeriod?.startDate, financePeriod?.endDate]);
 
 
 

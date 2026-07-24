@@ -18,6 +18,7 @@ import ServicesView from "./components/ServicesView";
 import ProductsView from "./components/ProductsView";
 import ClientsView from "./components/ClientsView";
 import FinanceView from "./components/FinanceView";
+import type { FinancePeriod } from "./finance/useFinanceViewModel";
 import SubscriptionView from "./components/SubscriptionView";
 import ReceiptsView from "./components/ReceiptsView";
 import SettingsView from "./components/SettingsView";
@@ -64,6 +65,8 @@ export default function OwnerDashboard({
     useState("");
   const [quickOpenProfessionalAgendaKey, setQuickOpenProfessionalAgendaKey] =
     useState(0);
+  const [financialPeriod, setFinancialPeriod] =
+    useState<FinancePeriod | null>(null);
 
   const [ownerFeedback, setOwnerFeedback] =
     useState<OwnerFeedbackState | null>(null);
@@ -361,6 +364,7 @@ export default function OwnerDashboard({
     handleConfirmCashExpense,
   } = useOwnerFinancial({
     tenantId,
+    financePeriod: financialPeriod ?? undefined,
     state,
     onUpdateState,
     appointments,
@@ -643,6 +647,7 @@ export default function OwnerDashboard({
               onDeleteExpenseTemplate={handleDeleteExpenseTemplate}
               onPayExpense={handlePayExpense}
               onUpdateExpensePayment={handleUpdateExpensePayment}
+              onPeriodChange={setFinancialPeriod}
             />
           )}
 
