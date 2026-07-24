@@ -12,6 +12,7 @@
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 
@@ -109,6 +110,7 @@ interface RescheduleDraft {
 const CLIENT_APPOINTMENTS_CACHE_PREFIX = 'agendaspeed:client-appointments:';
 const CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS = 12000;
 const RESCHEDULE_LOAD_TIMEOUT_MS = 15000;
+const CLIENT_ACTION_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(
   promiseLike: PromiseLike<T>,
@@ -699,6 +701,7 @@ export default function ClientAppointmentsPage({
   const [actionLoadingId, setActionLoadingId] = useState('');
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState | null>(null);
   const [rescheduleDraft, setRescheduleDraft] = useState<RescheduleDraft | null>(null);
+  const clientActionLockRef = useRef('');
 
   useEffect(() => {
     let isMounted = true;
@@ -946,111 +949,128 @@ export default function ClientAppointmentsPage({
       newDateTime
     } = params;
 
-    setActionLoadingId(`${appointment.id}-${action}`);
+    const actionKey = `${appointment.id}-${action}`;
+
+    if (clientActionLockRef.current) {
+      return;
+    }
+
+    clientActionLockRef.current = actionKey;
+    setActionLoadingId(actionKey);
 
     const outsideDeadlineMessage = getActionOutsideDeadlineMessage(appointment, action);
 
-    const { data, error } = await supabase.rpc('register_client_appointment_action', {
-      p_token: token,
-      p_appointment_id: appointment.id,
-      p_action: action,
-      p_new_starts_at_local: newDateTime || null
-    });
+    try {
+      const { data, error } = await withTimeout(
+        supabase.rpc('register_client_appointment_action', {
+          p_token: token,
+          p_appointment_id: appointment.id,
+          p_action: action,
+          p_new_starts_at_local: newDateTime || null
+        }),
+        CLIENT_ACTION_TIMEOUT_MS,
+        'Tempo esgotado ao registrar a solicitação.'
+      );
 
-    if (error) {
-      setFeedbackModal({
-        tone: 'red',
-        title: 'Não foi possível registrar',
-        description: error.message || 'Tente novamente em alguns instantes.'
-      });
-      setActionLoadingId('');
-      return;
-    }
-
-    const result = Array.isArray(data) ? data[0] as Record<string, unknown> | undefined : undefined;
-
-    if (result && result.success === false) {
-      setFeedbackModal({
-        tone: 'red',
-        title: 'Não foi possível registrar',
-        description: String(result.message || 'Tente novamente em alguns instantes.')
-      });
-      setActionLoadingId('');
-      return;
-    }
-
-    if (action === 'confirm') {
-      await refreshAppointmentsAfterClientAction((currentAppointments) => {
-        return currentAppointments.map((item) => {
-          if (item.id !== appointment.id) return item;
-
-          return {
-            ...item,
-            status: 'confirmed'
-          };
-        });
-      });
-
-      if (outsideDeadlineMessage) {
+      if (error) {
         setFeedbackModal({
           tone: 'red',
-          title: 'Atenção ao prazo',
-          description: outsideDeadlineMessage
+          title: 'Não foi possível registrar',
+          description: 'Não foi possível concluir sua solicitação agora. Verifique sua conexão e tente novamente em alguns instantes.'
         });
+        return;
       }
 
-      setActionLoadingId('');
-      return;
-    }
+      const result = Array.isArray(data) ? data[0] as Record<string, unknown> | undefined : undefined;
 
-    if (action === 'cancel') {
-      await refreshAppointmentsAfterClientAction((currentAppointments) => {
-        return currentAppointments.map((item) => {
-          if (item.id !== appointment.id) return item;
-
-          return {
-            ...item,
-            status: 'cancelled'
-          };
+      if (result && result.success === false) {
+        setFeedbackModal({
+          tone: 'red',
+          title: 'Não foi possível registrar',
+          description: String(result.message || 'Tente novamente em alguns instantes.')
         });
-      });
+        return;
+      }
 
+      if (action === 'confirm') {
+        await refreshAppointmentsAfterClientAction((currentAppointments) => {
+          return currentAppointments.map((item) => {
+            if (item.id !== appointment.id) return item;
+
+            return {
+              ...item,
+              status: 'confirmed'
+            };
+          });
+        });
+
+        if (outsideDeadlineMessage) {
+          setFeedbackModal({
+            tone: 'red',
+            title: 'Atenção ao prazo',
+            description: outsideDeadlineMessage
+          });
+        }
+
+        return;
+      }
+
+      if (action === 'cancel') {
+        await refreshAppointmentsAfterClientAction((currentAppointments) => {
+          return currentAppointments.map((item) => {
+            if (item.id !== appointment.id) return item;
+
+            return {
+              ...item,
+              status: 'cancelled'
+            };
+          });
+        });
+
+        setFeedbackModal({
+          tone: 'red',
+          title: 'Atendimento cancelado',
+          description: outsideDeadlineMessage
+            ? `${outsideDeadlineMessage} O estabelecimento e o profissional serão avisados automaticamente.`
+            : 'Seu cancelamento foi registrado. O estabelecimento e o profissional serão avisados automaticamente.'
+        });
+
+        return;
+      }
+
+      if (action === 'reschedule' && newDateTime) {
+        const oldDateTime = appointment.startsAtLocal;
+
+        await refreshAppointmentsAfterClientAction((currentAppointments) => {
+          return currentAppointments.map((item) => {
+            if (item.id !== appointment.id) return item;
+
+            return {
+              ...item,
+              startsAtLocal: newDateTime,
+              status: 'scheduled'
+            };
+          });
+        });
+
+        setFeedbackModal({
+          tone: 'orange',
+          title: 'Horário remarcado',
+          description: outsideDeadlineMessage
+            ? `${outsideDeadlineMessage} Data antiga: ${formatDateTimeBr(oldDateTime)}. Nova data: ${formatDateTimeBr(newDateTime)}.`
+            : `Data antiga: ${formatDateTimeBr(oldDateTime)}. Nova data: ${formatDateTimeBr(newDateTime)}.`
+        });
+
+        setRescheduleDraft(null);
+      }
+    } catch {
       setFeedbackModal({
         tone: 'red',
-        title: 'Atendimento cancelado',
-        description: outsideDeadlineMessage
-          ? `${outsideDeadlineMessage} O estabelecimento e o profissional serão avisados automaticamente.`
-          : 'Seu cancelamento foi registrado. O estabelecimento e o profissional serão avisados automaticamente.'
+        title: 'Não foi possível registrar',
+        description: 'A conexão falhou ou demorou mais que o esperado. Verifique sua internet e tente novamente.'
       });
-
-      setActionLoadingId('');
-      return;
-    }
-
-    if (action === 'reschedule' && newDateTime) {
-      const oldDateTime = appointment.startsAtLocal;
-
-      await refreshAppointmentsAfterClientAction((currentAppointments) => {
-        return currentAppointments.map((item) => {
-          if (item.id !== appointment.id) return item;
-
-          return {
-            ...item,
-            startsAtLocal: newDateTime,
-            status: 'scheduled'
-          };
-        });
-      });
-
-      setFeedbackModal({
-        tone: 'orange',
-        title: 'Horário remarcado',
-        description: outsideDeadlineMessage
-          ? `${outsideDeadlineMessage} Data antiga: ${formatDateTimeBr(oldDateTime)}. Nova data: ${formatDateTimeBr(newDateTime)}.`
-          : `Data antiga: ${formatDateTimeBr(oldDateTime)}. Nova data: ${formatDateTimeBr(newDateTime)}.`
-      });
-
-      setRescheduleDraft(null);
+    } finally {
+      clientActionLockRef.current = '';
       setActionLoadingId('');
     }
   };
