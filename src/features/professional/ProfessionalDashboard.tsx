@@ -52,20 +52,36 @@ interface ProfessionalDashboardFeedbackState {
   description: string;
 }
 
-function isTemporaryConnectionError(error: unknown): boolean {
-  const errorRecord = (
-    error &&
-    typeof error === 'object'
-  )
-    ? error as Record<string, unknown>
-    : {};
+function getProfessionalAccessErrorMessage(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
 
-  const message = String(
-    errorRecord.message ||
-      errorRecord.details ||
-      error ||
-      ''
-  ).toLowerCase();
+  if (!error || typeof error !== 'object') {
+    return String(error || '');
+  }
+
+  const errorRecord = error as Record<string, unknown>;
+  const candidates = [
+    errorRecord.message,
+    errorRecord.details,
+    errorRecord.hint,
+    errorRecord.cause
+  ];
+
+  for (const candidate of candidates) {
+    const candidateMessage = getProfessionalAccessErrorMessage(candidate);
+
+    if (candidateMessage) {
+      return candidateMessage;
+    }
+  }
+
+  return '';
+}
+
+function isTemporaryConnectionError(error: unknown): boolean {
+  const message = getProfessionalAccessErrorMessage(error).toLowerCase();
 
   return (
     message.includes('failed to fetch') ||
@@ -84,19 +100,7 @@ function waitForRetry(delayMs: number): Promise<void> {
 }
 
 function isConfirmedInvalidAccessError(error: unknown): boolean {
-  const errorRecord = (
-    error &&
-    typeof error === 'object'
-  )
-    ? error as Record<string, unknown>
-    : {};
-
-  const message = String(
-    errorRecord.message ||
-      errorRecord.details ||
-      error ||
-      ''
-  ).toLowerCase();
+  const message = getProfessionalAccessErrorMessage(error).toLowerCase();
 
   return (
     message.includes('link do profissional inválido') ||
@@ -575,12 +579,17 @@ export default function ProfessionalDashboard({
           let accessError: unknown = null;
 
           for (let attempt = 0; attempt < 3; attempt += 1) {
-            const response = await supabase.rpc('get_professional_access_context', {
-              p_token: professionalAccessToken
-            });
+            try {
+              const response = await supabase.rpc('get_professional_access_context', {
+                p_token: professionalAccessToken
+              });
 
-            data = response.data;
-            accessError = response.error;
+              data = response.data;
+              accessError = response.error;
+            } catch (requestError) {
+              data = null;
+              accessError = requestError;
+            }
 
             if (!accessError || !isTemporaryConnectionError(accessError)) {
               break;
@@ -604,13 +613,8 @@ export default function ProfessionalDashboard({
               return;
             }
 
-            const accessErrorMessage = (
-              accessError &&
-              typeof accessError === 'object' &&
-              'message' in accessError
-            )
-              ? String(accessError.message)
-              : '';
+            const accessErrorMessage =
+              getProfessionalAccessErrorMessage(accessError);
 
             console.error(
               'Erro ao carregar acesso do profissional:',
@@ -628,9 +632,24 @@ export default function ProfessionalDashboard({
           const firstRow = Array.isArray(data) ? data[0] : null;
 
           if (!firstRow?.success) {
+            const responseMessage =
+              getProfessionalAccessErrorMessage(firstRow?.message);
+
+            if (
+              isTemporaryConnectionError(responseMessage) ||
+              !isConfirmedInvalidAccessError(responseMessage)
+            ) {
+              console.warn(
+                'Conexão temporariamente indisponível ao atualizar a agenda do profissional.'
+              );
+              return;
+            }
+
             setFeedbackMessage({
               title: 'Link inválido',
-              description: firstRow?.message || 'Este link de acesso não está disponível.'
+              description:
+                responseMessage ||
+                'Este link de acesso não está disponível.'
             });
             return;
           }
@@ -653,6 +672,11 @@ export default function ProfessionalDashboard({
           setTokenServices(loadedServices);
           setSupabaseAppointments(loadedAppointments);
           setCommissionPayments(loadedCommissionPayments);
+          setFeedbackMessage((currentFeedback) => {
+            return currentFeedback?.title === 'Link inválido'
+              ? null
+              : currentFeedback;
+          });
           return;
         }
 
