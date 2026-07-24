@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   getLocalState,
   saveLocalState,
@@ -15,18 +15,19 @@ import {
   INITIAL_APPOINTMENTS,
   LocalState,
 } from './data';
-import LandingPage from './components/LandingPage';
-import AuthPage from './components/AuthPage';
-import ClientBooking from './features/booking/ClientBooking';
-import ClientAppointmentsPage from './features/client/ClientAppointmentsPage';
-import OwnerDashboard from './features/owner/OwnerDashboard';
-import ProfessionalDashboard from './features/professional/ProfessionalDashboard';
-import FirstAccessPage from './features/auth/FirstAccessPage';
-import ResetPasswordPage from './features/auth/ResetPasswordPage';
-import MasterDashboard from './features/master/MasterDashboard';
 import { supabase } from './lib/supabase';
 import { Appointment } from './types';
 import { Loader2, Zap } from 'lucide-react';
+
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const AuthPage = lazy(() => import('./components/AuthPage'));
+const ClientBooking = lazy(() => import('./features/booking/ClientBooking'));
+const ClientAppointmentsPage = lazy(() => import('./features/client/ClientAppointmentsPage'));
+const OwnerDashboard = lazy(() => import('./features/owner/OwnerDashboard'));
+const ProfessionalDashboard = lazy(() => import('./features/professional/ProfessionalDashboard'));
+const FirstAccessPage = lazy(() => import('./features/auth/FirstAccessPage'));
+const ResetPasswordPage = lazy(() => import('./features/auth/ResetPasswordPage'));
+const MasterDashboard = lazy(() => import('./features/master/MasterDashboard'));
 
 type AppView =
   | 'landing'
@@ -667,113 +668,125 @@ export default function App() {
     <div id="app-root" className="min-h-screen bg-neutral-50 flex flex-col justify-between">
       {/* Route Switch Pane */}
       <div className="flex-1 w-full">
-        {currentView === 'first-access' && (
-          <FirstAccessPage />
-        )}
+        <Suspense
+          fallback={(
+            <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+              <div className="rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+                <Loader2 className="mx-auto mb-4 h-9 w-9 animate-spin text-orange-500" />
+                <p className="text-lg font-black text-neutral-900">Carregando...</p>
+                <p className="mt-2 text-sm text-neutral-500">Aguarde alguns segundos.</p>
+              </div>
+            </main>
+          )}
+        >
+          {currentView === 'first-access' && (
+            <FirstAccessPage />
+          )}
 
-        {currentView === 'reset-password' && (
-          <ResetPasswordPage />
-        )}
+          {currentView === 'reset-password' && (
+            <ResetPasswordPage />
+          )}
 
-        {currentView === 'landing' && (
-          <LandingPage
-            onNavigate={(dest) => {
-              if (dest === 'register') {
-                navigateTo('register', '/cadastro');
-              } else if (dest === 'login') {
-                navigateTo('login', '/login');
-              } else if (dest === 'client-booking') {
-                navigateTo('client-booking', '/agendar');
-              }
-            }}
-            onSetInitialRole={(role) => setPreseedRole(role)}
-          />
-        )}
+          {currentView === 'landing' && (
+            <LandingPage
+              onNavigate={(dest) => {
+                if (dest === 'register') {
+                  navigateTo('register', '/cadastro');
+                } else if (dest === 'login') {
+                  navigateTo('login', '/login');
+                } else if (dest === 'client-booking') {
+                  navigateTo('client-booking', '/agendar');
+                }
+              }}
+              onSetInitialRole={(role) => setPreseedRole(role)}
+            />
+          )}
 
-        {(currentView === 'login' || currentView === 'register') && (
-          <AuthPage
-            initialMode={currentView === 'register' ? 'register' : 'login'}
-            initialRolePreseed={preseedRole}
-            onAuthSuccess={handleAuthSuccess}
-            onNavigateBack={() => {
-              setPreseedRole(null);
-              navigateTo('landing', '/');
-            }}
-          />
-        )}
+          {(currentView === 'login' || currentView === 'register') && (
+            <AuthPage
+              initialMode={currentView === 'register' ? 'register' : 'login'}
+              initialRolePreseed={preseedRole}
+              onAuthSuccess={handleAuthSuccess}
+              onNavigateBack={() => {
+                setPreseedRole(null);
+                navigateTo('landing', '/');
+              }}
+            />
+          )}
 
 
-        {currentView === 'client-appointments' && (
-          <ClientAppointmentsPage
-            token={clientAppointmentsToken}
-            state={appState}
-          />
-        )}
+          {currentView === 'client-appointments' && (
+            <ClientAppointmentsPage
+              token={clientAppointmentsToken}
+              state={appState}
+            />
+          )}
 
-        {currentView === 'client-booking' && (
-          <ClientBooking
-            state={appState}
-            onAddAppointment={handleAddAppointment}
-            onNavigateBack={() => navigateTo('landing', '/')}
-          />
-        )}
+          {currentView === 'client-booking' && (
+            <ClientBooking
+              state={appState}
+              onAddAppointment={handleAddAppointment}
+              onNavigateBack={() => navigateTo('landing', '/')}
+            />
+          )}
 
-        {currentView === 'master-dashboard' && sessionUser?.role === 'developer' && (
-          <MasterDashboard
-            onLogOut={handleLogOut}
-            onNavigateToLogin={() => navigateTo('login', '/login')}
-          />
-        )}
+          {currentView === 'master-dashboard' && sessionUser?.role === 'developer' && (
+            <MasterDashboard
+              onLogOut={handleLogOut}
+              onNavigateToLogin={() => navigateTo('login', '/login')}
+            />
+          )}
 
-        {currentView === 'master-dashboard' && !authChecking && sessionUser?.role !== 'developer' && (
-          <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-            <div className="rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm">
-              <p className="text-xl font-black text-neutral-900">Acesso restrito</p>
-              <p className="mt-2 text-sm text-neutral-500">Faça login com o usuário desenvolvedor para acessar esta área.</p>
-              <button
-                onClick={() => navigateTo('login', '/login')}
-                className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
-              >
-                Ir para login
-              </button>
+          {currentView === 'master-dashboard' && !authChecking && sessionUser?.role !== 'developer' && (
+            <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+              <div className="rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm">
+                <p className="text-xl font-black text-neutral-900">Acesso restrito</p>
+                <p className="mt-2 text-sm text-neutral-500">Faça login com o usuário desenvolvedor para acessar esta área.</p>
+                <button
+                  onClick={() => navigateTo('login', '/login')}
+                  className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
+                >
+                  Ir para login
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentView === 'owner-dashboard' && sessionUser?.role === 'owner' && (
-          <OwnerDashboard
-            state={appState}
-            onUpdateState={handleUpdateState}
-            onNavigateToClient={handleOpenPublicBookingLink}
-            onLogOut={handleLogOut}
-          />
-        )}
+          {currentView === 'owner-dashboard' && sessionUser?.role === 'owner' && (
+            <OwnerDashboard
+              state={appState}
+              onUpdateState={handleUpdateState}
+              onNavigateToClient={handleOpenPublicBookingLink}
+              onLogOut={handleLogOut}
+            />
+          )}
 
-        {currentView === 'owner-dashboard' && !authChecking && sessionUser?.role !== 'owner' && (
-          <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-            <div className="rounded-3xl border border-orange-100 bg-white p-8 text-center shadow-sm">
-              <p className="text-xl font-black text-neutral-900">Acesso necessário</p>
-              <p className="mt-2 text-sm text-neutral-500">Faça login para acessar o painel protegido.</p>
-              <button
-                onClick={() => navigateTo('login', '/login')}
-                className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
-              >
-                Ir para login
-              </button>
+          {currentView === 'owner-dashboard' && !authChecking && sessionUser?.role !== 'owner' && (
+            <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+              <div className="rounded-3xl border border-orange-100 bg-white p-8 text-center shadow-sm">
+                <p className="text-xl font-black text-neutral-900">Acesso necessário</p>
+                <p className="mt-2 text-sm text-neutral-500">Faça login para acessar o painel protegido.</p>
+                <button
+                  onClick={() => navigateTo('login', '/login')}
+                  className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black uppercase text-white hover:bg-orange-600"
+                >
+                  Ir para login
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentView === 'professional-dashboard' && (professionalAccessToken || sessionUser?.role === 'professional') && (
-          <ProfessionalDashboard
-            state={appState}
-            professionalId={professionalAccessToken ? '' : sessionUser?.professionalId || ''}
-            professionalAccessToken={professionalAccessToken || undefined}
-            onModifyAppointment={handleModifyAppointment}
-            onAddManualAppointment={handleAddAppointment}
-            onLogOut={handleLogOut}
-          />
-        )}
+          {currentView === 'professional-dashboard' && (professionalAccessToken || sessionUser?.role === 'professional') && (
+            <ProfessionalDashboard
+              state={appState}
+              professionalId={professionalAccessToken ? '' : sessionUser?.professionalId || ''}
+              professionalAccessToken={professionalAccessToken || undefined}
+              onModifyAppointment={handleModifyAppointment}
+              onAddManualAppointment={handleAddAppointment}
+              onLogOut={handleLogOut}
+            />
+          )}
+        </Suspense>
       </div>
 
       {/* Modern, elegant Floating Presentation Toolbar at the bottom of the screen */}
