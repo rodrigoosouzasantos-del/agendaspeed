@@ -1680,9 +1680,13 @@ export function useFinanceViewModel({
   };
 
   const financialMovementRows = useMemo<FinancialMovementRow[]>(() => {
-    const receiptRows: FinancialMovementRow[] = filteredReceipts.flatMap<
+    const receiptRows: FinancialMovementRow[] = receipts.flatMap<
       FinancialMovementRow
     >((receipt) => {
+      if (receipt.status === 'cancelled') {
+        return [];
+      }
+
       const receiptDate = getSaoPauloDateStr(receipt.paidAt);
       const description =
         receipt.items
@@ -1693,6 +1697,13 @@ export function useFinanceViewModel({
         'Recebimento';
 
       if (receipt.paymentType === 'cortesia') {
+        if (
+          receiptDate < period.startDate ||
+          receiptDate > period.endDate
+        ) {
+          return [];
+        }
+
         return [{
           id: `${receipt.id}-cortesia`,
           date: receiptDate,
@@ -1727,10 +1738,20 @@ export function useFinanceViewModel({
               entryValue: Number(payment.amount) || 0,
               exitValue: 0
             };
+          })
+          .filter((row) => {
+            return (
+              row.date >= period.startDate &&
+              row.date <= period.endDate
+            );
           });
       }
 
-      if (receipt.status !== 'paid') {
+      if (
+        receipt.status !== 'paid' ||
+        receiptDate < period.startDate ||
+        receiptDate > period.endDate
+      ) {
         return [];
       }
 
@@ -1773,7 +1794,8 @@ export function useFinanceViewModel({
     });
   }, [
     filteredCashExpenses,
-    filteredReceipts
+    period,
+    receipts
   ]);
 
   const financialMovementIncomeTotal = useMemo(() => {
