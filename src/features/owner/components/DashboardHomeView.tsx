@@ -559,8 +559,7 @@ function buildWhatsAppConfirmationUrl(params: {
     'Para confirmar presença, remarcar ou cancelar, acesse o link abaixo:',
     appointmentLink,
     '',
-    'Assim o sistema atualiza automaticamente seu atendimento.'
-  ].join('\n'));
+      ].join('\n'));
 
   return `https://api.whatsapp.com/send?phone=55${phone}&text=${message}`;
 }
