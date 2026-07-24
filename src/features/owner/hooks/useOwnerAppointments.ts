@@ -41,6 +41,21 @@ interface UseOwnerAppointmentsParams {
   showOwnerFeedback: (message: string, title?: string) => void;
 }
 
+const APPOINTMENTS_HISTORY_DAYS = 335;
+const APPOINTMENTS_FUTURE_DAYS = 31;
+const APPOINTMENTS_POLLING_INTERVAL_MS = 60000;
+
+function getSaoPauloDateWithOffset(daysOffset: number) {
+  const saoPauloToday = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+  const date = new Date(`${saoPauloToday}T12:00:00Z`);
+
+  date.setUTCDate(date.getUTCDate() + daysOffset);
+
+  return date.toISOString().slice(0, 10);
+}
+
 export function useOwnerAppointments({
   state,
   onUpdateState,
@@ -79,6 +94,7 @@ export function useOwnerAppointments({
     let isMounted = true;
     let refreshTimeoutId: number | null = null;
     let safetyPollingIntervalId: number | null = null;
+    let appointmentsChannel: ReturnType<typeof supabase.channel> | null = null;
     let requestInFlight = false;
     let requestQueued = false;
 
@@ -96,7 +112,10 @@ export function useOwnerAppointments({
 
       setAppointmentsLoadError("");
 
-      const { data, error } = await supabase.rpc("get_my_appointments");
+      const { data, error } = await supabase.rpc("get_my_appointments_v2", {
+        p_start_date: getSaoPauloDateWithOffset(-APPOINTMENTS_HISTORY_DAYS),
+        p_end_date: getSaoPauloDateWithOffset(APPOINTMENTS_FUTURE_DAYS),
+      });
 
       if (isMounted) {
         if (error) {
@@ -130,6 +149,11 @@ export function useOwnerAppointments({
     function scheduleAppointmentsRefresh() {
       if (!isMounted) return;
 
+      const isOperationalTab =
+        activeTabRef.current === "painel" || activeTabRef.current === "agenda";
+
+      if (!isOperationalTab) return;
+
       if (refreshTimeoutId !== null) {
         window.clearTimeout(refreshTimeoutId);
       }
@@ -140,7 +164,47 @@ export function useOwnerAppointments({
       }, 400);
     }
 
-    void loadAppointmentsFromSupabase(true);
+    async function startAppointmentsSync() {
+      await loadAppointmentsFromSupabase(true);
+
+      if (!isMounted) return;
+
+      const { data: tenantId, error: tenantError } = await supabase.rpc(
+        "get_current_owner_tenant_id",
+      );
+
+      if (!isMounted) return;
+
+      if (tenantError || !tenantId) {
+        console.error(
+          "Não foi possível identificar a empresa para filtrar a agenda em tempo real.",
+          tenantError?.message || "",
+        );
+        return;
+      }
+
+      appointmentsChannel = supabase
+        .channel(`owner-appointments-changes-${tenantId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "appointments",
+            filter: `tenant_id=eq.${tenantId}`,
+          },
+          scheduleAppointmentsRefresh,
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            console.error(
+              "Não foi possível ativar a atualização em tempo real da agenda.",
+            );
+          }
+        });
+    }
+
+    void startAppointmentsSync();
 
     safetyPollingIntervalId = window.setInterval(() => {
       const isOperationalTab =
@@ -149,26 +213,7 @@ export function useOwnerAppointments({
       if (document.visibilityState === "visible" && isOperationalTab) {
         void loadAppointmentsFromSupabase(false);
       }
-    }, 40000);
-
-    const appointmentsChannel = supabase
-      .channel("owner-appointments-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "appointments",
-        },
-        scheduleAppointmentsRefresh,
-      )
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.error(
-            "Não foi possível ativar a atualização em tempo real da agenda.",
-          );
-        }
-      });
+    }, APPOINTMENTS_POLLING_INTERVAL_MS);
 
     return () => {
       isMounted = false;
@@ -181,7 +226,9 @@ export function useOwnerAppointments({
         window.clearInterval(safetyPollingIntervalId);
       }
 
-      void supabase.removeChannel(appointmentsChannel);
+      if (appointmentsChannel) {
+        void supabase.removeChannel(appointmentsChannel);
+      }
     };
   }, []);
 

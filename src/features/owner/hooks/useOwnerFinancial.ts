@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { Appointment, AppointmentStatus, CashExpense, Client, PaymentType, Product, Professional, Receipt, Service } from "../../../types";
 import { OwnerDashboardProps } from "../owner.types";
@@ -75,6 +75,15 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
   const [isLoadingFinancialRecords, setIsLoadingFinancialRecords] = useState(true);
   const [financialRecordsLoadError, setFinancialRecordsLoadError] = useState("");
+  const financialLoadRequestIdRef = useRef(0);
+  const latestFinancialRecordsRef = useRef<{
+    receipts: Receipt[];
+    cashExpenses: CashExpense[];
+  }>({
+    receipts: [],
+    cashExpenses: [],
+  });
+  const pendingReceiptPaymentsRef = useRef<Set<string>>(new Set());
 
   const loadFinancialRecordsFromSupabase = async (
     showLoading = true,
@@ -82,7 +91,20 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
     receipts: Receipt[];
     cashExpenses: CashExpense[];
   }> => {
+    const requestId = ++financialLoadRequestIdRef.current;
+
     if (!tenantId) {
+      if (requestId === financialLoadRequestIdRef.current) {
+        latestFinancialRecordsRef.current = {
+          receipts: [],
+          cashExpenses: [],
+        };
+        setReceipts([]);
+        setCashExpenses([]);
+        setFinancialRecordsLoadError("");
+        setIsLoadingFinancialRecords(false);
+      }
+
       return {
         receipts: [],
         cashExpenses: [],
@@ -93,7 +115,9 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
       setIsLoadingFinancialRecords(true);
     }
 
-    setFinancialRecordsLoadError("");
+    if (requestId === financialLoadRequestIdRef.current) {
+      setFinancialRecordsLoadError("");
+    }
 
     const today = new Date().toLocaleDateString("en-CA", {
       timeZone: "America/Sao_Paulo",
@@ -126,14 +150,13 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
         "Erro ao carregar recebimentos:",
         receiptsResult.error.message,
       );
-      setFinancialRecordsLoadError(
-        receiptsResult.error.message || "Erro ao carregar recebimentos.",
-      );
-      setIsLoadingFinancialRecords(false);
-      return {
-        receipts: [],
-        cashExpenses,
-      };
+      if (requestId === financialLoadRequestIdRef.current) {
+        setFinancialRecordsLoadError(
+          receiptsResult.error.message || "Erro ao carregar recebimentos.",
+        );
+        setIsLoadingFinancialRecords(false);
+      }
+      return latestFinancialRecordsRef.current;
     }
 
     const receiptRows = (Array.isArray(receiptsResult.data)
@@ -173,15 +196,14 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
           "Erro ao carregar detalhes dos recebimentos:",
           loadError?.message,
         );
-        setFinancialRecordsLoadError(
-          loadError?.message ||
-            "Erro ao carregar os detalhes dos recebimentos.",
-        );
-        setIsLoadingFinancialRecords(false);
-        return {
-          receipts,
-          cashExpenses,
-        };
+        if (requestId === financialLoadRequestIdRef.current) {
+          setFinancialRecordsLoadError(
+            loadError?.message ||
+              "Erro ao carregar os detalhes dos recebimentos.",
+          );
+          setIsLoadingFinancialRecords(false);
+        }
+        return latestFinancialRecordsRef.current;
       }
 
       receiptItemRows.push(
@@ -210,14 +232,13 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
 
     if (expensesResult.error) {
       console.error("Erro ao carregar despesas:", expensesResult.error.message);
-      setFinancialRecordsLoadError(
-        expensesResult.error.message || "Erro ao carregar despesas.",
-      );
-      setIsLoadingFinancialRecords(false);
-      return {
-        receipts,
-        cashExpenses,
-      };
+      if (requestId === financialLoadRequestIdRef.current) {
+        setFinancialRecordsLoadError(
+          expensesResult.error.message || "Erro ao carregar despesas.",
+        );
+        setIsLoadingFinancialRecords(false);
+      }
+      return latestFinancialRecordsRef.current;
     }
 
     const receiptItemsByReceiptId = receiptItemRows.reduce<
@@ -255,14 +276,21 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
       : []) as SupabaseCashExpenseResponse[];
     const nextCashExpenses = expenseRows.map(mapSupabaseCashExpenseToAppCashExpense);
 
+    const loadedRecords = {
+      receipts: nextReceipts,
+      cashExpenses: nextCashExpenses,
+    };
+
+    if (requestId !== financialLoadRequestIdRef.current) {
+      return latestFinancialRecordsRef.current;
+    }
+
+    latestFinancialRecordsRef.current = loadedRecords;
     setReceipts(nextReceipts);
     setCashExpenses(nextCashExpenses);
     setIsLoadingFinancialRecords(false);
 
-    return {
-      receipts: nextReceipts,
-      cashExpenses: nextCashExpenses,
-    };
+    return loadedRecords;
   };
 
 
@@ -533,110 +561,80 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
       );
     }
 
-    const targetReceipt = receipts.find(
-      (receipt) => receipt.id === payload.receiptId,
-    );
-
-    if (!targetReceipt) {
-      failPendingPayment("Recebimento pendente não encontrado.");
-    }
-
-    const pendingReceipt = targetReceipt as Receipt;
-
-    const currentPending = Math.max(
-      0,
-      Number(pendingReceipt.amountPending) || 0,
-    );
-    const amountReceived = Math.max(
-      0,
-      Math.min(Number(payload.amountReceived) || 0, currentPending),
-    );
-
-    if (amountReceived <= 0) {
-      failPendingPayment("Informe um valor recebido maior que zero.");
-    }
-
-    const nextAmountPaid = Number(
-      (
-        (Number(pendingReceipt.amountPaid) || 0) +
-        amountReceived
-      ).toFixed(2),
-    );
-    const nextAmountPending = Number(
-      Math.max(0, currentPending - amountReceived).toFixed(2),
-    );
-    const nextStatus: Receipt["status"] =
-      nextAmountPending > 0 ? "pending" : "paid";
-
-    const normalizedPaymentType = payload.paymentType || "pix";
-    const normalizedPaidAt =
-      payload.paidAt ||
-      new Date().toLocaleDateString("en-CA", {
-        timeZone: "America/Sao_Paulo",
-      });
-
-    const { error: receiptUpdateError } = await supabase
-      .from("receipts")
-      .update({
-        amount_paid: nextAmountPaid,
-        amount_pending: nextAmountPending,
-        status: nextStatus,
-        payment_type: normalizedPaymentType,
-        paid_at: normalizedPaidAt,
-        notes: payload.notes
-          ? [pendingReceipt.notes, payload.notes]
-              .filter(Boolean)
-              .join(" | ")
-          : pendingReceipt.notes || null,
-      })
-      .eq("tenant_id", tenantId)
-      .eq("id", payload.receiptId);
-
-    if (receiptUpdateError) {
+    if (pendingReceiptPaymentsRef.current.has(payload.receiptId)) {
       failPendingPayment(
-        receiptUpdateError.message ||
-          "Não foi possível atualizar o recebimento pendente.",
+        "A baixa deste recebimento já está sendo processada. Aguarde a conclusão.",
       );
     }
 
-    const { error: paymentInsertError } = await supabase
-      .from("receipt_payments")
-      .insert({
-        tenant_id: tenantId,
-        receipt_id: payload.receiptId,
-        payment_type: normalizedPaymentType,
-        amount: amountReceived,
-      });
+    pendingReceiptPaymentsRef.current.add(payload.receiptId);
 
-    if (paymentInsertError) {
-      await supabase
-        .from("receipts")
-        .update({
-          amount_paid: pendingReceipt.amountPaid,
-          amount_pending: pendingReceipt.amountPending,
-          status: pendingReceipt.status,
-          payment_type: pendingReceipt.paymentType,
-          paid_at: pendingReceipt.paidAt,
-          notes: pendingReceipt.notes || null,
-        })
-        .eq("tenant_id", tenantId)
-        .eq("id", payload.receiptId);
-
-      failPendingPayment(
-        paymentInsertError.message ||
-          "Não foi possível registrar a forma de pagamento do saldo pendente.",
+    try {
+      const targetReceipt = receipts.find(
+        (receipt) => receipt.id === payload.receiptId,
       );
+
+      if (!targetReceipt) {
+        const message = "Recebimento pendente não encontrado.";
+        showOwnerFeedback(message, "Baixa pendente não concluída");
+        throw new Error(message);
+      }
+
+      const currentPending = Math.max(
+        0,
+        Number(targetReceipt.amountPending) || 0,
+      );
+      const amountReceived = Number(
+        Math.max(0, Number(payload.amountReceived) || 0).toFixed(2),
+      );
+
+      if (amountReceived <= 0) {
+        failPendingPayment("Informe um valor recebido maior que zero.");
+      }
+
+      if (amountReceived > currentPending) {
+        failPendingPayment(
+          "O valor recebido não pode ser maior que o saldo pendente.",
+        );
+      }
+
+      const normalizedPaymentType = payload.paymentType || "pix";
+      const normalizedPaidAt =
+        payload.paidAt ||
+        new Date().toLocaleDateString("en-CA", {
+          timeZone: "America/Sao_Paulo",
+        });
+
+      const { error: pendingPaymentError } = await supabase.rpc(
+        "pay_pending_receipt",
+        {
+          p_receipt_id: payload.receiptId,
+          p_payment_type: normalizedPaymentType,
+          p_amount: amountReceived,
+          p_paid_at: normalizedPaidAt,
+          p_notes: payload.notes || null,
+        },
+      );
+
+      if (pendingPaymentError) {
+        failPendingPayment(
+          pendingPaymentError.message ||
+            "Não foi possível baixar o saldo pendente.",
+        );
+      }
+
+      const loadedRecords = await loadFinancialRecordsFromSupabase(false);
+
+      onUpdateState({
+        ...state,
+        appointments,
+        clients,
+        receipts: loadedRecords.receipts,
+        cashExpenses: loadedRecords.cashExpenses,
+      } as unknown as typeof state);
+    } finally {
+      pendingReceiptPaymentsRef.current.delete(payload.receiptId);
     }
-
-    const loadedRecords = await loadFinancialRecordsFromSupabase(false);
-
-    onUpdateState({
-      ...state,
-      appointments,
-      clients,
-      receipts: loadedRecords.receipts,
-      cashExpenses: loadedRecords.cashExpenses,
-    } as unknown as typeof state);
   };
 
   const handleConfirmCashExpense = async (payload: {
