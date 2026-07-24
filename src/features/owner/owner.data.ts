@@ -660,6 +660,78 @@ export function toNullableUuid(value: string | null | undefined): string | null 
   return isUuid(value) ? String(value) : null;
 }
 
+const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
+
+function formatTimestampInSaoPaulo(
+  value: string | null | undefined,
+  length: 10 | 16 = 16,
+): string {
+  const rawValue = String(value || "").trim();
+
+  if (!rawValue) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return length === 10 ? rawValue : `${rawValue}T00:00`;
+  }
+
+  const hasExplicitTimeZone =
+    /(?:Z|[+-]\d{2}:\d{2})$/i.test(rawValue);
+
+  if (!hasExplicitTimeZone) {
+    return rawValue.slice(0, length);
+  }
+
+  const parsedDate = new Date(rawValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return rawValue.slice(0, length);
+  }
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SAO_PAULO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(parsedDate);
+
+  const readPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  const datePart = `${readPart("year")}-${readPart("month")}-${readPart("day")}`;
+
+  if (length === 10) return datePart;
+
+  return `${datePart}T${readPart("hour")}:${readPart("minute")}`;
+}
+
+function normalizeSaoPauloTimestampForDatabase(
+  value: string | null | undefined,
+): string | undefined {
+  const rawValue = String(value || "").trim();
+
+  if (!rawValue) return undefined;
+
+  if (/(?:Z|[+-]\d{2}:\d{2})$/i.test(rawValue)) {
+    return rawValue;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return `${rawValue}T12:00:00-03:00`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(rawValue)) {
+    const timestamp =
+      rawValue.length === 16 ? `${rawValue}:00` : rawValue;
+
+    return `${timestamp}-03:00`;
+  }
+
+  return rawValue;
+}
+
 export function normalizeReceiptPaymentType(value: unknown): PaymentType {
   return ["dinheiro", "pix", "debito", "credito", "pendente", "cortesia"].includes(
     String(value),
@@ -710,7 +782,7 @@ export function mapSupabaseReceiptPaymentToAppReceiptPayment(
     receiptId: payment.receipt_id,
     paymentType: normalizeReceiptPaymentType(payment.payment_type),
     amount: Number(payment.amount) || 0,
-    createdAt: String(payment.created_at || "").slice(0, 16),
+    createdAt: formatTimestampInSaoPaulo(payment.created_at),
   };
 }
 
@@ -737,8 +809,12 @@ export function mapSupabaseReceiptToAppReceipt(params: {
     amountPaid: Number(receipt.amount_paid) || 0,
     amountPending: Number(receipt.amount_pending) || 0,
     notes: receipt.notes || "",
-    paidAt: String(receipt.paid_at || receipt.created_at || "").slice(0, 16),
-    createdAt: String(receipt.created_at || receipt.paid_at || "").slice(0, 16),
+    paidAt: formatTimestampInSaoPaulo(
+      receipt.paid_at || receipt.created_at,
+    ),
+    createdAt: formatTimestampInSaoPaulo(
+      receipt.created_at || receipt.paid_at,
+    ),
   };
 }
 
@@ -746,7 +822,7 @@ export function mapSupabaseCashExpenseToAppCashExpense(
   expense: SupabaseCashExpenseResponse,
 ): CashExpense {
   const expenseDate = String(expense.expense_date || "").slice(0, 10);
-  const createdAt = String(expense.created_at || "").slice(0, 16);
+  const createdAt = formatTimestampInSaoPaulo(expense.created_at);
 
   return {
     id: expense.id,
@@ -782,7 +858,7 @@ export function mapSupabaseCommissionPaymentToAppRecord(params: {
     paymentType: normalizeReceiptPaymentType(payment.payment_type),
     paidAt: String(payment.paid_at || "").slice(0, 10),
     notes: payment.notes || undefined,
-    createdAt: String(payment.created_at || "").slice(0, 16),
+    createdAt: formatTimestampInSaoPaulo(payment.created_at),
   };
 }
 
@@ -868,6 +944,7 @@ export function buildReceiptInsertPayload(params: {
     amount_paid: normalizedAmountPaid,
     amount_pending: normalizedAmountPending,
     notes: payload.notes || null,
+    paid_at: normalizeSaoPauloTimestampForDatabase(payload.paidAt),
   };
 }
 

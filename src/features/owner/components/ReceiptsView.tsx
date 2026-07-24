@@ -92,6 +92,7 @@ interface ReceiptPayload {
   amountPaid: number;
   amountPending: number;
   discountValue: number;
+  paidAt?: string;
   notes?: string;
 }
 
