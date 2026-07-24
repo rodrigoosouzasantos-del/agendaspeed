@@ -498,7 +498,10 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
 
     const normalizedPaymentType = payload.paymentType || "pix";
     const normalizedPaidAt =
-      payload.paidAt || new Date().toISOString().slice(0, 10);
+      payload.paidAt ||
+      new Date().toLocaleDateString("en-CA", {
+        timeZone: "America/Sao_Paulo",
+      });
 
     const { error: receiptUpdateError } = await supabase
       .from("receipts")
