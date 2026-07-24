@@ -1,6 +1,7 @@
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 
@@ -49,6 +50,63 @@ import {
 interface ProfessionalDashboardFeedbackState {
   title: string;
   description: string;
+}
+
+function isTemporaryConnectionError(error: unknown): boolean {
+  const errorRecord = (
+    error &&
+    typeof error === 'object'
+  )
+    ? error as Record<string, unknown>
+    : {};
+
+  const message = String(
+    errorRecord.message ||
+      errorRecord.details ||
+      error ||
+      ''
+  ).toLowerCase();
+
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network error') ||
+    message.includes('load failed') ||
+    message.includes('connection') ||
+    message.includes('timeout')
+  );
+}
+
+function waitForRetry(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
+}
+
+function isConfirmedInvalidAccessError(error: unknown): boolean {
+  const errorRecord = (
+    error &&
+    typeof error === 'object'
+  )
+    ? error as Record<string, unknown>
+    : {};
+
+  const message = String(
+    errorRecord.message ||
+      errorRecord.details ||
+      error ||
+      ''
+  ).toLowerCase();
+
+  return (
+    message.includes('link do profissional inválido') ||
+    message.includes('link do profissional invalido') ||
+    message.includes('link inválido ou expirado') ||
+    message.includes('link invalido ou expirado') ||
+    message.includes('token inválido') ||
+    message.includes('token invalido') ||
+    message.includes('token expirado')
+  );
 }
 
 type SupabaseProfessionalAppointmentResponse = {
@@ -493,6 +551,7 @@ export default function ProfessionalDashboard({
   const [tokenConfig, setTokenConfig] = useState<EstablishmentConfig | null>(null);
   const [commissionPayments, setCommissionPayments] =
     useState<ProfessionalCommissionPaymentRecord[]>([]);
+  const professionalAccessRequestInFlightRef = useRef(false);
 
   const config = tokenConfig || stateConfig;
   const services = tokenServices || stateServices;
@@ -504,78 +563,127 @@ export default function ProfessionalDashboard({
     let isMounted = true;
 
     async function loadProfessionalAppointments() {
-      if (professionalAccessToken) {
-        const { data, error } = await supabase.rpc('get_professional_access_context', {
-          p_token: professionalAccessToken
+      if (professionalAccessRequestInFlightRef.current) {
+        return;
+      }
+
+      professionalAccessRequestInFlightRef.current = true;
+
+      try {
+        if (professionalAccessToken) {
+          let data: unknown = null;
+          let accessError: unknown = null;
+
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const response = await supabase.rpc('get_professional_access_context', {
+              p_token: professionalAccessToken
+            });
+
+            data = response.data;
+            accessError = response.error;
+
+            if (!accessError || !isTemporaryConnectionError(accessError)) {
+              break;
+            }
+
+            if (attempt < 2) {
+              await waitForRetry(800 * (attempt + 1));
+            }
+          }
+
+          if (!isMounted) return;
+
+          if (accessError) {
+            if (
+              isTemporaryConnectionError(accessError) ||
+              !isConfirmedInvalidAccessError(accessError)
+            ) {
+              console.warn(
+                'Conexão temporariamente indisponível ao atualizar a agenda do profissional.'
+              );
+              return;
+            }
+
+            const accessErrorMessage = (
+              accessError &&
+              typeof accessError === 'object' &&
+              'message' in accessError
+            )
+              ? String(accessError.message)
+              : '';
+
+            console.error(
+              'Erro ao carregar acesso do profissional:',
+              accessErrorMessage
+            );
+            setFeedbackMessage({
+              title: 'Link inválido',
+              description:
+                accessErrorMessage ||
+                'Não foi possível carregar o acesso do profissional.'
+            });
+            return;
+          }
+
+          const firstRow = Array.isArray(data) ? data[0] : null;
+
+          if (!firstRow?.success) {
+            setFeedbackMessage({
+              title: 'Link inválido',
+              description: firstRow?.message || 'Este link de acesso não está disponível.'
+            });
+            return;
+          }
+
+          const loadedProfessional = mapPublicProfessional(firstRow.professional || {});
+          const loadedServices = Array.isArray(firstRow.services)
+            ? firstRow.services.map((service: Record<string, unknown>) => mapPublicService(service))
+            : [];
+          const loadedAppointments = Array.isArray(firstRow.appointments)
+            ? (firstRow.appointments as SupabaseProfessionalAppointmentResponse[]).map(mapSupabaseAppointmentToProfessionalAppointment)
+            : [];
+          const loadedCommissionPayments = Array.isArray(firstRow.commission_payments)
+            ? firstRow.commission_payments.map(
+                (payment: Record<string, unknown>) =>
+                  mapPublicCommissionPayment(payment)
+              )
+            : [];
+          setTokenConfig(mapPublicConfig(firstRow.config || {}));
+          setTokenProfessional(loadedProfessional);
+          setTokenServices(loadedServices);
+          setSupabaseAppointments(loadedAppointments);
+          setCommissionPayments(loadedCommissionPayments);
+          return;
+        }
+
+        if (!professionalId) return;
+
+        const { data, error } = await supabase.rpc('get_my_professional_appointments', {
+          p_professional_id: professionalId
         });
 
         if (!isMounted) return;
 
         if (error) {
-          console.error('Erro ao carregar acesso do profissional:', error.message);
-          setFeedbackMessage({
-            title: 'Link inválido',
-            description: error.message || 'Não foi possível carregar o acesso do profissional.'
-          });
+          console.error('Erro ao carregar agenda do profissional:', error.message);
           return;
         }
 
-        const firstRow = Array.isArray(data) ? data[0] : null;
+        const rows = (
+          Array.isArray(data) ? data : []
+        ) as SupabaseProfessionalAppointmentResponse[];
 
-        if (!firstRow?.success) {
-          setFeedbackMessage({
-            title: 'Link inválido',
-            description: firstRow?.message || 'Este link de acesso não está disponível.'
-          });
-          return;
-        }
-
-        const loadedProfessional = mapPublicProfessional(firstRow.professional || {});
-        const loadedServices = Array.isArray(firstRow.services)
-          ? firstRow.services.map((service: Record<string, unknown>) => mapPublicService(service))
-          : [];
-        const loadedAppointments = Array.isArray(firstRow.appointments)
-          ? (firstRow.appointments as SupabaseProfessionalAppointmentResponse[]).map(mapSupabaseAppointmentToProfessionalAppointment)
-          : [];
-        const loadedCommissionPayments = Array.isArray(firstRow.commission_payments)
-          ? firstRow.commission_payments.map(
-              (payment: Record<string, unknown>) =>
-                mapPublicCommissionPayment(payment)
-            )
-          : [];
-        setTokenConfig(mapPublicConfig(firstRow.config || {}));
-        setTokenProfessional(loadedProfessional);
-        setTokenServices(loadedServices);
-        setSupabaseAppointments(loadedAppointments);
-        setCommissionPayments(loadedCommissionPayments);
-        return;
+        setSupabaseAppointments(rows.map(mapSupabaseAppointmentToProfessionalAppointment));
+      } finally {
+        professionalAccessRequestInFlightRef.current = false;
       }
-
-      if (!professionalId) return;
-
-      const { data, error } = await supabase.rpc('get_my_professional_appointments', {
-        p_professional_id: professionalId
-      });
-
-      if (!isMounted) return;
-
-      if (error) {
-        console.error('Erro ao carregar agenda do profissional:', error.message);
-        return;
-      }
-
-      const rows = (
-        Array.isArray(data) ? data : []
-      ) as SupabaseProfessionalAppointmentResponse[];
-
-      setSupabaseAppointments(rows.map(mapSupabaseAppointmentToProfessionalAppointment));
     }
 
     loadProfessionalAppointments();
 
     const refreshInterval = window.setInterval(() => {
       loadProfessionalAppointments();
-    }, 10000);
+    }, 50000);
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
