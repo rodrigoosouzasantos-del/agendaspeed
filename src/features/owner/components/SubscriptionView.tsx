@@ -296,7 +296,7 @@ export default function SubscriptionView({
             </div>
             <p className="mt-2 text-xs font-semibold leading-6 text-slate-500">
               {subscription.subscriptionStatus === 'trial'
-                ? 'Você está usando o período gratuito. Após o término, a mensalidade será de R$ 49,90.'
+                ? 'Você está usando o período gratuito. Após o término, a mensalidade será de R$ 50,00.'
                 : subscription.isOverdue
                   ? 'O pagamento está pendente. Após a confirmação, a assinatura será atualizada automaticamente.'
                   : 'Sua assinatura está ativa e o acesso ao sistema está liberado.'}
