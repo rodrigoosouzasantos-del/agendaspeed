@@ -87,6 +87,8 @@ type FeedbackModalState = {
   description: string;
 };
 
+type AuthSuccessUser = Parameters<AuthPageProps['onAuthSuccess']>[0];
+
 const PENDING_PUBLIC_TRIAL_KEY = 'agendaspeed_pending_public_trial_v1';
 
 function readBooleanRpcResult(data: unknown): boolean {
@@ -249,6 +251,8 @@ export default function AuthPage({
   const registerEmailRef = useRef<HTMLInputElement | null>(null);
   const registerPasswordRef = useRef<HTMLInputElement | null>(null);
   const registerConfirmPasswordRef = useRef<HTMLInputElement | null>(null);
+  const authRedirectTimerRef = useRef<number | null>(null);
+  const loginRecoveryTimerRef = useRef<number | null>(null);
 
   const publicOrigin = useMemo(() => {
     if (typeof window === 'undefined') return 'https://agendaspeed.com.br';
@@ -261,6 +265,51 @@ export default function AuthPage({
       setPassword('');
     }
   }, [initialRolePreseed]);
+
+  useEffect(() => {
+    return () => {
+      if (authRedirectTimerRef.current !== null) {
+        window.clearTimeout(authRedirectTimerRef.current);
+      }
+
+      if (loginRecoveryTimerRef.current !== null) {
+        window.clearTimeout(loginRecoveryTimerRef.current);
+      }
+    };
+  }, []);
+
+  const finishAuthSuccess = (
+    authenticatedUser: AuthSuccessUser,
+    fallbackPath: '/painel' | '/master',
+  ) => {
+    if (authRedirectTimerRef.current !== null) {
+      window.clearTimeout(authRedirectTimerRef.current);
+    }
+
+    onAuthSuccess(authenticatedUser);
+
+    authRedirectTimerRef.current = window.setTimeout(() => {
+      if (document.getElementById('auth-page')) {
+        window.location.replace(fallbackPath);
+      }
+    }, 800);
+  };
+
+  const recoverPersistedLogin = () => {
+    if (loginRecoveryTimerRef.current !== null) {
+      window.clearTimeout(loginRecoveryTimerRef.current);
+    }
+
+    setMessage('Acesso confirmado. Concluindo a entrada...');
+
+    loginRecoveryTimerRef.current = window.setTimeout(() => {
+      window.location.reload();
+    }, 1200);
+  };
+
+  const clearSessionWithoutBlocking = () => {
+    void supabase.auth.signOut().catch(() => undefined);
+  };
 
   useEffect(() => {
     if (mode !== 'register' || registerStep !== 1) return;
@@ -406,13 +455,16 @@ export default function AuthPage({
     }
 
     clearPendingTrial();
-    onAuthSuccess({
-      email: payload.email,
-      role: 'owner',
-      name: payload.ownerName || payload.salonName,
-      tenantId: result.tenant_id,
-      tenantSlug: result.tenant_slug,
-    });
+    finishAuthSuccess(
+      {
+        email: payload.email,
+        role: 'owner',
+        name: payload.ownerName || payload.salonName,
+        tenantId: result.tenant_id,
+        tenantSlug: result.tenant_slug,
+      },
+      '/painel',
+    );
     return true;
   };
 
@@ -462,7 +514,10 @@ export default function AuthPage({
     const loginEmail = normalizeEmail(email);
 
     try {
-      const { error: loginError } = await withTimeout(
+      const {
+        data: loginData,
+        error: loginError,
+      } = await withTimeout(
         supabase.auth.signInWithPassword({
           email: loginEmail,
           password,
@@ -474,6 +529,12 @@ export default function AuthPage({
       if (loginError) {
         setError('E-mail ou senha inválidos. Confira os dados e tente novamente.');
         return;
+      }
+
+      if (!loginData.session?.user) {
+        throw new Error(
+          'A sessão não foi confirmada. Tente entrar novamente.',
+        );
       }
 
       const pending = loadPendingTrial();
@@ -503,7 +564,7 @@ export default function AuthPage({
       } = ownerContextResult;
 
       if (masterAccessError) {
-        await supabase.auth.signOut();
+        clearSessionWithoutBlocking();
         setError(
           masterAccessError.message ||
             'Não foi possível validar o tipo de acesso do usuário.',
@@ -512,16 +573,19 @@ export default function AuthPage({
       }
 
       if (readBooleanRpcResult(masterAccessData)) {
-        onAuthSuccess({
-          email: loginEmail,
-          role: 'developer',
-          name: 'Rodrigo Souza',
-        });
+        finishAuthSuccess(
+          {
+            email: loginEmail,
+            role: 'developer',
+            name: 'Rodrigo Souza',
+          },
+          '/master',
+        );
         return;
       }
 
       if (contextError) {
-        await supabase.auth.signOut();
+        clearSessionWithoutBlocking();
         setError(
           contextError.message ||
             'Não foi possível carregar os dados da empresa.',
@@ -538,7 +602,7 @@ export default function AuthPage({
         ownerContext?.is_active === true;
 
       if (!ownerContext?.tenant_id || !ownerIsActive) {
-        await supabase.auth.signOut();
+        clearSessionWithoutBlocking();
         setError(
           'O acesso desta empresa está suspenso temporariamente. Entre em contato para mais informações.',
         );
@@ -546,31 +610,40 @@ export default function AuthPage({
       }
 
       if (!['owner', 'manager', 'admin'].includes(ownerContext.user_role)) {
-        await supabase.auth.signOut();
+        clearSessionWithoutBlocking();
         setError(
           'Este usuário não possui permissão para acessar o painel do proprietário.',
         );
         return;
       }
 
-      onAuthSuccess({
-        email: ownerContext.email || loginEmail,
-        role: 'owner',
-        name:
-          ownerContext.full_name ||
-          ownerContext.tenant_name ||
-          'Responsável',
-        tenantId: ownerContext.tenant_id,
-        tenantSlug: ownerContext.tenant_slug,
-      });
+      finishAuthSuccess(
+        {
+          email: ownerContext.email || loginEmail,
+          role: 'owner',
+          name:
+            ownerContext.full_name ||
+            ownerContext.tenant_name ||
+            'Responsável',
+          tenantId: ownerContext.tenant_id,
+          tenantSlug: ownerContext.tenant_slug,
+        },
+        '/painel',
+      );
     } catch (loginFlowError) {
-      await supabase.auth.signOut();
-
-      setError(
+      const loginFlowMessage =
         loginFlowError instanceof Error
           ? loginFlowError.message
-          : 'Não foi possível concluir o acesso. Tente novamente.',
-      );
+          : 'Não foi possível concluir o acesso. Tente novamente.';
+
+      if (loginFlowMessage.includes('O login demorou mais que o esperado')) {
+        recoverPersistedLogin();
+        return;
+      }
+
+      clearSessionWithoutBlocking();
+
+      setError(loginFlowMessage);
     }
   };
 
