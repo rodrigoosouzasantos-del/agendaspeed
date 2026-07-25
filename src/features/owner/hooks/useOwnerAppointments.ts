@@ -97,6 +97,32 @@ export function useOwnerAppointments({
     let appointmentsChannel: ReturnType<typeof supabase.channel> | null = null;
     let requestInFlight = false;
     let requestQueued = false;
+    let lastAppointmentsSyncVersion: string | null = null;
+
+    async function loadAppointmentsSyncVersion() {
+      const { data, error } = await supabase.rpc(
+        "get_my_appointments_sync_version",
+      );
+
+      if (error) {
+        console.error(
+          "Erro ao verificar alteraÃ§Ãµes na agenda:",
+          error.message,
+        );
+        return null;
+      }
+
+      const row = Array.isArray(data) ? data[0] : data;
+      const syncVersion =
+        row &&
+        typeof row === "object" &&
+        "sync_version" in row &&
+        typeof row.sync_version === "string"
+          ? row.sync_version
+          : null;
+
+      return syncVersion;
+    }
 
     async function loadAppointmentsFromSupabase(showLoading = true) {
       if (requestInFlight) {
@@ -122,7 +148,7 @@ export function useOwnerAppointments({
           console.error("Erro ao carregar agendamentos:", error.message);
           setAppointmentsLoadError(
             error.message ||
-              "Não foi possível carregar a agenda real do Supabase.",
+              "NÃ£o foi possÃ­vel carregar a agenda real do Supabase.",
           );
           setIsLoadingAppointments(false);
         } else {
@@ -134,6 +160,8 @@ export function useOwnerAppointments({
           );
 
           setAppointments(nextAppointments);
+          lastAppointmentsSyncVersion =
+            await loadAppointmentsSyncVersion();
           setIsLoadingAppointments(false);
         }
       }
@@ -164,6 +192,23 @@ export function useOwnerAppointments({
       }, 400);
     }
 
+    async function checkAppointmentsSyncVersion() {
+      if (requestInFlight) return;
+
+      const nextSyncVersion = await loadAppointmentsSyncVersion();
+
+      if (!isMounted || nextSyncVersion === null) return;
+
+      if (lastAppointmentsSyncVersion === null) {
+        lastAppointmentsSyncVersion = nextSyncVersion;
+        return;
+      }
+
+      if (nextSyncVersion !== lastAppointmentsSyncVersion) {
+        await loadAppointmentsFromSupabase(false);
+      }
+    }
+
     async function startAppointmentsSync() {
       await loadAppointmentsFromSupabase(true);
 
@@ -177,7 +222,7 @@ export function useOwnerAppointments({
 
       if (tenantError || !tenantId) {
         console.error(
-          "Não foi possível identificar a empresa para filtrar a agenda em tempo real.",
+          "NÃ£o foi possÃ­vel identificar a empresa para filtrar a agenda em tempo real.",
           tenantError?.message || "",
         );
         return;
@@ -198,7 +243,7 @@ export function useOwnerAppointments({
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
             console.error(
-              "Não foi possível ativar a atualização em tempo real da agenda.",
+              "NÃ£o foi possÃ­vel ativar a atualizaÃ§Ã£o em tempo real da agenda.",
             );
           }
         });
@@ -211,7 +256,7 @@ export function useOwnerAppointments({
         activeTabRef.current === "painel" || activeTabRef.current === "agenda";
 
       if (document.visibilityState === "visible" && isOperationalTab) {
-        void loadAppointmentsFromSupabase(false);
+        void checkAppointmentsSyncVersion();
       }
     }, APPOINTMENTS_POLLING_INTERVAL_MS);
 
@@ -277,7 +322,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "Não foi possível atualizar o status do agendamento.",
+        error.message || "NÃ£o foi possÃ­vel atualizar o status do agendamento.",
       );
       setAppointments(previousAppointments);
 
@@ -325,7 +370,7 @@ export function useOwnerAppointments({
       !newApptTime
     ) {
       showOwnerFeedback(
-        "Por favor, defina todos os campos obrigatórios do atendimento.",
+        "Por favor, defina todos os campos obrigatÃ³rios do atendimento.",
       );
       return;
     }
@@ -338,7 +383,7 @@ export function useOwnerAppointments({
     );
 
     if (!selectedService || !selectedProfessional) {
-      showOwnerFeedback("Serviço ou profissional não encontrado.");
+      showOwnerFeedback("ServiÃ§o ou profissional nÃ£o encontrado.");
       return;
     }
 
@@ -368,7 +413,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "Não foi possível criar o agendamento.",
+        error.message || "NÃ£o foi possÃ­vel criar o agendamento.",
       );
       return;
     }
@@ -378,7 +423,7 @@ export function useOwnerAppointments({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
+      showOwnerFeedback("NÃ£o foi possÃ­vel confirmar o agendamento criado.");
       return;
     }
 
@@ -418,7 +463,7 @@ export function useOwnerAppointments({
     );
 
     if (!selectedService || !selectedProfessional) {
-      showOwnerFeedback("Serviço ou profissional não encontrado.");
+      showOwnerFeedback("ServiÃ§o ou profissional nÃ£o encontrado.");
       return;
     }
 
@@ -461,7 +506,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "Não foi possível criar o agendamento.",
+        error.message || "NÃ£o foi possÃ­vel criar o agendamento.",
       );
       return;
     }
@@ -471,7 +516,7 @@ export function useOwnerAppointments({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
+      showOwnerFeedback("NÃ£o foi possÃ­vel confirmar o agendamento criado.");
       return;
     }
 
@@ -505,7 +550,7 @@ export function useOwnerAppointments({
 
     if (tokenResult.error) {
       console.error(
-        "Erro ao buscar token público do cliente:",
+        "Erro ao buscar token pÃºblico do cliente:",
         tokenResult.error.message,
       );
     }
