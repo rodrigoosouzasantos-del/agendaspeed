@@ -169,7 +169,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             </div>
 
             <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {['R$ 49,90/mês', 'Sem app para baixar', 'Sem limite de profissionais'].map((item) => (
+              {['R$ 50,00/mês', 'Sem app para baixar', 'Sem limite de profissionais'].map((item) => (
                 <div
                   key={item}
                   className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-center text-sm font-black text-white"
@@ -235,7 +235,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
               </span>
 
               <h2 className="mt-5 text-3xl font-extrabold tracking-[-0.04em] text-white sm:text-5xl">
-                R$ 49,90/mês
+                R$ 50,00/mês
               </h2>
 
               <p className="mt-4 max-w-lg text-base font-medium leading-8 text-slate-300">
@@ -284,7 +284,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
           <Logo />
 
           <p>
-            AgendaSpeed © 2026. Agendamento online para negócios que vivem de horário marcado.
+            Agendabless © 2026. Agendamento online para negócios que vivem de horário marcado.
           </p>
         </div>
       </footer>
