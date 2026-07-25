@@ -10,7 +10,8 @@ import {
   SUPABASE_RECEIPTS_SELECT, SUPABASE_RECEIPT_ITEMS_SELECT, SUPABASE_RECEIPT_PAYMENTS_SELECT, SUPABASE_CASH_EXPENSES_SELECT,
   SupabaseReceiptResponse, SupabaseReceiptItemResponse, SupabaseReceiptPaymentResponse, SupabaseCashExpenseResponse,
   toNullableUuid, mapSupabaseReceiptToAppReceipt, mapSupabaseCashExpenseToAppCashExpense,
-  buildReceiptInsertPayload, buildReceiptItemInsertPayload, buildReceiptFinancialAppointments, calculateReceiptTotals, buildReceiptItems,
+  buildReceiptInsertPayload, buildReceiptItemInsertPayload, calculateReceiptTotals, buildReceiptItems,
+  SupabaseAppointmentResponse, mapSupabaseAppointmentToAppAppointment,
 } from "../owner.data";
 
 type ShowOwnerFeedback = (message: string, title?: string) => void;
@@ -73,15 +74,20 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
   const { tenantId, state, onUpdateState, appointments, clients, services, products, professionals, setLiveAppointments, loadClientsFromSupabase, showOwnerFeedback, financePeriod } = params;
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [cashExpenses, setCashExpenses] = useState<CashExpense[]>([]);
+  const [financialAppointments, setFinancialAppointments] = useState<
+    Appointment[]
+  >([]);
   const [isLoadingFinancialRecords, setIsLoadingFinancialRecords] = useState(true);
   const [financialRecordsLoadError, setFinancialRecordsLoadError] = useState("");
   const financialLoadRequestIdRef = useRef(0);
   const latestFinancialRecordsRef = useRef<{
     receipts: Receipt[];
     cashExpenses: CashExpense[];
+    completedAppointments: Appointment[];
   }>({
     receipts: [],
     cashExpenses: [],
+    completedAppointments: [],
   });
   const pendingReceiptPaymentsRef = useRef<Set<string>>(new Set());
 
@@ -90,6 +96,7 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
   ): Promise<{
     receipts: Receipt[];
     cashExpenses: CashExpense[];
+    completedAppointments: Appointment[];
   }> => {
     const requestId = ++financialLoadRequestIdRef.current;
 
@@ -98,9 +105,11 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
         latestFinancialRecordsRef.current = {
           receipts: [],
           cashExpenses: [],
+          completedAppointments: [],
         };
         setReceipts([]);
         setCashExpenses([]);
+        setFinancialAppointments([]);
         setFinancialRecordsLoadError("");
         setIsLoadingFinancialRecords(false);
       }
@@ -108,6 +117,7 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
       return {
         receipts: [],
         cashExpenses: [],
+        completedAppointments: [],
       };
     }
 
@@ -138,26 +148,41 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
       `and(paid_at.gte.${toSaoPauloStartTimestamp(selectedPeriod.startDate)},paid_at.lt.${toSaoPauloStartTimestamp(selectedPeriodEndExclusive)})`,
     ].join(",");
 
-    const receiptsResult = await supabase
-      .from("receipts")
-      .select(SUPABASE_RECEIPTS_SELECT)
-      .eq("tenant_id", tenantId)
-      .or(receiptPeriodFilter)
-      .order("paid_at", { ascending: false });
+    const [receiptsResult, appointmentsResult] = await Promise.all([
+      supabase
+        .from("receipts")
+        .select(SUPABASE_RECEIPTS_SELECT)
+        .eq("tenant_id", tenantId)
+        .or(receiptPeriodFilter)
+        .order("paid_at", { ascending: false }),
+      supabase.rpc("get_my_appointments_v2", {
+        p_start_date: selectedPeriod.startDate,
+        p_end_date: selectedPeriod.endDate,
+      }),
+    ]);
 
-    if (receiptsResult.error) {
+    if (receiptsResult.error || appointmentsResult.error) {
+      const loadError = receiptsResult.error || appointmentsResult.error;
       console.error(
-        "Erro ao carregar recebimentos:",
-        receiptsResult.error.message,
+        "Erro ao carregar dados financeiros:",
+        loadError?.message,
       );
       if (requestId === financialLoadRequestIdRef.current) {
         setFinancialRecordsLoadError(
-          receiptsResult.error.message || "Erro ao carregar recebimentos.",
+          loadError?.message || "Erro ao carregar dados financeiros.",
         );
         setIsLoadingFinancialRecords(false);
       }
       return latestFinancialRecordsRef.current;
     }
+
+    const completedAppointments = (
+      (Array.isArray(appointmentsResult.data)
+        ? appointmentsResult.data
+        : []) as SupabaseAppointmentResponse[]
+    )
+      .map(mapSupabaseAppointmentToAppAppointment)
+      .filter((appointment) => appointment.status === "completed");
 
     const receiptRows = (Array.isArray(receiptsResult.data)
       ? receiptsResult.data
@@ -279,6 +304,7 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
     const loadedRecords = {
       receipts: nextReceipts,
       cashExpenses: nextCashExpenses,
+      completedAppointments,
     };
 
     if (requestId !== financialLoadRequestIdRef.current) {
@@ -288,6 +314,7 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
     latestFinancialRecordsRef.current = loadedRecords;
     setReceipts(nextReceipts);
     setCashExpenses(nextCashExpenses);
+    setFinancialAppointments(completedAppointments);
     setIsLoadingFinancialRecords(false);
 
     return loadedRecords;
@@ -327,23 +354,17 @@ export function useOwnerFinancial(params: UseOwnerFinancialParams) {
   });
 
   const baseFinancialSummary = calculateOwnerFinancialSummary({
-    appointments,
+    appointments: financialAppointments,
     professionals,
     baseDateStr,
   });
 
-  const receiptFinancialAppointments =
-    buildReceiptFinancialAppointments(receipts);
   const receiptTotals = calculateReceiptTotals(receipts, baseDateStr);
   const hasPaidReceipts = receipts.some((receipt) => receipt.status === "paid");
 
   const financialSummary = hasPaidReceipts
     ? {
         ...baseFinancialSummary,
-        completedAppointments: receiptFinancialAppointments,
-        completedToday: receiptFinancialAppointments.filter((appointment) => {
-          return appointment.dateTime.slice(0, 10) === baseDateStr;
-        }),
         totalReceivedToday: receiptTotals.totalReceivedToday,
         totalReceivedMonth: receiptTotals.totalReceivedMonth,
         totalCommissionsMonth: receiptTotals.totalCommissionsMonth,
