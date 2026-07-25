@@ -391,6 +391,8 @@ export default function OwnerDashboard({
     tenantId,
     state,
     onUpdateState,
+    activeTab,
+    financePeriod: financialPeriod ?? undefined,
     appointments,
     clients,
     professionals,
