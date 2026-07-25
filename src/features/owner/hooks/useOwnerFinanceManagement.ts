@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { Appointment, CashExpense, Client, Professional, Receipt } from "../../../types";
-import { OwnerDashboardProps } from "../owner.types";
+import { OwnerDashboardProps, OwnerTab } from "../owner.types";
 import { supabase } from "../../../lib/supabase";
+import type { FinancePeriod } from "../finance/useFinanceViewModel";
 import {
   CommissionPaymentPayload, CommissionPaymentRecord, ExpensePaymentPayload, ExpensePaymentRecord,
   ExpensePaymentUpdatePayload, ExpenseTemplatePayload, ExpenseTemplateRecord,
@@ -21,16 +22,48 @@ type ShowOwnerFeedback = (message: string, title?: string) => void;
 type FinancialRecords = { receipts: Receipt[]; cashExpenses: CashExpense[] };
 interface UseOwnerFinanceManagementParams {
   tenantId: string; state: OwnerDashboardProps["state"]; onUpdateState: OwnerDashboardProps["onUpdateState"];
+  activeTab?: OwnerTab; financePeriod?: FinancePeriod;
   appointments: Appointment[]; clients: Client[]; professionals: Professional[];
   loadFinancialRecordsFromSupabase: (showLoading?: boolean) => Promise<FinancialRecords>;
   showOwnerFeedback: ShowOwnerFeedback;
 }
 
+const getCurrentMonthFinancePeriod = (): FinancePeriod => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const formatDate = (date: Date) => {
+    const dateYear = date.getFullYear();
+    const dateMonth = String(date.getMonth() + 1).padStart(2, "0");
+    const dateDay = String(date.getDate()).padStart(2, "0");
+
+    return `${dateYear}-${dateMonth}-${dateDay}`;
+  };
+
+  return {
+    startDate: formatDate(new Date(year, month, 1)),
+    endDate: formatDate(new Date(year, month + 1, 0)),
+  };
+};
+
 export function useOwnerFinanceManagement(params: UseOwnerFinanceManagementParams) {
-  const { tenantId, state, onUpdateState, appointments, clients, professionals, loadFinancialRecordsFromSupabase, showOwnerFeedback } = params;
+  const {
+    tenantId,
+    state,
+    onUpdateState,
+    activeTab = "financeiro",
+    financePeriod,
+    appointments,
+    clients,
+    professionals,
+    loadFinancialRecordsFromSupabase,
+    showOwnerFeedback,
+  } = params;
   const [commissionPayments, setCommissionPayments] = useState<CommissionPaymentRecord[]>([]);
   const [expenseTemplates, setExpenseTemplates] = useState<ExpenseTemplateRecord[]>([]);
   const [expensePayments, setExpensePayments] = useState<ExpensePaymentRecord[]>([]);
+  const effectiveFinancePeriod =
+    financePeriod ?? getCurrentMonthFinancePeriod();
 
   const loadCommissionPaymentsFromSupabase = async (
     showFeedback = false,
@@ -46,6 +79,8 @@ export function useOwnerFinanceManagement(params: UseOwnerFinanceManagementParam
         "id,tenant_id,professional_id,period_start,period_end,calculated_commission,extra_value,discount_value,amount_paid,payment_type,paid_at,notes,created_at",
       )
       .eq("tenant_id", tenantId)
+      .lte("period_start", effectiveFinancePeriod.endDate)
+      .gte("period_end", effectiveFinancePeriod.startDate)
       .order("paid_at", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -158,28 +193,34 @@ export function useOwnerFinanceManagement(params: UseOwnerFinanceManagementParam
 
 
   useEffect(() => {
-    if (!tenantId) {
+    if (!tenantId || activeTab !== "financeiro") {
       setCommissionPayments([]);
       return;
     }
 
     void loadCommissionPaymentsFromSupabase(false);
-    // Carrega o histórico de comissões quando a empresa é identificada.
+    // Carrega somente as comissões do período enquanto o Financeiro está aberto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, professionals.length]);
+  }, [
+    tenantId,
+    activeTab,
+    professionals.length,
+    effectiveFinancePeriod.startDate,
+    effectiveFinancePeriod.endDate,
+  ]);
 
 
   useEffect(() => {
-    if (!tenantId) {
+    if (!tenantId || activeTab !== "financeiro") {
       setExpenseTemplates([]);
       setExpensePayments([]);
       return;
     }
 
     void loadExpenseRecordsFromSupabase(false);
-    // Carrega os cadastros e pagamentos de despesas quando o tenant é identificado.
+    // Carrega despesas somente enquanto o Financeiro está aberto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId]);
+  }, [tenantId, activeTab]);
 
 
 
