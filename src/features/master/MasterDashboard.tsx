@@ -1860,7 +1860,7 @@ export default function MasterDashboard({
                       Regra comercial
                     </p>
                     <p className="mt-2 text-sm font-black text-[#10232A]">
-                      21 dias de teste · R$ 49,90/mês
+                      21 dias de teste · R$ 50,00/mês
                     </p>
                   </div>
                 </div>
