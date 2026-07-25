@@ -22,7 +22,7 @@ interface LandingPageProps {
 }
 
 const WHATSAPP_SPECIALIST_URL =
-  'https://wa.me/551491096161?text=Ol%C3%A1%2C%20quero%20conhecer%20melhor%20o%20AgendaSpeed.';
+  'https://wa.me/551491096161?text=Ol%C3%A1%2C%20quero%20conhecer%20melhor%20o%20AgendaBless.';
 
 const benefits = [
   {
@@ -66,7 +66,7 @@ function Logo() {
       </span>
 
       <span className="text-lg font-black tracking-tight text-white">
-        Agenda<span className="text-orange-500">Speed</span>
+        Agenda<span className="text-orange-500">Bless</span>
       </span>
     </div>
   );
@@ -185,7 +185,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             <div className="relative overflow-hidden rounded-[2rem] border border-white/12 bg-white p-2 shadow-[0_28px_90px_rgba(0,0,0,0.35)]">
               <img
                 src="/agenda-vitrine-preview.jpeg"
-                alt="Exemplo da vitrine pública AgendaSpeed"
+                alt="Exemplo da vitrine pública AgendaBless"
                 className="max-h-[560px] w-full rounded-[1.55rem] object-cover object-top"
               />
             </div>
@@ -259,7 +259,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             <div className="rounded-[1.6rem] border border-white/10 bg-[#0D1B20] p-5">
               <div className="mb-4 flex items-center gap-2 text-sm font-black text-white">
                 <PanelRight className="h-5 w-5 text-orange-400" />
-                Incluído no AgendaSpeed
+                Incluído no AgendaBless
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -284,7 +284,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
           <Logo />
 
           <p>
-            Agendabless © 2026. Agendamento online para negócios que vivem de horário marcado.
+            AgendaBless © 2026. Agendamento online para negócios que vivem de horário marcado.
           </p>
         </div>
       </footer>
