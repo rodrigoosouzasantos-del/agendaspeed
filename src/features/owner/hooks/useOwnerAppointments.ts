@@ -41,7 +41,7 @@ interface UseOwnerAppointmentsParams {
   showOwnerFeedback: (message: string, title?: string) => void;
 }
 
-const APPOINTMENTS_HISTORY_DAYS = 335;
+const APPOINTMENTS_HISTORY_DAYS = 31;
 const APPOINTMENTS_FUTURE_DAYS = 31;
 const APPOINTMENTS_POLLING_INTERVAL_MS = 60000;
 
@@ -106,7 +106,7 @@ export function useOwnerAppointments({
 
       if (error) {
         console.error(
-          "Erro ao verificar alteraÃ§Ãµes na agenda:",
+          "Erro ao verificar alterações na agenda:",
           error.message,
         );
         return null;
@@ -148,7 +148,7 @@ export function useOwnerAppointments({
           console.error("Erro ao carregar agendamentos:", error.message);
           setAppointmentsLoadError(
             error.message ||
-              "NÃ£o foi possÃ­vel carregar a agenda real do Supabase.",
+              "Não foi possível carregar a agenda real do Supabase.",
           );
           setIsLoadingAppointments(false);
         } else {
@@ -222,7 +222,7 @@ export function useOwnerAppointments({
 
       if (tenantError || !tenantId) {
         console.error(
-          "NÃ£o foi possÃ­vel identificar a empresa para filtrar a agenda em tempo real.",
+          "Não foi possível identificar a empresa para filtrar a agenda em tempo real.",
           tenantError?.message || "",
         );
         return;
@@ -243,7 +243,7 @@ export function useOwnerAppointments({
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
             console.error(
-              "NÃ£o foi possÃ­vel ativar a atualizaÃ§Ã£o em tempo real da agenda.",
+              "Não foi possível ativar a atualização em tempo real da agenda.",
             );
           }
         });
@@ -322,7 +322,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "NÃ£o foi possÃ­vel atualizar o status do agendamento.",
+        error.message || "Não foi possível atualizar o status do agendamento.",
       );
       setAppointments(previousAppointments);
 
@@ -370,7 +370,7 @@ export function useOwnerAppointments({
       !newApptTime
     ) {
       showOwnerFeedback(
-        "Por favor, defina todos os campos obrigatÃ³rios do atendimento.",
+        "Por favor, defina todos os campos obrigatórios do atendimento.",
       );
       return;
     }
@@ -383,7 +383,7 @@ export function useOwnerAppointments({
     );
 
     if (!selectedService || !selectedProfessional) {
-      showOwnerFeedback("ServiÃ§o ou profissional nÃ£o encontrado.");
+      showOwnerFeedback("Serviço ou profissional não encontrado.");
       return;
     }
 
@@ -413,7 +413,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "NÃ£o foi possÃ­vel criar o agendamento.",
+        error.message || "Não foi possível criar o agendamento.",
       );
       return;
     }
@@ -423,7 +423,7 @@ export function useOwnerAppointments({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      showOwnerFeedback("NÃ£o foi possÃ­vel confirmar o agendamento criado.");
+      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
       return;
     }
 
@@ -463,7 +463,7 @@ export function useOwnerAppointments({
     );
 
     if (!selectedService || !selectedProfessional) {
-      showOwnerFeedback("ServiÃ§o ou profissional nÃ£o encontrado.");
+      showOwnerFeedback("Serviço ou profissional não encontrado.");
       return;
     }
 
@@ -506,7 +506,7 @@ export function useOwnerAppointments({
 
     if (error) {
       showOwnerFeedback(
-        error.message || "NÃ£o foi possÃ­vel criar o agendamento.",
+        error.message || "Não foi possível criar o agendamento.",
       );
       return;
     }
@@ -516,7 +516,7 @@ export function useOwnerAppointments({
     ) as SupabaseAppointmentResponse | null;
 
     if (!savedRow) {
-      showOwnerFeedback("NÃ£o foi possÃ­vel confirmar o agendamento criado.");
+      showOwnerFeedback("Não foi possível confirmar o agendamento criado.");
       return;
     }
 
@@ -550,7 +550,7 @@ export function useOwnerAppointments({
 
     if (tokenResult.error) {
       console.error(
-        "Erro ao buscar token pÃºblico do cliente:",
+        "Erro ao buscar token público do cliente:",
         tokenResult.error.message,
       );
     }
