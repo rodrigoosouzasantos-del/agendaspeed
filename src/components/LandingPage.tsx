@@ -317,6 +317,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
 
           <p>
             AgendaBless © 2026. Agendamento online para negócios.
+             <p></p>
                                     "Em tudo dai graças".
           </p>
         </div>
