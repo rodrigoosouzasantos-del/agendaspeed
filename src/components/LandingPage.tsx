@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Users,
   WalletCards,
-  Zap,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -61,8 +60,41 @@ const includedItems = [
 function Logo() {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-[0_14px_30px_rgba(249,115,22,0.28)]">
-        <Zap className="h-5 w-5 fill-current" />
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#16343D] shadow-[0_14px_30px_rgba(249,115,22,0.20)]">
+        <svg
+          aria-hidden="true"
+          className="h-8 w-8"
+          viewBox="0 0 40 40"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <ellipse
+            cx="20"
+            cy="7.5"
+            rx="9.5"
+            ry="3.2"
+            stroke="#F97316"
+            strokeWidth="2.5"
+          />
+          <path
+            d="M11.5 14.5H28.5C30.433 14.5 32 16.067 32 18V31C32 32.933 30.433 34.5 28.5 34.5H11.5C9.567 34.5 8 32.933 8 31V18C8 16.067 9.567 14.5 11.5 14.5Z"
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8 21H32M14 12V17M26 12V17"
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M14 26H17M23 26H26M14 30H17M23 30H26"
+            stroke="white"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </svg>
       </span>
 
       <span className="text-lg font-black tracking-tight text-white">
@@ -284,7 +316,8 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
           <Logo />
 
           <p>
-            AgendaBless © 2026. Agendamento online para negócios que vivem de horário marcado.
+            AgendaBless © 2026. Agendamento online para negócios.
+                                    "Em tudo dai graças".
           </p>
         </div>
       </footer>
