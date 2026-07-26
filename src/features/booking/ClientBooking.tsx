@@ -898,14 +898,45 @@ export default function ClientBooking({
 
       <footer className="py-8 flex justify-center">
         <div className="inline-flex items-center gap-2 text-[#1A3038]">
-          <span className="w-9 h-9 rounded-xl bg-[#E0A96D] text-[#1A3038] flex items-center justify-center shadow-[0_8px_22px_rgba(224,169,109,0.22)]">
-            <span className="text-lg font-black leading-none">
-              ⚡
-            </span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#16343D] shadow-[0_8px_22px_rgba(224,169,109,0.22)]">
+            <svg
+              aria-hidden="true"
+              className="h-7 w-7"
+              viewBox="0 0 40 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <ellipse
+                cx="20"
+                cy="7.5"
+                rx="9.5"
+                ry="3.2"
+                stroke="#E0A96D"
+                strokeWidth="2.5"
+              />
+              <path
+                d="M11.5 14.5H28.5C30.433 14.5 32 16.067 32 18V31C32 32.933 30.433 34.5 28.5 34.5H11.5C9.567 34.5 8 32.933 8 31V18C8 16.067 9.567 14.5 11.5 14.5Z"
+                stroke="white"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M8 21H32M14 12V17M26 12V17"
+                stroke="white"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M14 26H17M23 26H26M14 30H17M23 30H26"
+                stroke="white"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
           </span>
 
           <span className="text-lg font-black tracking-tight">
-            Agenda<span className="text-[#E0A96D]">Speed</span>
+            Agenda<span className="text-[#E0A96D]">Bless</span>
           </span>
         </div>
       </footer>
