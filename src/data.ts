@@ -548,7 +548,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
 // MOCK / FALLBACK LOCAL DE DESENVOLVIMENTO
 // -----------------------------------------------------------------------------
 // Este arquivo não deve ser tratado como banco da aplicação em produção.
-// A fonte oficial do AgendaSpeed em produção é o Supabase/PostgreSQL via RPCs.
+// A fonte oficial do AgendaBless em produção é o Supabase/PostgreSQL via RPCs.
 //
 // O estado local abaixo existe apenas para:
 // - permitir telas de fallback enquanto módulos antigos ainda recebem `state`;
@@ -638,7 +638,7 @@ export function getLocalState(): LocalState {
       }
     }
   } catch (error) {
-    console.error('Erro ao ler mock local do AgendaSpeed:', error);
+    console.error('Erro ao ler mock local do AgendaBless:', error);
   }
 
   const initialState = buildMockLocalState();
@@ -654,7 +654,7 @@ export function saveLocalState(state: LocalState): void {
   try {
     window.localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
   } catch (error) {
-    console.error('Erro ao gravar mock local do AgendaSpeed:', error);
+    console.error('Erro ao gravar mock local do AgendaBless:', error);
   }
 }
 
@@ -668,7 +668,7 @@ export function resetLocalState(): LocalState {
   try {
     window.localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(initialState));
   } catch (error) {
-    console.error('Erro ao restaurar mock local do AgendaSpeed:', error);
+    console.error('Erro ao restaurar mock local do AgendaBless:', error);
   }
 
   return initialState;

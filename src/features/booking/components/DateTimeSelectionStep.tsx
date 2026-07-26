@@ -1,5 +1,5 @@
 /**
- * Etapa de seleção de data e horário - AgendaSpeed.
+ * Etapa de seleção de data e horário - AgendaBless.
  *
  * Responsável por:
  * - listar datas disponíveis;

@@ -1,5 +1,5 @@
 /**
- * Tela de Serviços e Categorias do Painel do Dono - AgendaSpeed.
+ * Tela de Serviços e Categorias do Painel do Dono - AgendaBless.
  *
  * Regras:
  * - Serviços e categorias são modos separados para evitar poluição visual;
@@ -273,7 +273,7 @@ export default function ServicesView({
         <div className="h-1.5 bg-[#0f4c5c]" />
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">AGENDASPEED</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">AgendaBless</p>
             <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
               {mode === 'services' ? 'Serviços' : 'Categorias'}
             </h2>

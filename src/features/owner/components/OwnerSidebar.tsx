@@ -1,5 +1,5 @@
 /**
- * Menu lateral / menu mobile do Painel do Dono - AgendaSpeed.
+ * Menu lateral / menu mobile do Painel do Dono - AgendaBless.
  *
  * Responsável por navegar entre os módulos administrativos:
  * - Painel;
@@ -204,7 +204,7 @@ export default function OwnerSidebar({
             <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-600">
-                  AgendaSpeed
+                  AgendaBless
                 </p>
                 <h2 className="mt-1 text-base font-semibold text-neutral-950">
                   Menu do painel

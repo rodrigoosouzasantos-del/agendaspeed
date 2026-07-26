@@ -1,5 +1,5 @@
 /**
- * Tipos internos do painel do profissional - AgendaSpeed.
+ * Tipos internos do painel do profissional - AgendaBless.
  *
  * Este arquivo centraliza os tipos usados pelo colaborador/profissional,
  * mantendo o componente principal mais limpo e preparado para evolução.

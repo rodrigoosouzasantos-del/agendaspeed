@@ -1,5 +1,5 @@
 /**
- * Modal de Cadastro/Edição de Profissional - AgendaSpeed.
+ * Modal de Cadastro/Edição de Profissional - AgendaBless.
  *
  * Responsável por:
  * - cadastrar novo profissional;

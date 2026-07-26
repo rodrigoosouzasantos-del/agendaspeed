@@ -95,7 +95,7 @@ const renderProfessionalManagerCards = () => {
           <div className="px-4 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                AGENDASPEED
+                AgendaBless
               </p>
               <h3 className="text-lg font-semibold tracking-tight text-neutral-950 mt-1">
                 Gerenciador de agenda dos profissionais

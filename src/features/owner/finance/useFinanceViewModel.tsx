@@ -1,5 +1,5 @@
 /**
- * Tela Financeira do Painel do Dono - AgendaSpeed.
+ * Tela Financeira do Painel do Dono - AgendaBless.
  *
  * Responsável por:
  * - analisar faturamento do período;
@@ -334,7 +334,7 @@ function getSaoPauloDateStr(dateValue?: string): string {
 function getCashBookStorageKey(period: FinancePeriod): string {
   const monthKey = period.startDate.slice(0, 7) || 'geral';
 
-  return `agendaspeed-cashbook-initial-balance-${monthKey}`;
+  return `AgendaBless-cashbook-initial-balance-${monthKey}`;
 }
 
 function parseCurrencyInput(value: string): number {
@@ -399,7 +399,7 @@ function buildEstablishmentPrintHeader(params: {
 
   return `
     <div class="header">
-      <h1>${escapeHtml(companyName || 'AgendaSpeed')}</h1>
+      <h1>${escapeHtml(companyName || 'AgendaBless')}</h1>
       ${companyAddress ? `<p>Endereço: ${escapeHtml(companyAddress)}</p>` : ''}
       ${companyPhone ? `<p>Telefone: ${escapeHtml(companyPhone)}</p>` : ''}
       <h2>${escapeHtml(reportTitle)}</h2>

@@ -557,7 +557,7 @@ export function useOwnerProfessionals({
       message?: string;
     } | null;
 
-    const productionOrigin = "https://agendaspeed.com.br";
+    const productionOrigin = "https://AgendaBless.com.br";
     const professionalAccessLink = result?.token
       ? `${productionOrigin}/profissional-acesso/${result.token}`
       : String(result?.link_futuro || result?.link_local || "").replace(

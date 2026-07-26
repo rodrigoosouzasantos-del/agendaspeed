@@ -88,7 +88,7 @@ export function BookingHeader({
         ) : (
           <div className="rounded-[1.75rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[#1A3038]">
-              AgendaSpeed
+              AgendaBless
             </p>
           </div>
         )}
@@ -111,7 +111,7 @@ export function BookingHeader({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h1 className="truncate text-xl font-semibold tracking-tight text-[#1A3038] sm:text-2xl">
-                  {companyName || 'AgendaSpeed'}
+                  {companyName || 'AgendaBless'}
                 </h1>
 
                 {showBackToSiteButton && (

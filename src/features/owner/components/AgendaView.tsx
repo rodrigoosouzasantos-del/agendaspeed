@@ -1,5 +1,5 @@
 /**
- * Coordenador da Agenda Geral do Painel do Dono - AgendaSpeed.
+ * Coordenador da Agenda Geral do Painel do Dono - AgendaBless.
  */
 
 import React, {

@@ -1,5 +1,5 @@
 /**
- * Página pública de acompanhamento do cliente - AgendaSpeed.
+ * Página pública de acompanhamento do cliente - AgendaBless.
  *
  * Responsável por:
  * - abrir o link enviado pelo WhatsApp após o agendamento;
@@ -107,7 +107,7 @@ interface RescheduleDraft {
   error: string;
 }
 
-const CLIENT_APPOINTMENTS_CACHE_PREFIX = 'agendaspeed:client-appointments:';
+const CLIENT_APPOINTMENTS_CACHE_PREFIX = 'AgendaBless:client-appointments:';
 const CLIENT_APPOINTMENTS_LOAD_TIMEOUT_MS = 12000;
 const RESCHEDULE_LOAD_TIMEOUT_MS = 15000;
 const CLIENT_ACTION_TIMEOUT_MS = 15000;
@@ -1162,7 +1162,7 @@ export default function ClientAppointmentsPage({
           </div>
 
           <div className="mx-auto mb-4 inline-flex rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 font-mono text-[10px] font-extrabold uppercase tracking-[0.22em] text-blue-800">
-            AgendaSpeed
+            AgendaBless
           </div>
 
           <h1 className="text-2xl font-extrabold tracking-[-0.04em] text-slate-950">

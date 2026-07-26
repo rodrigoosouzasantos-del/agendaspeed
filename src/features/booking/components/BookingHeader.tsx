@@ -1,5 +1,5 @@
 /**
- * Cabeçalho da Vitrine pública de agendamento - AgendaSpeed.
+ * Cabeçalho da Vitrine pública de agendamento - AgendaBless.
  *
  * Responsável por exibir, somente na primeira tela da Vitrine:
  * - capa/fachada real cadastrada no estabelecimento;

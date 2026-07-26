@@ -1,5 +1,5 @@
 /**
- * Tela de sucesso do agendamento público - AgendaSpeed.
+ * Tela de sucesso do agendamento público - AgendaBless.
  *
  * Responsável por:
  * - confirmar visualmente que o horário foi registrado;

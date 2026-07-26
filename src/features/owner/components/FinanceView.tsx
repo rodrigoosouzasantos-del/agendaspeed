@@ -1,5 +1,5 @@
 /**
- * Coordenador da área financeira do Painel do Dono - AgendaSpeed.
+ * Coordenador da área financeira do Painel do Dono - AgendaBless.
  *
  * A lógica financeira permanece separada no useFinanceViewModel,
  * enquanto cada módulo visual é renderizado pelo seu componente.

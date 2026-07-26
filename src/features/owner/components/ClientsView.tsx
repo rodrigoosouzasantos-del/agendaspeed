@@ -1,5 +1,5 @@
 /**
- * Tela de Clientes do Painel do Dono - AgendaSpeed.
+ * Tela de Clientes do Painel do Dono - AgendaBless.
  *
  * Responsável por:
  * - exibir carteira limpa de clientes;
@@ -306,7 +306,7 @@ function isClientBirthdayToday(client: Client, todayDate: Date): boolean {
 }
 
 function getBirthdayStorageKey(clientId: string, currentYear: number): string {
-  return `agendaspeed-birthday-greeted-${currentYear}-${clientId}`;
+  return `AgendaBless-birthday-greeted-${currentYear}-${clientId}`;
 }
 
 function getClientInternalCode(client: Client): string {
@@ -760,7 +760,7 @@ export default function ClientsView({
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
 
             <h2 className="text-lg font-black tracking-tight text-neutral-950">
@@ -1016,7 +1016,7 @@ export default function ClientsView({
             <div className="flex items-start justify-between border-b pb-3 gap-3">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                  AGENDASPEED
+                  AgendaBless
                 </p>
                 <h3 className="text-lg font-black text-neutral-950">
                   Dados do Cliente

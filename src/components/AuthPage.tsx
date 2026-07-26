@@ -89,7 +89,7 @@ type FeedbackModalState = {
 
 type AuthSuccessUser = Parameters<AuthPageProps['onAuthSuccess']>[0];
 
-const PENDING_PUBLIC_TRIAL_KEY = 'agendaspeed_pending_public_trial_v1';
+const PENDING_PUBLIC_TRIAL_KEY = 'AgendaBless_pending_public_trial_v1';
 
 function readBooleanRpcResult(data: unknown): boolean {
   const value = Array.isArray(data) ? data[0] : data;
@@ -255,7 +255,7 @@ export default function AuthPage({
   const loginRecoveryTimerRef = useRef<number | null>(null);
 
   const publicOrigin = useMemo(() => {
-    if (typeof window === 'undefined') return 'https://agendaspeed.com.br';
+    if (typeof window === 'undefined') return 'https://AgendaBless.com.br';
     return window.location.origin.replace('https://www.', 'https://');
   }, []);
 
@@ -875,7 +875,7 @@ export default function AuthPage({
 
             <h1 className="mt-3 text-3xl font-extrabold tracking-[-0.04em] text-[#1A3038]">
               {mode === 'login'
-                ? 'Entrar no AgendaSpeed'
+                ? 'Entrar no AgendaBless'
                 : registerStep === 1
                   ? 'Crie sua agenda grátis'
                   : 'Defina o link e o endereço'}
@@ -959,7 +959,7 @@ export default function AuthPage({
                   <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">E-mail</span>
                   <div className="relative">
                     <Mail className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                    <input ref={registerEmailRef} type="email" name="agendaspeed-new-company-contact" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                    <input ref={registerEmailRef} type="email" name="AgendaBless-new-company-contact" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="seuemail@empresa.com" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                   </div>
                 </label>
 
@@ -968,7 +968,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input ref={registerPasswordRef} type={showPassword ? 'text' : 'password'} name="agendaspeed-new-company-password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input ref={registerPasswordRef} type={showPassword ? 'text' : 'password'} name="AgendaBless-new-company-password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -979,7 +979,7 @@ export default function AuthPage({
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">Confirmar senha</span>
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                      <input ref={registerConfirmPasswordRef} type={showConfirmPassword ? 'text' : 'password'} name="agendaspeed-new-company-password-confirmation" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
+                      <input ref={registerConfirmPasswordRef} type={showConfirmPassword ? 'text' : 'password'} name="AgendaBless-new-company-password-confirmation" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repita a senha" className="h-12 w-full rounded-2xl border border-slate-200 bg-[#F4F6F6] pl-11 pr-11 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white" />
                       <button type="button" onClick={() => setShowConfirmPassword((current) => !current)} className="absolute right-3 top-2.5 rounded-xl p-2 text-slate-400 hover:bg-white">
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>

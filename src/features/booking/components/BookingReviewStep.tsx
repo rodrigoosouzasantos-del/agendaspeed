@@ -1,5 +1,5 @@
 /**
- * Etapa de revisão e finalização do agendamento - AgendaSpeed.
+ * Etapa de revisão e finalização do agendamento - AgendaBless.
  *
  * Responsável por:
  * - mostrar o resumo final do agendamento;

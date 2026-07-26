@@ -1235,15 +1235,15 @@ export interface AgendaCreateAppointmentResult {
   clientActionLink?: string;
 }
 
-export function getAgendaSpeedPublicOrigin(): string {
+export function getAgendaBlessPublicOrigin(): string {
   if (typeof window === "undefined") {
-    return "https://agendaspeed.com.br";
+    return "https://AgendaBless.com.br";
   }
 
   const origin = window.location.origin.replace("https://www.", "https://");
 
   if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
-    return "https://agendaspeed.com.br";
+    return "https://AgendaBless.com.br";
   }
 
   return origin;
@@ -1281,7 +1281,7 @@ export function buildOwnerPublicBookingUrl(slug: string): string {
   }
 
   if (typeof window === "undefined") {
-    return `https://agendaspeed.com.br/${normalizedSlug}`;
+    return `https://AgendaBless.com.br/${normalizedSlug}`;
   }
 
   const hostname = window.location.hostname;
@@ -1289,7 +1289,7 @@ export function buildOwnerPublicBookingUrl(slug: string): string {
     hostname === "localhost" || hostname === "127.0.0.1";
 
   const origin = isLocalhost
-    ? "https://agendaspeed.com.br"
+    ? "https://AgendaBless.com.br"
     : window.location.origin.replace("https://www.", "https://");
 
   return `${origin}/${normalizedSlug}`;

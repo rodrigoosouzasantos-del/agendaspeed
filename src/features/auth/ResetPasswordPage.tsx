@@ -110,7 +110,7 @@ export default function ResetPasswordPage() {
                 Redefina sua senha
               </h1>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                Informe uma nova senha para voltar a acessar o AgendaSpeed.
+                Informe uma nova senha para voltar a acessar o AgendaBless.
               </p>
             </div>
 

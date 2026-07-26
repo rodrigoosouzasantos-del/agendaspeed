@@ -27,7 +27,7 @@ export function useOwnerSubscription() {
 
     if (subscriptionResult.error) {
       console.error(
-        "Erro ao carregar a assinatura do AgendaSpeed:",
+        "Erro ao carregar a assinatura do AgendaBless:",
         subscriptionResult.error.message,
       );
       setSaasSubscription(null);

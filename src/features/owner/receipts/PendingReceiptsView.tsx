@@ -54,7 +54,7 @@ if (isPendingReceiptsOpen) {
           <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                AGENDASPEED
+                AgendaBless
               </p>
               <h1 className="text-lg font-black text-slate-950">
                 Valores pendentes

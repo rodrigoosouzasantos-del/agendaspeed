@@ -72,7 +72,7 @@ export default function FinanceReportsView({ context }: FinanceReportsViewProps)
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
 
             <h2 className="text-lg font-semibold tracking-tight text-neutral-950">

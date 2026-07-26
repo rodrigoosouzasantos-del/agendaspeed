@@ -1,5 +1,5 @@
 /**
- * Tela de Produtos do Painel do Dono - AgendaSpeed.
+ * Tela de Produtos do Painel do Dono - AgendaBless.
  *
  * Escopo enxuto:
  * - cadastrar produtos usados apenas como complemento dos recebimentos;
@@ -90,7 +90,7 @@ export default function ProductsView({
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
 
             <h2 className="text-lg font-medium tracking-tight text-neutral-950">

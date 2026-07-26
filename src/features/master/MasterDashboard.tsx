@@ -1,5 +1,5 @@
 /**
- * Área Master / Desenvolvedor - AgendaSpeed.
+ * Área Master / Desenvolvedor - AgendaBless.
  *
  * Tela compacta para:
  * - listar empresas em ordem crescente;
@@ -651,7 +651,7 @@ function TenantTable({
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{tenant.name}</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">{tenant.responsibleName} · {tenant.email || "Sem e-mail"}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">agendaspeed.com.br/{tenant.slug}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">AgendaBless.com.br/{tenant.slug}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${tenant.signupSource === "public_trial" ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
                       {tenant.signupSource === "public_trial" ? "Cadastro pelo site" : "Criada pelo desenvolvedor"}
@@ -1084,7 +1084,7 @@ export default function MasterDashboard({
   const origin =
     typeof window !== "undefined"
       ? window.location.origin.replace("https://www.", "https://")
-      : "https://agendaspeed.com.br";
+      : "https://AgendaBless.com.br";
 
   const showToast = (type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -1337,7 +1337,7 @@ export default function MasterDashboard({
 
     const message = [
       `Olá, ${tenant.responsibleName || tenant.name}.`,
-      `Seu acesso ao AgendaSpeed da empresa ${tenant.name} está disponível.`,
+      `Seu acesso ao AgendaBless da empresa ${tenant.name} está disponível.`,
       `Link da agenda: ${origin}/${tenant.slug}`,
     ].join("\n");
 
@@ -1587,7 +1587,7 @@ export default function MasterDashboard({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-black">AgendaSpeed</p>
+              <p className="text-sm font-black">AgendaBless</p>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">
                 Desenvolvedor
               </p>
@@ -1639,7 +1639,7 @@ export default function MasterDashboard({
                   {currentTitle}
                 </h1>
                 <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                  Controle comercial e financeiro das empresas AgendaSpeed.
+                  Controle comercial e financeiro das empresas AgendaBless.
                 </p>
               </div>
 

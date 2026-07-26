@@ -321,7 +321,7 @@ if (isCheckoutOpen) {
 
             <div className="text-center">
               <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-                AGENDASPEED • CAIXA
+                AgendaBless • CAIXA
               </p>
               <h1 className="text-lg font-black tracking-tight text-neutral-950">
                 Fechamento do pagamento

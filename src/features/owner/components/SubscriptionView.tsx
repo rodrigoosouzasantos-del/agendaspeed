@@ -1,5 +1,5 @@
 /**
- * Tela de Mensalidade do Painel do Dono - AgendaSpeed.
+ * Tela de Mensalidade do Painel do Dono - AgendaBless.
  *
  * Mostra apenas dados oficiais da assinatura retornados pelo Supabase.
  * O dono não altera valor, vencimento ou status.
@@ -146,14 +146,14 @@ export default function SubscriptionView({
   const handleSendReceipt = () => {
     if (!subscription?.whatsappSupport) {
       alert(
-        'O WhatsApp para envio do comprovante ainda não foi configurado pelo AgendaSpeed.',
+        'O WhatsApp para envio do comprovante ainda não foi configurado pelo AgendaBless.',
       );
       return;
     }
 
     const phone = subscription.whatsappSupport.replace(/\D/g, '');
     const message = [
-      'Olá! Realizei o pagamento da mensalidade do AgendaSpeed.',
+      'Olá! Realizei o pagamento da mensalidade do AgendaBless.',
       '',
       `Empresa: ${subscription.tenantName}`,
       `Valor: ${formatCurrency(subscription.monthlyPrice)}`,
@@ -207,7 +207,7 @@ export default function SubscriptionView({
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
             <h2 className="text-lg font-black tracking-tight text-neutral-950">
               Mensalidade
@@ -258,7 +258,7 @@ export default function SubscriptionView({
                 Plano atual
               </p>
               <h3 className="mt-1 text-lg font-black text-[#10232A]">
-                AgendaSpeed
+                AgendaBless
               </h3>
             </div>
 

@@ -1,5 +1,5 @@
 /**
- * Tela de Configurações do Painel do Dono - AgendaSpeed.
+ * Tela de Configurações do Painel do Dono - AgendaBless.
  *
  * Responsável por:
  * - editar dados principais do estabelecimento;
@@ -262,7 +262,7 @@ export default function SettingsView({
   const [showAdvancedRules, setShowAdvancedRules] = useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
   const [responsibleName, setResponsibleName] = useState(() => {
-    return localStorage.getItem('agendaspeed-company-responsible-name') || '';
+    return localStorage.getItem('AgendaBless-company-responsible-name') || '';
   });
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -406,7 +406,7 @@ export default function SettingsView({
 
   const handleChangeResponsibleName = (value: string) => {
     setResponsibleName(value);
-    localStorage.setItem('agendaspeed-company-responsible-name', value);
+    localStorage.setItem('AgendaBless-company-responsible-name', value);
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -439,7 +439,7 @@ export default function SettingsView({
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
 
             <h2 className="text-lg font-black tracking-tight text-neutral-950">
@@ -944,7 +944,7 @@ export default function SettingsView({
                     </p>
 
                     <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-500">
-                      Recursos automáticos do AgendaSpeed. O cliente recebe o link seguro para confirmar, cancelar ou remarcar conforme as regras do sistema.
+                      Recursos automáticos do AgendaBless. O cliente recebe o link seguro para confirmar, cancelar ou remarcar conforme as regras do sistema.
                     </p>
                   </div>
                 </div>

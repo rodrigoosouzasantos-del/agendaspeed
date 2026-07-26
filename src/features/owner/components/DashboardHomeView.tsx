@@ -45,7 +45,7 @@ import {
 
 import {
   extractClientPublicToken,
-  getAgendaSpeedPublicOrigin
+  getAgendaBlessPublicOrigin
 } from '../owner.data';
 
 import {
@@ -1008,7 +1008,7 @@ export default function DashboardHomeView({
       }
 
       const appointmentLink =
-        `${getAgendaSpeedPublicOrigin()}/meus-agendamentos/${encodeURIComponent(clientPublicToken)}`;
+        `${getAgendaBlessPublicOrigin()}/meus-agendamentos/${encodeURIComponent(clientPublicToken)}`;
 
       const whatsappUrl = buildWhatsAppConfirmationUrl({
         appointment,
@@ -1296,7 +1296,7 @@ export default function DashboardHomeView({
         <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#0f4c5c]">
-              AGENDASPEED
+              AgendaBless
             </p>
             <h2 className="text-lg font-normal tracking-tight text-neutral-950">
               Painel Operacional

@@ -1,5 +1,5 @@
 /**
- * Modal de cadastro e edição de produtos - AgendaSpeed.
+ * Modal de cadastro e edição de produtos - AgendaBless.
  *
  * Escopo:
  * - código;
@@ -91,7 +91,7 @@ export default function ProductModal({
 
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0f4c5c]">
-                AGENDASPEED
+                AgendaBless
               </p>
 
               <h2 className="text-lg font-black text-neutral-950">

@@ -1,5 +1,5 @@
 /**
- * Etapa da Vitrine de serviços - AgendaSpeed.
+ * Etapa da Vitrine de serviços - AgendaBless.
  *
  * Responsável por:
  * - listar categorias de serviços;

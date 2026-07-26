@@ -1,5 +1,5 @@
 /**
- * Etapa de dados do cliente - AgendaSpeed.
+ * Etapa de dados do cliente - AgendaBless.
  *
  * Responsável por:
  * - coletar nome do cliente;

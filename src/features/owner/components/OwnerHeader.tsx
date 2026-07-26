@@ -1,5 +1,5 @@
 /**
- * Cabeçalho superior do Painel do Dono - AgendaSpeed.
+ * Cabeçalho superior do Painel do Dono - AgendaBless.
  *
  * Exibe:
  * - logo e nome do estabelecimento;
@@ -51,7 +51,7 @@ export default function OwnerHeader({
     if (!publicBookingUrl) return;
 
     const shareText = [
-      `📅 Agendamento online — ${companyName || 'AgendaSpeed'}`,
+      `📅 Agendamento online — ${companyName || 'AgendaBless'}`,
       '',
       'Agende seu horário em poucos minutos:',
       '',

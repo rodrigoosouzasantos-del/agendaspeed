@@ -1,5 +1,5 @@
 /**
- * Etapa de escolha do profissional - AgendaSpeed.
+ * Etapa de escolha do profissional - AgendaBless.
  *
  * Responsável por:
  * - listar somente profissionais habilitados para o serviço;

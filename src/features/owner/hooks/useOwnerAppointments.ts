@@ -14,7 +14,7 @@ import {
   SupabaseAppointmentResponse,
   buildOwnerAppointmentPayload,
   extractClientPublicToken,
-  getAgendaSpeedPublicOrigin,
+  getAgendaBlessPublicOrigin,
   mapSupabaseAppointmentToAppAppointment,
 } from "../owner.data";
 import {
@@ -562,7 +562,7 @@ export function useOwnerAppointments({
     return {
       appointmentId: newAppointment.id,
       clientActionLink: clientPublicToken
-        ? `${getAgendaSpeedPublicOrigin()}/meus-agendamentos/${clientPublicToken}`
+        ? `${getAgendaBlessPublicOrigin()}/meus-agendamentos/${clientPublicToken}`
         : "",
     };
   };
