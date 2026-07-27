@@ -855,7 +855,7 @@ export default function AuthPage({
             </span>
 
             <span className="text-lg font-black tracking-tight text-white">
-              Agenda<span className="text-orange-500">Speed</span>
+              Agenda<span className="text-orange-500">Bless</span>
             </span>
           </div>
         </div>
