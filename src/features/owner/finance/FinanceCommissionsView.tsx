@@ -56,6 +56,10 @@ interface CommissionPaymentRecord {
   items?: CommissionPaymentItem[];
 }
 
+type CommissionPrintTarget =
+  | { kind: 'saved' }
+  | { kind: 'payment'; payment: CommissionPaymentRecord };
+
 export default function FinanceCommissionsView({ context }: FinanceCommissionsViewProps) {
   const {
     activeFinanceTab,
@@ -115,7 +119,25 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
     PanelCard
   } = context;
 
+  const [commissionPrintTarget, setCommissionPrintTarget] =
+    React.useState<CommissionPrintTarget | null>(null);
 
+  const handleConfirmCommissionPrint = (includeAppointmentHistory: boolean) => {
+    if (!commissionPrintTarget) {
+      return;
+    }
+
+    if (commissionPrintTarget.kind === 'saved') {
+      handlePrintSavedCommissionPayment(includeAppointmentHistory);
+    } else {
+      handlePrintCommissionPaymentIndividual(
+        commissionPrintTarget.payment,
+        includeAppointmentHistory
+      );
+    }
+
+    setCommissionPrintTarget(null);
+  };
 
   return (
     <>
@@ -373,7 +395,12 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => handlePrintCommissionPaymentIndividual(payment)}
+                            onClick={() =>
+                              setCommissionPrintTarget({
+                                kind: 'payment',
+                                payment
+                              })
+                            }
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 hover:bg-slate-50"
                           >
                             Imprimir
@@ -430,7 +457,12 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
 
                 <button
                   type="button"
-                  onClick={() => handlePrintCommissionPaymentIndividual(editingPaidCommission)}
+                  onClick={() =>
+                    setCommissionPrintTarget({
+                      kind: 'payment',
+                      payment: editingPaidCommission
+                    })
+                  }
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
                 >
                   Reimprimir comprovante
@@ -870,7 +902,9 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                 {pendingCommissionPrintHtml && (
                   <button
                     type="button"
-                    onClick={handlePrintSavedCommissionPayment}
+                    onClick={() =>
+                      setCommissionPrintTarget({ kind: 'saved' })
+                    }
                     className="rounded-xl bg-[#0f4c5c] px-4 py-2.5 text-sm font-black text-white hover:bg-[#123945]"
                   >
                     Imprimir comprovante
@@ -886,6 +920,51 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
                 >
                   Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {commissionPrintTarget && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="h-1 bg-[#E0A96D]" />
+
+            <div className="p-5">
+              <h2 className="text-lg font-semibold text-slate-950">
+                Como deseja imprimir?
+              </h2>
+
+              <p className="mt-1.5 text-sm font-medium leading-relaxed text-slate-600">
+                Escolha se o comprovante deve incluir a relação completa dos
+                atendimentos deste lote.
+              </p>
+
+              <div className="mt-5 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmCommissionPrint(true)}
+                  className="rounded-xl bg-[#0f4c5c] px-4 py-3 text-sm font-semibold text-white hover:bg-[#123945]"
+                >
+                  Com histórico de atendimentos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleConfirmCommissionPrint(false)}
+                  className="rounded-xl border border-[#0f4c5c]/25 bg-[#0f4c5c]/5 px-4 py-3 text-sm font-semibold text-[#0f4c5c] hover:bg-[#0f4c5c]/10"
+                >
+                  Sem histórico de atendimentos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCommissionPrintTarget(null)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>

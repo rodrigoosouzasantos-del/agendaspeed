@@ -619,6 +619,10 @@ export function useFinanceViewModel({
   } | null>(null);
   const [pendingCommissionPrintHtml, setPendingCommissionPrintHtml] =
     useState("");
+  const [
+    pendingCommissionPrintHtmlWithoutHistory,
+    setPendingCommissionPrintHtmlWithoutHistory,
+  ] = useState("");
 
   const [showCommissionHistory, setShowCommissionHistory] = useState(false);
   const [editingPaidCommission, setEditingPaidCommission] =
@@ -1156,6 +1160,7 @@ export function useFinanceViewModel({
   const buildCommissionPaymentPrintHtml = (
     row: CommissionRow,
     payload: CommissionPaymentPayload,
+    includeAppointmentHistory = true,
   ) => {
     const itemRowsHtml = payload.items
       .map((item) => {
@@ -1229,22 +1234,28 @@ export function useFinanceViewModel({
         </tbody>
       </table>
 
-      <h2>Atendimentos do lote</h2>
+      ${
+        includeAppointmentHistory
+          ? `
+            <h2>Atendimentos do lote</h2>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Cliente</th>
-            <th>Serviço</th>
-            <th class="right">Valor</th>
-            <th class="right">Comissão</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRowsHtml}
-        </tbody>
-      </table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Cliente</th>
+                  <th>Serviço</th>
+                  <th class="right">Valor</th>
+                  <th class="right">Comissão</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemRowsHtml}
+              </tbody>
+            </table>
+          `
+          : ""
+      }
 
       <div class="summary">
         <div class="summary-row">
@@ -1317,7 +1328,10 @@ export function useFinanceViewModel({
       await onPayCommission(payload);
 
       setPendingCommissionPrintHtml(
-        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload),
+        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload, true),
+      );
+      setPendingCommissionPrintHtmlWithoutHistory(
+        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload, false),
       );
       resetCommissionPaymentForm();
       setCommissionFeedback({
@@ -1338,18 +1352,25 @@ export function useFinanceViewModel({
     }
   };
 
-  const handlePrintSavedCommissionPayment = () => {
-    if (!pendingCommissionPrintHtml) {
+  const handlePrintSavedCommissionPayment = (
+    includeAppointmentHistory = true,
+  ) => {
+    const printHtml = includeAppointmentHistory
+      ? pendingCommissionPrintHtml
+      : pendingCommissionPrintHtmlWithoutHistory;
+
+    if (!printHtml) {
       return;
     }
 
     buildPrintWindow({
       title: "Comprovante de Comissão",
       thermal: true,
-      body: pendingCommissionPrintHtml,
+      body: printHtml,
     });
 
     setPendingCommissionPrintHtml("");
+    setPendingCommissionPrintHtmlWithoutHistory("");
     setCommissionFeedback(null);
   };
 
@@ -2209,6 +2230,7 @@ export function useFinanceViewModel({
 
   const handlePrintCommissionPaymentIndividual = (
     payment: CommissionPaymentRecord,
+    includeAppointmentHistory = true,
   ) => {
     const itemRowsHtml = (payment.items || [])
       .map((item) => {
@@ -2273,7 +2295,7 @@ export function useFinanceViewModel({
         </table>
 
         ${
-          itemRowsHtml
+          includeAppointmentHistory && itemRowsHtml
             ? `
               <h2>Atendimentos do lote</h2>
               <table>
