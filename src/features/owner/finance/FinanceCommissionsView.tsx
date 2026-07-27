@@ -606,8 +606,8 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
       )}
 
       {selectedCommissionRow && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-2 backdrop-blur-sm sm:px-4">
+          <div className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-7xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl sm:w-[94vw]">
             <div className="h-1.5 bg-[#0f4c5c]" />
 
             <div className="p-5">
