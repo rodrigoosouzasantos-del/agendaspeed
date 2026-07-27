@@ -383,6 +383,7 @@ export default function OwnerDashboard({
     expensePayments,
     handlePayCommission,
     handleUpdateCommissionPaidAt,
+    handleUpdateCommissionPayment,
     handleSaveExpenseTemplate,
     handleDeleteExpenseTemplate,
     handlePayExpense,
@@ -645,6 +646,7 @@ export default function OwnerDashboard({
               expensePayments={expensePayments}
               onPayCommission={handlePayCommission}
               onUpdateCommissionPaidAt={handleUpdateCommissionPaidAt}
+              onUpdateCommissionPayment={handleUpdateCommissionPayment}
               onSaveExpenseTemplate={handleSaveExpenseTemplate}
               onDeleteExpenseTemplate={handleDeleteExpenseTemplate}
               onPayExpense={handlePayExpense}

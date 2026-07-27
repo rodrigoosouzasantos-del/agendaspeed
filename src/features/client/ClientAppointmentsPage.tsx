@@ -1182,7 +1182,7 @@ export default function ClientAppointmentsPage({
       <section className="mx-auto max-w-md space-y-3">
         <header className="rounded-3xl border border-white/80 bg-white/95 px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur">
           <div className="inline-flex rounded-full border border-blue-100 bg-white px-3 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.24em] text-slate-950 shadow-sm">
-            Agenda<span className="text-blue-700">Speed</span>
+            Agenda<span className="text-blue-700">Bless</span>
           </div>
 
           <h1 className="mt-3 text-2xl font-extrabold leading-none tracking-[-0.05em] text-slate-950">

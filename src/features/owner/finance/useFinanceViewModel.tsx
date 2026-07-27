@@ -8,11 +8,7 @@
  * - manter visual padronizado em azul petróleo.
  */
 
-import React, {
-  useEffect,
-  useMemo,
-  useState
-} from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   ArrowLeft,
@@ -27,8 +23,8 @@ import {
   Plus,
   Printer,
   Trash2,
-  WalletCards
-} from 'lucide-react';
+  WalletCards,
+} from "lucide-react";
 
 import {
   Appointment,
@@ -36,24 +32,18 @@ import {
   PaymentType,
   Professional,
   Receipt,
-  Service
-} from '../../../types';
+  Service,
+} from "../../../types";
 
 import {
   calculateProfessionalCommission,
-  calculateProfessionalGrossRevenue,
-  countProfessionalCompletedAppointments,
   formatCurrency,
   getPaymentLabel,
-  getRemunerationLabel
-} from '../owner.utils';
+  getRemunerationLabel,
+} from "../owner.utils";
 
 type FinanceInternalTab =
-  | 'faturamento'
-  | 'comissoes'
-  | 'movimentacao'
-  | 'livroCaixa'
-  | 'despesas';
+  "faturamento" | "comissoes" | "movimentacao" | "livroCaixa" | "despesas";
 
 export interface CommissionPaymentPayload {
   professionalId: string;
@@ -67,6 +57,17 @@ export interface CommissionPaymentPayload {
   paymentType: PaymentType;
   paidAt: string;
   notes?: string;
+  items: CommissionPaymentItem[];
+}
+
+export interface CommissionPaymentItem {
+  appointmentId: string;
+  appointmentDate: string;
+  clientName: string;
+  serviceId: string;
+  serviceName: string;
+  serviceValue: number;
+  commissionValue: number;
 }
 
 export interface CommissionPaymentRecord {
@@ -83,6 +84,17 @@ export interface CommissionPaymentRecord {
   paidAt: string;
   notes?: string;
   createdAt?: string;
+  items?: CommissionPaymentItem[];
+}
+
+export interface CommissionPaymentUpdatePayload {
+  paymentId: string;
+  extraValue: number;
+  discountValue: number;
+  amountPaid: number;
+  paymentType: PaymentType;
+  paidAt: string;
+  notes?: string;
 }
 
 export interface ExpenseTemplateRecord {
@@ -108,7 +120,7 @@ export interface ExpensePaymentRecord {
   discountValue: number;
   amountPaid: number;
   paymentType: PaymentType;
-  status: 'pending' | 'paid' | 'cancelled';
+  status: "pending" | "paid" | "cancelled";
   paidAt?: string;
   notes?: string;
 }
@@ -162,31 +174,24 @@ export interface FinanceViewProps {
   commissionPayments?: CommissionPaymentRecord[];
   expenseTemplates?: ExpenseTemplateRecord[];
   expensePayments?: ExpensePaymentRecord[];
-  onPayCommission?: (
-    payload: CommissionPaymentPayload
-  ) => void | Promise<void>;
+  onPayCommission?: (payload: CommissionPaymentPayload) => void | Promise<void>;
   onUpdateCommissionPaidAt?: (
     paymentId: string,
-    paidAt: string
+    paidAt: string,
+  ) => void | Promise<void>;
+  onUpdateCommissionPayment?: (
+    payload: CommissionPaymentUpdatePayload,
   ) => void | Promise<void>;
   onSaveExpenseTemplate?: (
-    payload: ExpenseTemplatePayload
+    payload: ExpenseTemplatePayload,
   ) => void | Promise<void>;
-  onDeleteExpenseTemplate?: (
-    expenseTemplateId: string
-  ) => void | Promise<void>;
-  onPayExpense?: (
-    payload: ExpensePaymentPayload
-  ) => void | Promise<void>;
+  onDeleteExpenseTemplate?: (expenseTemplateId: string) => void | Promise<void>;
+  onPayExpense?: (payload: ExpensePaymentPayload) => void | Promise<void>;
   onUpdateExpensePayment?: (
-    payload: ExpensePaymentUpdatePayload
+    payload: ExpensePaymentUpdatePayload,
   ) => void | Promise<void>;
-  onDeleteExpensePayment?: (
-    paymentId: string
-  ) => void | Promise<void>;
-  onPeriodChange?: (
-    period: FinancePeriod
-  ) => void | Promise<void>;
+  onDeleteExpensePayment?: (paymentId: string) => void | Promise<void>;
+  onPeriodChange?: (period: FinancePeriod) => void | Promise<void>;
 }
 
 export interface FinancePeriod {
@@ -196,7 +201,7 @@ export interface FinancePeriod {
 
 interface CashBookRow {
   date: string;
-  type: 'recebimento' | 'despesa';
+  type: "recebimento" | "despesa";
   description: string;
   value: number;
 }
@@ -204,7 +209,7 @@ interface CashBookRow {
 interface FinancialMovementRow {
   id: string;
   date: string;
-  type: 'recebimento' | 'despesa' | 'cortesia';
+  type: "recebimento" | "despesa" | "cortesia";
   description: string;
   paymentType: PaymentType;
   entryValue: number;
@@ -216,10 +221,16 @@ interface CommissionRow {
   completedCount: number;
   totalProduced: number;
   commissionValue: number;
+  items: CommissionPaymentItem[];
+  payableItems: CommissionPaymentItem[];
+  paidItems: CommissionPaymentItem[];
+  payableCount: number;
+  payableProduced: number;
+  payableCommissionValue: number;
 }
 
 function padDatePart(value: number): string {
-  return String(value).padStart(2, '0');
+  return String(value).padStart(2, "0");
 }
 
 function formatLocalDateStr(date: Date): string {
@@ -237,16 +248,16 @@ function getCurrentMonthPeriod(): FinancePeriod {
 
   return {
     startDate: formatLocalDateStr(startDate),
-    endDate: formatLocalDateStr(endDate)
+    endDate: formatLocalDateStr(endDate),
   };
 }
 
 function formatDateBr(dateStr: string): string {
-  if (!dateStr || !dateStr.includes('-')) {
+  if (!dateStr || !dateStr.includes("-")) {
     return dateStr;
   }
 
-  return dateStr.split('-').reverse().join('/');
+  return dateStr.split("-").reverse().join("/");
 }
 
 function getInclusivePeriodDays(period: FinancePeriod): number {
@@ -265,29 +276,27 @@ function getInclusivePeriodDays(period: FinancePeriod): number {
     return 0;
   }
 
-  return Math.floor(
-    (endDate.getTime() - startDate.getTime()) / 86400000
-  ) + 1;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
 }
 
 function formatEmissionDate(): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short'
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(new Date());
 }
 
 function getAppointmentDateStr(dateTime: string): string {
-  if (!dateTime || !dateTime.includes('T')) {
-    return '';
+  if (!dateTime || !dateTime.includes("T")) {
+    return "";
   }
 
-  return dateTime.split('T')[0];
+  return dateTime.split("T")[0];
 }
 
 function getSaoPauloDateStr(dateValue?: string): string {
   if (!dateValue) {
-    return '';
+    return "";
   }
 
   const normalizedValue = dateValue.trim();
@@ -298,10 +307,11 @@ function getSaoPauloDateStr(dateValue?: string): string {
 
   const normalizedTimestamp = normalizedValue.replace(
     /^(\d{4}-\d{2}-\d{2})\s/,
-    '$1T'
+    "$1T",
   );
-  const hasExplicitTimezone =
-    /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(normalizedTimestamp);
+  const hasExplicitTimezone = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(
+    normalizedTimestamp,
+  );
   const timestampToParse =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(normalizedTimestamp) &&
     !hasExplicitTimezone
@@ -313,16 +323,16 @@ function getSaoPauloDateStr(dateValue?: string): string {
     return normalizedValue.slice(0, 10);
   }
 
-  const dateParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
+  const dateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(parsedDate);
 
-  const year = dateParts.find((part) => part.type === 'year')?.value;
-  const month = dateParts.find((part) => part.type === 'month')?.value;
-  const day = dateParts.find((part) => part.type === 'day')?.value;
+  const year = dateParts.find((part) => part.type === "year")?.value;
+  const month = dateParts.find((part) => part.type === "month")?.value;
+  const day = dateParts.find((part) => part.type === "day")?.value;
 
   if (!year || !month || !day) {
     return normalizedValue.slice(0, 10);
@@ -332,13 +342,13 @@ function getSaoPauloDateStr(dateValue?: string): string {
 }
 
 function getCashBookStorageKey(period: FinancePeriod): string {
-  const monthKey = period.startDate.slice(0, 7) || 'geral';
+  const monthKey = period.startDate.slice(0, 7) || "geral";
 
   return `AgendaBless-cashbook-initial-balance-${monthKey}`;
 }
 
 function parseCurrencyInput(value: string): number {
-  const onlyNumbers = value.replace(/\D/g, '');
+  const onlyNumbers = value.replace(/\D/g, "");
 
   if (!onlyNumbers) {
     return 0;
@@ -351,10 +361,7 @@ function formatCurrencyInput(value: number): string {
   return formatCurrency(Number(value) || 0);
 }
 
-function calculateRoundedPercentage(
-  value: number,
-  total: number
-): number {
+function calculateRoundedPercentage(value: number, total: number): number {
   const normalizedValue = Number(value) || 0;
   const normalizedTotal = Number(total) || 0;
 
@@ -367,19 +374,16 @@ function calculateRoundedPercentage(
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function getServiceName(
-  services: Service[],
-  serviceId: string
-): string {
+function getServiceName(services: Service[], serviceId: string): string {
   const service = services.find((item) => item.id === serviceId);
 
-  return service?.name || 'Serviço personalizado';
+  return service?.name || "Serviço personalizado";
 }
 
 function buildEstablishmentPrintHeader(params: {
@@ -389,19 +393,14 @@ function buildEstablishmentPrintHeader(params: {
   reportTitle: string;
   period: FinancePeriod;
 }) {
-  const {
-    companyName,
-    companyAddress,
-    companyPhone,
-    reportTitle,
-    period
-  } = params;
+  const { companyName, companyAddress, companyPhone, reportTitle, period } =
+    params;
 
   return `
     <div class="header">
-      <h1>${escapeHtml(companyName || 'AgendaBless')}</h1>
-      ${companyAddress ? `<p>Endereço: ${escapeHtml(companyAddress)}</p>` : ''}
-      ${companyPhone ? `<p>Telefone: ${escapeHtml(companyPhone)}</p>` : ''}
+      <h1>${escapeHtml(companyName || "AgendaBless")}</h1>
+      ${companyAddress ? `<p>Endereço: ${escapeHtml(companyAddress)}</p>` : ""}
+      ${companyPhone ? `<p>Telefone: ${escapeHtml(companyPhone)}</p>` : ""}
       <h2>${escapeHtml(reportTitle)}</h2>
       <p>Período: ${formatDateBr(period.startDate)} a ${formatDateBr(period.endDate)}</p>
       <p>Data da emissão: ${formatEmissionDate()}</p>
@@ -416,17 +415,19 @@ function buildPrintWindow(params: {
 }) {
   const { title, body, thermal = false } = params;
 
-  const printWindow = window.open('', '_blank');
+  const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
-    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.');
+    alert(
+      "Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.",
+    );
     return;
   }
 
-  const width = thermal ? '80mm' : '210mm';
-  const fontSize = thermal ? '11px' : '12px';
-  const pageSize = thermal ? '80mm auto' : 'A4';
-  const margin = thermal ? '4mm' : '14mm';
+  const width = thermal ? "80mm" : "210mm";
+  const fontSize = thermal ? "11px" : "12px";
+  const pageSize = thermal ? "80mm auto" : "A4";
+  const margin = thermal ? "4mm" : "14mm";
 
   const html = `
     <!doctype html>
@@ -573,12 +574,13 @@ export function useFinanceViewModel({
   expensePayments = [],
   onPayCommission,
   onUpdateCommissionPaidAt,
+  onUpdateCommissionPayment,
   onSaveExpenseTemplate,
   onDeleteExpenseTemplate,
   onPayExpense,
   onUpdateExpensePayment,
   onDeleteExpensePayment,
-  onPeriodChange
+  onPeriodChange,
 }: FinanceViewProps) {
   const initialPeriod = useMemo(() => {
     return getCurrentMonthPeriod();
@@ -587,14 +589,14 @@ export function useFinanceViewModel({
   const [activeFinanceTab, setActiveFinanceTab] =
     useState<FinanceInternalTab | null>(null);
 
-  const [period, setPeriod] =
-    useState<FinancePeriod>(initialPeriod);
+  const [period, setPeriod] = useState<FinancePeriod>(initialPeriod);
 
-  const [draftPeriod, setDraftPeriod] =
-    useState<FinancePeriod>(initialPeriod);
+  const [draftPeriod, setDraftPeriod] = useState<FinancePeriod>(initialPeriod);
 
   const [initialCashBalance, setInitialCashBalance] = useState<number>(() => {
-    const storedValue = localStorage.getItem(getCashBookStorageKey(initialPeriod));
+    const storedValue = localStorage.getItem(
+      getCashBookStorageKey(initialPeriod),
+    );
 
     return storedValue ? Number(storedValue) || 0 : 0;
   });
@@ -602,13 +604,13 @@ export function useFinanceViewModel({
   const [selectedCommissionRow, setSelectedCommissionRow] =
     useState<CommissionRow | null>(null);
   const [commissionPaidAt, setCommissionPaidAt] = useState(
-    formatLocalDateStr(new Date())
+    formatLocalDateStr(new Date()),
   );
   const [commissionPaymentType, setCommissionPaymentType] =
-    useState<PaymentType>('dinheiro');
+    useState<PaymentType>("dinheiro");
   const [commissionExtraValue, setCommissionExtraValue] = useState(0);
   const [commissionDiscountValue, setCommissionDiscountValue] = useState(0);
-  const [commissionNotes, setCommissionNotes] = useState('');
+  const [commissionNotes, setCommissionNotes] = useState("");
   const [isSavingCommissionPayment, setIsSavingCommissionPayment] =
     useState(false);
   const [commissionFeedback, setCommissionFeedback] = useState<{
@@ -616,12 +618,19 @@ export function useFinanceViewModel({
     message: string;
   } | null>(null);
   const [pendingCommissionPrintHtml, setPendingCommissionPrintHtml] =
-    useState('');
+    useState("");
 
   const [showCommissionHistory, setShowCommissionHistory] = useState(false);
   const [editingPaidCommission, setEditingPaidCommission] =
     useState<CommissionPaymentRecord | null>(null);
-  const [editedCommissionPaidAt, setEditedCommissionPaidAt] = useState('');
+  const [editedCommissionPaidAt, setEditedCommissionPaidAt] = useState("");
+  const [editedCommissionPaymentType, setEditedCommissionPaymentType] =
+    useState<PaymentType>("dinheiro");
+  const [editedCommissionExtraValue, setEditedCommissionExtraValue] =
+    useState(0);
+  const [editedCommissionDiscountValue, setEditedCommissionDiscountValue] =
+    useState(0);
+  const [editedCommissionNotes, setEditedCommissionNotes] = useState("");
   const [isUpdatingCommissionPaidAt, setIsUpdatingCommissionPaidAt] =
     useState(false);
 
@@ -629,14 +638,13 @@ export function useFinanceViewModel({
     useState<ExpenseTemplateRecord | null>(null);
   const [showExpenseTemplateModal, setShowExpenseTemplateModal] =
     useState(false);
-  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseDescription, setExpenseDescription] = useState("");
   const [expenseExpectedAmount, setExpenseExpectedAmount] = useState(0);
-  const [expenseDueDay, setExpenseDueDay] = useState('');
-  const [expenseDueDate, setExpenseDueDate] = useState('');
+  const [expenseDueDay, setExpenseDueDay] = useState("");
+  const [expenseDueDate, setExpenseDueDate] = useState("");
   const [expenseIsMonthly, setExpenseIsMonthly] = useState(true);
-  const [expenseTemplateNotes, setExpenseTemplateNotes] = useState('');
-  const [isSavingExpenseTemplate, setIsSavingExpenseTemplate] =
-    useState(false);
+  const [expenseTemplateNotes, setExpenseTemplateNotes] = useState("");
+  const [isSavingExpenseTemplate, setIsSavingExpenseTemplate] = useState(false);
   const [expenseTemplateToDelete, setExpenseTemplateToDelete] =
     useState<ExpenseTemplateRecord | null>(null);
   const [isDeletingExpenseTemplate, setIsDeletingExpenseTemplate] =
@@ -644,14 +652,14 @@ export function useFinanceViewModel({
   const [expenseToPay, setExpenseToPay] =
     useState<ExpenseTemplateRecord | null>(null);
   const [expensePaidAt, setExpensePaidAt] = useState(
-    formatLocalDateStr(new Date())
+    formatLocalDateStr(new Date()),
   );
   const [expensePaymentType, setExpensePaymentType] =
-    useState<PaymentType>('dinheiro');
+    useState<PaymentType>("dinheiro");
   const [expenseInterestValue, setExpenseInterestValue] = useState(0);
   const [expenseFineValue, setExpenseFineValue] = useState(0);
   const [expenseDiscountValue, setExpenseDiscountValue] = useState(0);
-  const [expensePaymentNotes, setExpensePaymentNotes] = useState('');
+  const [expensePaymentNotes, setExpensePaymentNotes] = useState("");
   const [isPayingExpense, setIsPayingExpense] = useState(false);
   const [editingExpensePayment, setEditingExpensePayment] =
     useState<ExpensePaymentRecord | null>(null);
@@ -682,8 +690,7 @@ export function useFinanceViewModel({
     period.startDate > period.endDate;
 
   const isPeriodTooLong =
-    Boolean(period.startDate && period.endDate) &&
-    periodDays > 31;
+    Boolean(period.startDate && period.endDate) && periodDays > 31;
 
   const filteredAppointments = useMemo(() => {
     if (isInvalidPeriod || isPeriodTooLong) {
@@ -698,16 +705,10 @@ export function useFinanceViewModel({
       }
 
       return (
-        appointmentDate >= period.startDate &&
-        appointmentDate <= period.endDate
+        appointmentDate >= period.startDate && appointmentDate <= period.endDate
       );
     });
-  }, [
-    completedAppointments,
-    isInvalidPeriod,
-    isPeriodTooLong,
-    period
-  ]);
+  }, [completedAppointments, isInvalidPeriod, isPeriodTooLong, period]);
 
   const filteredCashExpenses = useMemo(() => {
     if (isInvalidPeriod || isPeriodTooLong) {
@@ -715,20 +716,16 @@ export function useFinanceViewModel({
     }
 
     return cashExpenses.filter((expense) => {
-      const expenseDate = getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10);
+      const expenseDate =
+        getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10);
 
       return (
-        expense.status === 'paid' &&
+        expense.status === "paid" &&
         expenseDate >= period.startDate &&
         expenseDate <= period.endDate
       );
     });
-  }, [
-    cashExpenses,
-    isInvalidPeriod,
-    isPeriodTooLong,
-    period
-  ]);
+  }, [cashExpenses, isInvalidPeriod, isPeriodTooLong, period]);
 
   const totalRevenue = useMemo(() => {
     return filteredAppointments.reduce((sum, appointment) => {
@@ -743,17 +740,22 @@ export function useFinanceViewModel({
   }, [filteredAppointments]);
 
   const serviceRevenueRows = useMemo(() => {
-    const map = new Map<string, {
-      serviceId: string;
-      serviceName: string;
-      quantity: number;
-      unitValue: number;
-      total: number;
-    }>();
+    const map = new Map<
+      string,
+      {
+        serviceId: string;
+        serviceName: string;
+        quantity: number;
+        unitValue: number;
+        total: number;
+      }
+    >();
 
     filteredAppointments.forEach((appointment) => {
       const current = map.get(appointment.serviceId);
-      const service = services.find((item) => item.id === appointment.serviceId);
+      const service = services.find(
+        (item) => item.id === appointment.serviceId,
+      );
 
       if (current) {
         current.quantity += 1;
@@ -764,17 +766,17 @@ export function useFinanceViewModel({
 
       map.set(appointment.serviceId, {
         serviceId: appointment.serviceId,
-        serviceName: service?.name || 'Serviço personalizado',
+        serviceName: service?.name || "Serviço personalizado",
         quantity: 1,
         unitValue: service?.price || appointment.price,
-        total: appointment.price
+        total: appointment.price,
       });
     });
 
     return Array.from(map.values())
       .map((row) => ({
         ...row,
-        percentage: calculateRoundedPercentage(row.total, totalRevenue)
+        percentage: calculateRoundedPercentage(row.total, totalRevenue),
       }))
       .sort((a, b) => {
         if (b.total !== a.total) {
@@ -783,20 +785,10 @@ export function useFinanceViewModel({
 
         return a.serviceName.localeCompare(b.serviceName);
       });
-  }, [
-    filteredAppointments,
-    services,
-    totalRevenue
-  ]);
+  }, [filteredAppointments, services, totalRevenue]);
 
   const paymentRevenueRows = useMemo(() => {
-    const paymentTypes = [
-      'pix',
-      'dinheiro',
-      'credito',
-      'debito',
-      'cortesia'
-    ];
+    const paymentTypes = ["pix", "dinheiro", "credito", "debito", "cortesia"];
 
     return paymentTypes.map((paymentType) => {
       const total = filteredAppointments
@@ -806,7 +798,7 @@ export function useFinanceViewModel({
       return {
         paymentType,
         total,
-        percentage: calculateRoundedPercentage(total, totalRevenue)
+        percentage: calculateRoundedPercentage(total, totalRevenue),
       };
     });
   }, [filteredAppointments, totalRevenue]);
@@ -815,13 +807,15 @@ export function useFinanceViewModel({
     return professionals
       .map((professional) => {
         const total = filteredAppointments
-          .filter((appointment) => appointment.professionalId === professional.id)
+          .filter(
+            (appointment) => appointment.professionalId === professional.id,
+          )
           .reduce((sum, appointment) => sum + appointment.price, 0);
 
         return {
           professional,
           total,
-          percentage: calculateRoundedPercentage(total, totalRevenue)
+          percentage: calculateRoundedPercentage(total, totalRevenue),
         };
       })
       .sort((a, b) => {
@@ -831,10 +825,7 @@ export function useFinanceViewModel({
 
         return a.professional.name.localeCompare(b.professional.name);
       });
-  }, [
-    filteredAppointments,
-    professionals
-  ]);
+  }, [filteredAppointments, professionals]);
 
   const filteredReceipts = useMemo(() => {
     if (isInvalidPeriod || isPeriodTooLong) {
@@ -845,31 +836,29 @@ export function useFinanceViewModel({
       const receiptDate = getSaoPauloDateStr(receipt.paidAt);
 
       return (
-        receipt.status !== 'cancelled' &&
+        receipt.status !== "cancelled" &&
         receiptDate >= period.startDate &&
         receiptDate <= period.endDate
       );
     });
-  }, [
-    isInvalidPeriod,
-    isPeriodTooLong,
-    period,
-    receipts
-  ]);
+  }, [isInvalidPeriod, isPeriodTooLong, period, receipts]);
 
   const productRevenueRows = useMemo(() => {
-    const productMap = new Map<string, {
-      productId: string;
-      code: string;
-      description: string;
-      quantity: number;
-      total: number;
-      unitValue: number;
-    }>();
+    const productMap = new Map<
+      string,
+      {
+        productId: string;
+        code: string;
+        description: string;
+        quantity: number;
+        total: number;
+        unitValue: number;
+      }
+    >();
 
     filteredReceipts.forEach((receipt) => {
       receipt.items
-        .filter((item) => item.itemType === 'product')
+        .filter((item) => item.itemType === "product")
         .forEach((item) => {
           const productId = item.productId || item.itemDescription || item.id;
           const quantity = Math.max(1, Number(item.quantity) || 1);
@@ -886,32 +875,25 @@ export function useFinanceViewModel({
 
           productMap.set(productId, {
             productId,
-            code: '',
-            description:
-              item.itemDescription ||
-              item.serviceName ||
-              'Produto',
+            code: "",
+            description: item.itemDescription || item.serviceName || "Produto",
             quantity,
             total,
             unitValue:
-              Number(item.unitPrice) ||
-              (quantity > 0 ? total / quantity : 0)
+              Number(item.unitPrice) || (quantity > 0 ? total / quantity : 0),
           });
         });
     });
 
     const totalProductsRevenue = Array.from(productMap.values()).reduce(
       (sum, row) => sum + row.total,
-      0
+      0,
     );
 
     return Array.from(productMap.values())
       .map((row) => ({
         ...row,
-        percentage: calculateRoundedPercentage(
-          row.total,
-          totalProductsRevenue
-        )
+        percentage: calculateRoundedPercentage(row.total, totalProductsRevenue),
       }))
       .sort((a, b) => {
         if (b.total !== a.total) {
@@ -928,30 +910,94 @@ export function useFinanceViewModel({
 
   const totalGrossRevenue = totalRevenue + totalProductsRevenue;
 
+  const paidCommissionAppointmentIds = useMemo(() => {
+    return new Set(
+      commissionPayments.flatMap((payment) => {
+        return (payment.items || []).map((item) => item.appointmentId);
+      }),
+    );
+  }, [commissionPayments]);
+
   const commissionRows = useMemo<CommissionRow[]>(() => {
     return professionals
       .map((professional) => {
-        const completedCount = countProfessionalCompletedAppointments({
-          professionalId: professional.id,
-          completedAppointments: filteredAppointments
-        });
+        const professionalAppointments = filteredAppointments.filter(
+          (appointment) => {
+            return appointment.professionalId === professional.id;
+          },
+        );
 
-        const totalProduced = calculateProfessionalGrossRevenue({
-          professionalId: professional.id,
-          completedAppointments: filteredAppointments
-        });
+        const hasOverlappingLegacyPayment = commissionPayments.some(
+          (payment) => {
+            return (
+              payment.professionalId === professional.id &&
+              (!payment.items || payment.items.length === 0) &&
+              payment.periodStart <= period.endDate &&
+              payment.periodEnd >= period.startDate
+            );
+          },
+        );
 
-        const commissionValue = calculateProfessionalCommission({
-          professional,
-          services,
-          completedAppointments: filteredAppointments
+        const items = professionalAppointments.map<CommissionPaymentItem>(
+          (appointment) => {
+            const appointmentWithClient = appointment as Appointment & {
+              clientName?: string;
+            };
+
+            return {
+              appointmentId: appointment.id,
+              appointmentDate: getAppointmentDateStr(appointment.dateTime),
+              clientName:
+                appointmentWithClient.clientName?.trim() ||
+                "Cliente não informado",
+              serviceId: appointment.serviceId,
+              serviceName: getServiceName(services, appointment.serviceId),
+              serviceValue: Number(appointment.price) || 0,
+              commissionValue: calculateProfessionalCommission({
+                professional,
+                services,
+                completedAppointments: [appointment],
+              }),
+            };
+          },
+        );
+
+        const paidItems = items.filter((item) => {
+          return (
+            hasOverlappingLegacyPayment ||
+            paidCommissionAppointmentIds.has(item.appointmentId)
+          );
+        });
+        const payableItems = items.filter((item) => {
+          return (
+            !hasOverlappingLegacyPayment &&
+            !paidCommissionAppointmentIds.has(item.appointmentId)
+          );
         });
 
         return {
           professional,
-          completedCount,
-          totalProduced,
-          commissionValue
+          completedCount: items.length,
+          totalProduced: items.reduce(
+            (sum, item) => sum + item.serviceValue,
+            0,
+          ),
+          commissionValue: items.reduce(
+            (sum, item) => sum + item.commissionValue,
+            0,
+          ),
+          items,
+          payableItems,
+          paidItems,
+          payableCount: payableItems.length,
+          payableProduced: payableItems.reduce(
+            (sum, item) => sum + item.serviceValue,
+            0,
+          ),
+          payableCommissionValue: payableItems.reduce(
+            (sum, item) => sum + item.commissionValue,
+            0,
+          ),
         };
       })
       .sort((a, b) => {
@@ -959,8 +1005,11 @@ export function useFinanceViewModel({
       });
   }, [
     filteredAppointments,
+    commissionPayments,
+    paidCommissionAppointmentIds,
+    period,
     professionals,
-    services
+    services,
   ]);
 
   const filteredCommissionPayments = useMemo(() => {
@@ -995,35 +1044,37 @@ export function useFinanceViewModel({
   const commissionAmountToPay = selectedCommissionRow
     ? Math.max(
         0,
-        selectedCommissionRow.commissionValue +
+        selectedCommissionRow.payableCommissionValue +
           commissionExtraValue -
-          commissionDiscountValue
+          commissionDiscountValue,
       )
     : 0;
 
   const resetCommissionPaymentForm = () => {
     setSelectedCommissionRow(null);
     setCommissionPaidAt(formatLocalDateStr(new Date()));
-    setCommissionPaymentType('dinheiro');
+    setCommissionPaymentType("dinheiro");
     setCommissionExtraValue(0);
     setCommissionDiscountValue(0);
-    setCommissionNotes('');
+    setCommissionNotes("");
   };
 
   const handleOpenCommissionPayment = (row: CommissionRow) => {
     setSelectedCommissionRow(row);
     setCommissionPaidAt(formatLocalDateStr(new Date()));
-    setCommissionPaymentType('dinheiro');
+    setCommissionPaymentType("dinheiro");
     setCommissionExtraValue(0);
     setCommissionDiscountValue(0);
-    setCommissionNotes('');
+    setCommissionNotes("");
   };
 
-  const handleOpenPaidCommission = (
-    payment: CommissionPaymentRecord
-  ) => {
+  const handleOpenPaidCommission = (payment: CommissionPaymentRecord) => {
     setEditingPaidCommission(payment);
     setEditedCommissionPaidAt(payment.paidAt);
+    setEditedCommissionPaymentType(payment.paymentType);
+    setEditedCommissionExtraValue(payment.extraValue);
+    setEditedCommissionDiscountValue(payment.discountValue);
+    setEditedCommissionNotes(payment.notes || "");
   };
 
   const handleConfirmCommissionPaidAtUpdate = async () => {
@@ -1035,11 +1086,26 @@ export function useFinanceViewModel({
       return;
     }
 
-    if (!onUpdateCommissionPaidAt) {
+    if (!onUpdateCommissionPayment && !onUpdateCommissionPaidAt) {
       setCommissionFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'A alteração da data ainda precisa ser conectada ao Supabase pelo painel do dono.'
+          "A alteração do pagamento ainda precisa ser conectada ao Supabase pelo painel do dono.",
+      });
+      return;
+    }
+
+    const updatedAmountPaid = Math.max(
+      0,
+      editingPaidCommission.calculatedCommission +
+        editedCommissionExtraValue -
+        editedCommissionDiscountValue,
+    );
+
+    if (updatedAmountPaid <= 0) {
+      setCommissionFeedback({
+        title: "Valor inválido",
+        message: "O valor final da comissão precisa ser maior que zero.",
       });
       return;
     }
@@ -1047,24 +1113,40 @@ export function useFinanceViewModel({
     setIsUpdatingCommissionPaidAt(true);
 
     try {
-      await onUpdateCommissionPaidAt(
-        editingPaidCommission.id,
-        editedCommissionPaidAt
-      );
+      if (onUpdateCommissionPayment) {
+        await onUpdateCommissionPayment({
+          paymentId: editingPaidCommission.id,
+          extraValue: editedCommissionExtraValue,
+          discountValue: editedCommissionDiscountValue,
+          amountPaid: updatedAmountPaid,
+          paymentType: editedCommissionPaymentType,
+          paidAt: editedCommissionPaidAt,
+          notes: editedCommissionNotes.trim() || undefined,
+        });
+      } else {
+        await onUpdateCommissionPaidAt?.(
+          editingPaidCommission.id,
+          editedCommissionPaidAt,
+        );
+      }
 
       setEditingPaidCommission(null);
-      setEditedCommissionPaidAt('');
+      setEditedCommissionPaidAt("");
+      setEditedCommissionPaymentType("dinheiro");
+      setEditedCommissionExtraValue(0);
+      setEditedCommissionDiscountValue(0);
+      setEditedCommissionNotes("");
       setCommissionFeedback({
-        title: 'Data atualizada',
-        message: 'A data do pagamento da comissão foi atualizada com sucesso.'
+        title: "Pagamento atualizado",
+        message: "Os dados do pagamento foram atualizados com sucesso.",
       });
     } catch (error) {
       setCommissionFeedback({
-        title: 'Data não atualizada',
+        title: "Pagamento não atualizado",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível atualizar a data do pagamento.'
+            : "Não foi possível atualizar os dados do pagamento.",
       });
     } finally {
       setIsUpdatingCommissionPaidAt(false);
@@ -1073,18 +1155,32 @@ export function useFinanceViewModel({
 
   const buildCommissionPaymentPrintHtml = (
     row: CommissionRow,
-    payload: CommissionPaymentPayload
+    payload: CommissionPaymentPayload,
   ) => {
+    const itemRowsHtml = payload.items
+      .map((item) => {
+        return `
+        <tr>
+          <td>${formatDateBr(item.appointmentDate)}</td>
+          <td>${escapeHtml(item.clientName)}</td>
+          <td>${escapeHtml(item.serviceName)}</td>
+          <td class="right">${formatCurrency(item.serviceValue)}</td>
+          <td class="right">${formatCurrency(item.commissionValue)}</td>
+        </tr>
+      `;
+      })
+      .join("");
+
     return `
       ${buildEstablishmentPrintHeader({
         companyName,
         companyAddress,
         companyPhone,
-        reportTitle: 'Comprovante de Pagamento de Comissão',
+        reportTitle: "Comprovante de Pagamento de Comissão",
         period: {
           startDate: payload.periodStart,
-          endDate: payload.periodEnd
-        }
+          endDate: payload.periodEnd,
+        },
       })}
 
       <table>
@@ -1103,11 +1199,11 @@ export function useFinanceViewModel({
           </tr>
           <tr>
             <th>Atendimentos</th>
-            <td>${row.completedCount}</td>
+            <td>${row.payableCount}</td>
           </tr>
           <tr>
             <th>Produção</th>
-            <td>${formatCurrency(row.totalProduced)}</td>
+            <td>${formatCurrency(row.payableProduced)}</td>
           </tr>
           <tr>
             <th>Comissão calculada</th>
@@ -1128,8 +1224,25 @@ export function useFinanceViewModel({
           ${
             payload.notes
               ? `<tr><th>Observações</th><td>${escapeHtml(payload.notes)}</td></tr>`
-              : ''
+              : ""
           }
+        </tbody>
+      </table>
+
+      <h2>Atendimentos do lote</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Serviço</th>
+            <th class="right">Valor</th>
+            <th class="right">Comissão</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemRowsHtml}
         </tbody>
       </table>
 
@@ -1151,25 +1264,34 @@ export function useFinanceViewModel({
 
     if (!commissionPaidAt) {
       setCommissionFeedback({
-        title: 'Data obrigatória',
-        message: 'Informe a data do pagamento da comissão.'
+        title: "Data obrigatória",
+        message: "Informe a data do pagamento da comissão.",
+      });
+      return;
+    }
+
+    if (selectedCommissionRow.payableItems.length === 0) {
+      setCommissionFeedback({
+        title: "Nenhum atendimento a pagar",
+        message:
+          "Todos os atendimentos deste período já pertencem a um lote de comissão pago.",
       });
       return;
     }
 
     if (commissionAmountToPay <= 0) {
       setCommissionFeedback({
-        title: 'Valor inválido',
-        message: 'O valor final da comissão precisa ser maior que zero.'
+        title: "Valor inválido",
+        message: "O valor final da comissão precisa ser maior que zero.",
       });
       return;
     }
 
     if (!onPayCommission) {
       setCommissionFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+          "O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.",
       });
       return;
     }
@@ -1179,13 +1301,14 @@ export function useFinanceViewModel({
       professionalName: selectedCommissionRow.professional.name,
       periodStart: period.startDate,
       periodEnd: period.endDate,
-      calculatedCommission: selectedCommissionRow.commissionValue,
+      calculatedCommission: selectedCommissionRow.payableCommissionValue,
       extraValue: commissionExtraValue,
       discountValue: commissionDiscountValue,
       amountPaid: commissionAmountToPay,
       paymentType: commissionPaymentType,
       paidAt: commissionPaidAt,
-      notes: commissionNotes.trim() || undefined
+      notes: commissionNotes.trim() || undefined,
+      items: selectedCommissionRow.payableItems,
     };
 
     setIsSavingCommissionPayment(true);
@@ -1194,21 +1317,21 @@ export function useFinanceViewModel({
       await onPayCommission(payload);
 
       setPendingCommissionPrintHtml(
-        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload)
+        buildCommissionPaymentPrintHtml(selectedCommissionRow, payload),
       );
       resetCommissionPaymentForm();
       setCommissionFeedback({
-        title: 'Comissão paga',
+        title: "Comissão paga",
         message:
-          'O pagamento foi registrado com sucesso. Você já pode imprimir o comprovante.'
+          "O pagamento foi registrado com sucesso. Você já pode imprimir o comprovante.",
       });
     } catch (error) {
       setCommissionFeedback({
-        title: 'Pagamento não concluído',
+        title: "Pagamento não concluído",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível registrar o pagamento da comissão.'
+            : "Não foi possível registrar o pagamento da comissão.",
       });
     } finally {
       setIsSavingCommissionPayment(false);
@@ -1221,12 +1344,12 @@ export function useFinanceViewModel({
     }
 
     buildPrintWindow({
-      title: 'Comprovante de Comissão',
+      title: "Comprovante de Comissão",
       thermal: true,
-      body: pendingCommissionPrintHtml
+      body: pendingCommissionPrintHtml,
     });
 
-    setPendingCommissionPrintHtml('');
+    setPendingCommissionPrintHtml("");
     setCommissionFeedback(null);
   };
 
@@ -1239,7 +1362,7 @@ export function useFinanceViewModel({
       if (
         payment.expenseTemplateId &&
         payment.competenceMonth === competenceMonth &&
-        payment.status !== 'cancelled'
+        payment.status !== "cancelled"
       ) {
         paymentMap.set(payment.expenseTemplateId, payment);
       }
@@ -1254,17 +1377,15 @@ export function useFinanceViewModel({
       .map((template) => {
         const payment = expensePaymentByTemplateId.get(template.id);
         const dueDate = template.isMonthly
-          ? (
-              template.dueDay
-                ? `${competenceMonth.slice(0, 8)}${String(template.dueDay).padStart(2, '0')}`
-                : ''
-            )
-          : (template.dueDate || '');
+          ? template.dueDay
+            ? `${competenceMonth.slice(0, 8)}${String(template.dueDay).padStart(2, "0")}`
+            : ""
+          : template.dueDate || "";
 
         return {
           template,
           payment,
-          dueDate
+          dueDate,
         };
       })
       .sort((firstRow, secondRow) => {
@@ -1277,14 +1398,10 @@ export function useFinanceViewModel({
 
         return firstRow.template.description.localeCompare(
           secondRow.template.description,
-          'pt-BR'
+          "pt-BR",
         );
       });
-  }, [
-    competenceMonth,
-    expensePaymentByTemplateId,
-    expenseTemplates
-  ]);
+  }, [competenceMonth, expensePaymentByTemplateId, expenseTemplates]);
 
   const expensePaymentTotal = expenseToPay
     ? Math.max(
@@ -1292,19 +1409,19 @@ export function useFinanceViewModel({
         expenseToPay.expectedAmount +
           expenseInterestValue +
           expenseFineValue -
-          expenseDiscountValue
+          expenseDiscountValue,
       )
     : 0;
 
   const resetExpenseTemplateForm = () => {
     setEditingExpenseTemplate(null);
     setShowExpenseTemplateModal(false);
-    setExpenseDescription('');
+    setExpenseDescription("");
     setExpenseExpectedAmount(0);
-    setExpenseDueDay('');
-    setExpenseDueDate('');
+    setExpenseDueDay("");
+    setExpenseDueDate("");
     setExpenseIsMonthly(true);
-    setExpenseTemplateNotes('');
+    setExpenseTemplateNotes("");
   };
 
   const handleOpenNewExpenseTemplate = () => {
@@ -1312,18 +1429,14 @@ export function useFinanceViewModel({
     setShowExpenseTemplateModal(true);
   };
 
-  const handleOpenEditExpenseTemplate = (
-    template: ExpenseTemplateRecord
-  ) => {
+  const handleOpenEditExpenseTemplate = (template: ExpenseTemplateRecord) => {
     setEditingExpenseTemplate(template);
     setExpenseDescription(template.description);
     setExpenseExpectedAmount(template.expectedAmount);
-    setExpenseDueDay(
-      template.dueDay ? String(template.dueDay) : ''
-    );
-    setExpenseDueDate(template.dueDate || '');
+    setExpenseDueDay(template.dueDay ? String(template.dueDay) : "");
+    setExpenseDueDate(template.dueDate || "");
     setExpenseIsMonthly(template.isMonthly);
-    setExpenseTemplateNotes(template.notes || '');
+    setExpenseTemplateNotes(template.notes || "");
     setShowExpenseTemplateModal(true);
   };
 
@@ -1336,29 +1449,25 @@ export function useFinanceViewModel({
 
     if (!normalizedDescription) {
       setExpenseFeedback({
-        title: 'Descrição obrigatória',
-        message: 'Informe o nome da despesa.'
+        title: "Descrição obrigatória",
+        message: "Informe o nome da despesa.",
       });
       return;
     }
 
     if (expenseExpectedAmount < 0) {
       setExpenseFeedback({
-        title: 'Valor inválido',
-        message: 'O valor previsto da despesa não pode ser negativo.'
+        title: "Valor inválido",
+        message: "O valor previsto da despesa não pode ser negativo.",
       });
       return;
     }
 
     const normalizedDueDay =
-      expenseIsMonthly && expenseDueDay
-        ? Number(expenseDueDay)
-        : undefined;
+      expenseIsMonthly && expenseDueDay ? Number(expenseDueDay) : undefined;
 
     const normalizedDueDate =
-      !expenseIsMonthly && expenseDueDate
-        ? expenseDueDate
-        : undefined;
+      !expenseIsMonthly && expenseDueDate ? expenseDueDate : undefined;
 
     if (
       expenseIsMonthly &&
@@ -1366,25 +1475,25 @@ export function useFinanceViewModel({
       (normalizedDueDay < 1 || normalizedDueDay > 31)
     ) {
       setExpenseFeedback({
-        title: 'Vencimento inválido',
-        message: 'O dia do vencimento deve estar entre 1 e 31.'
+        title: "Vencimento inválido",
+        message: "O dia do vencimento deve estar entre 1 e 31.",
       });
       return;
     }
 
     if (!expenseIsMonthly && !normalizedDueDate) {
       setExpenseFeedback({
-        title: 'Data obrigatória',
-        message: 'Informe a data completa da despesa eventual.'
+        title: "Data obrigatória",
+        message: "Informe a data completa da despesa eventual.",
       });
       return;
     }
 
     if (!onSaveExpenseTemplate) {
       setExpenseFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+          "O formulário está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.",
       });
       return;
     }
@@ -1399,23 +1508,21 @@ export function useFinanceViewModel({
         dueDay: normalizedDueDay,
         dueDate: normalizedDueDate,
         isMonthly: expenseIsMonthly,
-        notes: expenseTemplateNotes.trim() || undefined
+        notes: expenseTemplateNotes.trim() || undefined,
       });
 
       resetExpenseTemplateForm();
       setExpenseFeedback({
-        title: editingExpenseTemplate
-          ? 'Despesa alterada'
-          : 'Despesa incluída',
-        message: 'O cadastro da despesa foi salvo com sucesso.'
+        title: editingExpenseTemplate ? "Despesa alterada" : "Despesa incluída",
+        message: "O cadastro da despesa foi salvo com sucesso.",
       });
     } catch (error) {
       setExpenseFeedback({
-        title: 'Despesa não salva',
+        title: "Despesa não salva",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível salvar a despesa.'
+            : "Não foi possível salvar a despesa.",
       });
     } finally {
       setIsSavingExpenseTemplate(false);
@@ -1423,18 +1530,15 @@ export function useFinanceViewModel({
   };
 
   const handleConfirmDeleteExpenseTemplate = async () => {
-    if (
-      !expenseTemplateToDelete ||
-      isDeletingExpenseTemplate
-    ) {
+    if (!expenseTemplateToDelete || isDeletingExpenseTemplate) {
       return;
     }
 
     if (!onDeleteExpenseTemplate) {
       setExpenseFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'A exclusão ainda precisa ser conectada ao Supabase pelo painel do dono.'
+          "A exclusão ainda precisa ser conectada ao Supabase pelo painel do dono.",
       });
       return;
     }
@@ -1445,16 +1549,16 @@ export function useFinanceViewModel({
       await onDeleteExpenseTemplate(expenseTemplateToDelete.id);
       setExpenseTemplateToDelete(null);
       setExpenseFeedback({
-        title: 'Despesa excluída',
-        message: 'O cadastro foi removido com sucesso.'
+        title: "Despesa excluída",
+        message: "O cadastro foi removido com sucesso.",
       });
     } catch (error) {
       setExpenseFeedback({
-        title: 'Despesa não excluída',
+        title: "Despesa não excluída",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível excluir a despesa.'
+            : "Não foi possível excluir a despesa.",
       });
     } finally {
       setIsDeletingExpenseTemplate(false);
@@ -1464,23 +1568,21 @@ export function useFinanceViewModel({
   const resetExpensePaymentForm = () => {
     setExpenseToPay(null);
     setExpensePaidAt(formatLocalDateStr(new Date()));
-    setExpensePaymentType('dinheiro');
+    setExpensePaymentType("dinheiro");
     setExpenseInterestValue(0);
     setExpenseFineValue(0);
     setExpenseDiscountValue(0);
-    setExpensePaymentNotes('');
+    setExpensePaymentNotes("");
   };
 
-  const handleOpenExpensePayment = (
-    template: ExpenseTemplateRecord
-  ) => {
+  const handleOpenExpensePayment = (template: ExpenseTemplateRecord) => {
     setExpenseToPay(template);
     setExpensePaidAt(formatLocalDateStr(new Date()));
-    setExpensePaymentType('dinheiro');
+    setExpensePaymentType("dinheiro");
     setExpenseInterestValue(0);
     setExpenseFineValue(0);
     setExpenseDiscountValue(0);
-    setExpensePaymentNotes('');
+    setExpensePaymentNotes("");
   };
 
   const handleConfirmExpensePayment = async () => {
@@ -1490,37 +1592,35 @@ export function useFinanceViewModel({
 
     if (!expensePaidAt) {
       setExpenseFeedback({
-        title: 'Data obrigatória',
-        message: 'Informe a data do pagamento.'
+        title: "Data obrigatória",
+        message: "Informe a data do pagamento.",
       });
       return;
     }
 
     if (expensePaymentTotal <= 0) {
       setExpenseFeedback({
-        title: 'Valor inválido',
-        message: 'O valor final da despesa precisa ser maior que zero.'
+        title: "Valor inválido",
+        message: "O valor final da despesa precisa ser maior que zero.",
       });
       return;
     }
 
     if (!onPayExpense) {
       setExpenseFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'O pagamento está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.'
+          "O pagamento está pronto, mas ainda precisa ser conectado ao Supabase pelo painel do dono.",
       });
       return;
     }
 
     const dueDate = expenseToPay.isMonthly
-      ? (
-          expenseToPay.dueDay
-            ? `${competenceMonth.slice(0, 8)}${String(
-                Math.min(expenseToPay.dueDay, 28)
-              ).padStart(2, '0')}`
-            : undefined
-        )
+      ? expenseToPay.dueDay
+        ? `${competenceMonth.slice(0, 8)}${String(
+            Math.min(expenseToPay.dueDay, 28),
+          ).padStart(2, "0")}`
+        : undefined
       : expenseToPay.dueDate;
 
     setIsPayingExpense(true);
@@ -1538,37 +1638,35 @@ export function useFinanceViewModel({
         amountPaid: expensePaymentTotal,
         paymentType: expensePaymentType,
         paidAt: expensePaidAt,
-        notes: expensePaymentNotes.trim() || undefined
+        notes: expensePaymentNotes.trim() || undefined,
       });
 
       resetExpensePaymentForm();
       setExpenseFeedback({
-        title: 'Despesa paga',
-        message: 'Pagamento efetuado com sucesso!'
+        title: "Despesa paga",
+        message: "Pagamento efetuado com sucesso!",
       });
     } catch (error) {
       setExpenseFeedback({
-        title: 'Pagamento não concluído',
+        title: "Pagamento não concluído",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível registrar o pagamento da despesa.'
+            : "Não foi possível registrar o pagamento da despesa.",
       });
     } finally {
       setIsPayingExpense(false);
     }
   };
 
-  const handleOpenEditExpensePayment = (
-    payment: ExpensePaymentRecord
-  ) => {
+  const handleOpenEditExpensePayment = (payment: ExpensePaymentRecord) => {
     setEditingExpensePayment(payment);
     setExpensePaidAt(payment.paidAt || formatLocalDateStr(new Date()));
     setExpensePaymentType(payment.paymentType);
     setExpenseInterestValue(payment.interestValue);
     setExpenseFineValue(payment.fineValue);
     setExpenseDiscountValue(payment.discountValue);
-    setExpensePaymentNotes(payment.notes || '');
+    setExpensePaymentNotes(payment.notes || "");
   };
 
   const handleConfirmExpensePaymentUpdate = async () => {
@@ -1578,8 +1676,8 @@ export function useFinanceViewModel({
 
     if (!expensePaidAt) {
       setExpenseFeedback({
-        title: 'Data obrigatória',
-        message: 'Informe a data do pagamento.'
+        title: "Data obrigatória",
+        message: "Informe a data do pagamento.",
       });
       return;
     }
@@ -1589,22 +1687,22 @@ export function useFinanceViewModel({
       editingExpensePayment.expectedAmount +
         expenseInterestValue +
         expenseFineValue -
-        expenseDiscountValue
+        expenseDiscountValue,
     );
 
     if (updatedAmountPaid <= 0) {
       setExpenseFeedback({
-        title: 'Valor inválido',
-        message: 'O valor final da despesa precisa ser maior que zero.'
+        title: "Valor inválido",
+        message: "O valor final da despesa precisa ser maior que zero.",
       });
       return;
     }
 
     if (!onUpdateExpensePayment) {
       setExpenseFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'A alteração ainda precisa ser conectada ao Supabase pelo painel do dono.'
+          "A alteração ainda precisa ser conectada ao Supabase pelo painel do dono.",
       });
       return;
     }
@@ -1621,22 +1719,22 @@ export function useFinanceViewModel({
         amountPaid: updatedAmountPaid,
         paymentType: expensePaymentType,
         paidAt: expensePaidAt,
-        notes: expensePaymentNotes.trim() || undefined
+        notes: expensePaymentNotes.trim() || undefined,
       });
 
       setEditingExpensePayment(null);
       resetExpensePaymentForm();
       setExpenseFeedback({
-        title: 'Pagamento alterado',
-        message: 'Pagamento atualizado com sucesso!'
+        title: "Pagamento alterado",
+        message: "Pagamento atualizado com sucesso!",
       });
     } catch (error) {
       setExpenseFeedback({
-        title: 'Pagamento não alterado',
+        title: "Pagamento não alterado",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível atualizar o pagamento.'
+            : "Não foi possível atualizar o pagamento.",
       });
     } finally {
       setIsUpdatingExpensePayment(false);
@@ -1650,9 +1748,9 @@ export function useFinanceViewModel({
 
     if (!onDeleteExpensePayment) {
       setExpenseFeedback({
-        title: 'Integração pendente',
+        title: "Integração pendente",
         message:
-          'A exclusão do lançamento ainda precisa ser conectada ao Supabase pelo painel do dono.'
+          "A exclusão do lançamento ainda precisa ser conectada ao Supabase pelo painel do dono.",
       });
       return;
     }
@@ -1663,16 +1761,16 @@ export function useFinanceViewModel({
       await onDeleteExpensePayment(expensePaymentToDelete.id);
       setExpensePaymentToDelete(null);
       setExpenseFeedback({
-        title: 'Lançamento excluído',
-        message: 'O lançamento foi excluído com sucesso!'
+        title: "Lançamento excluído",
+        message: "O lançamento foi excluído com sucesso!",
       });
     } catch (error) {
       setExpenseFeedback({
-        title: 'Lançamento não excluído',
+        title: "Lançamento não excluído",
         message:
           error instanceof Error
             ? error.message
-            : 'Não foi possível excluir o lançamento.'
+            : "Não foi possível excluir o lançamento.",
       });
     } finally {
       setIsDeletingExpensePayment(false);
@@ -1680,136 +1778,115 @@ export function useFinanceViewModel({
   };
 
   const financialMovementRows = useMemo<FinancialMovementRow[]>(() => {
-    const receiptRows: FinancialMovementRow[] = receipts.flatMap<
-      FinancialMovementRow
-    >((receipt) => {
-      if (receipt.status === 'cancelled') {
-        return [];
-      }
+    const receiptRows: FinancialMovementRow[] =
+      receipts.flatMap<FinancialMovementRow>((receipt) => {
+        if (receipt.status === "cancelled") {
+          return [];
+        }
 
-      const receiptDate = getSaoPauloDateStr(receipt.paidAt);
-      const description =
-        receipt.items
-          .map((item) => item.itemDescription || item.serviceName)
-          .filter(Boolean)
-          .join(' + ') ||
-        receipt.clientName ||
-        'Recebimento';
+        const receiptDate = getSaoPauloDateStr(receipt.paidAt);
+        const description =
+          receipt.items
+            .map((item) => item.itemDescription || item.serviceName)
+            .filter(Boolean)
+            .join(" + ") ||
+          receipt.clientName ||
+          "Recebimento";
 
-      if (receipt.paymentType === 'cortesia') {
+        if (receipt.paymentType === "cortesia") {
+          if (receiptDate < period.startDate || receiptDate > period.endDate) {
+            return [];
+          }
+
+          return [
+            {
+              id: `${receipt.id}-cortesia`,
+              date: receiptDate,
+              type: "cortesia",
+              description,
+              paymentType: "cortesia",
+              entryValue: 0,
+              exitValue: 0,
+            } satisfies FinancialMovementRow,
+          ];
+        }
+
+        if (Array.isArray(receipt.payments) && receipt.payments.length > 0) {
+          return receipt.payments
+            .filter((payment) => {
+              return (
+                payment.paymentType !== "pendente" &&
+                payment.paymentType !== "cortesia" &&
+                Number(payment.amount) > 0
+              );
+            })
+            .map<FinancialMovementRow>((payment) => {
+              const paymentDate =
+                getSaoPauloDateStr(payment.createdAt) || receiptDate;
+
+              return {
+                id: `${receipt.id}-${payment.id}`,
+                date: paymentDate,
+                type: "recebimento",
+                description,
+                paymentType: payment.paymentType,
+                entryValue: Number(payment.amount) || 0,
+                exitValue: 0,
+              };
+            })
+            .filter((row) => {
+              return row.date >= period.startDate && row.date <= period.endDate;
+            });
+        }
+
         if (
+          receipt.status !== "paid" ||
           receiptDate < period.startDate ||
           receiptDate > period.endDate
         ) {
           return [];
         }
 
-        return [{
-          id: `${receipt.id}-cortesia`,
-          date: receiptDate,
-          type: 'cortesia',
-          description,
-          paymentType: 'cortesia',
-          entryValue: 0,
-          exitValue: 0
-        } satisfies FinancialMovementRow];
-      }
-
-      if (Array.isArray(receipt.payments) && receipt.payments.length > 0) {
-        return receipt.payments
-          .filter((payment) => {
-            return (
-              payment.paymentType !== 'pendente' &&
-              payment.paymentType !== 'cortesia' &&
-              Number(payment.amount) > 0
-            );
-          })
-          .map<FinancialMovementRow>((payment) => {
-            const paymentDate =
-              getSaoPauloDateStr(payment.createdAt) ||
-              receiptDate;
-
-            return {
-              id: `${receipt.id}-${payment.id}`,
-              date: paymentDate,
-              type: 'recebimento',
-              description,
-              paymentType: payment.paymentType,
-              entryValue: Number(payment.amount) || 0,
-              exitValue: 0
-            };
-          })
-          .filter((row) => {
-            return (
-              row.date >= period.startDate &&
-              row.date <= period.endDate
-            );
-          });
-      }
-
-      if (
-        receipt.status !== 'paid' ||
-        receiptDate < period.startDate ||
-        receiptDate > period.endDate
-      ) {
-        return [];
-      }
-
-      return [{
-        id: `${receipt.id}-${receipt.paymentType}`,
-        date: receiptDate,
-        type: 'recebimento',
-        description,
-        paymentType: receipt.paymentType,
-        entryValue: Number(receipt.amountPaid ?? receipt.totalAmount) || 0,
-        exitValue: 0
-      } satisfies FinancialMovementRow];
-    });
+        return [
+          {
+            id: `${receipt.id}-${receipt.paymentType}`,
+            date: receiptDate,
+            type: "recebimento",
+            description,
+            paymentType: receipt.paymentType,
+            entryValue: Number(receipt.amountPaid ?? receipt.totalAmount) || 0,
+            exitValue: 0,
+          } satisfies FinancialMovementRow,
+        ];
+      });
 
     const expenseRows: FinancialMovementRow[] =
       filteredCashExpenses.map<FinancialMovementRow>((expense) => ({
         id: expense.id,
         date:
-          getAppointmentDateStr(expense.paidAt) ||
-          expense.paidAt.slice(0, 10),
-        type: 'despesa',
-        description: expense.description || 'Despesa manual',
+          getAppointmentDateStr(expense.paidAt) || expense.paidAt.slice(0, 10),
+        type: "despesa",
+        description: expense.description || "Despesa manual",
         paymentType: expense.paymentType,
         entryValue: 0,
-        exitValue: Math.abs(Number(expense.amount) || 0)
+        exitValue: Math.abs(Number(expense.amount) || 0),
       }));
 
-    return [
-      ...receiptRows,
-      ...expenseRows
-    ].sort((firstRow, secondRow) => {
+    return [...receiptRows, ...expenseRows].sort((firstRow, secondRow) => {
       if (firstRow.date !== secondRow.date) {
         return firstRow.date.localeCompare(secondRow.date);
       }
 
-      return firstRow.description.localeCompare(
-        secondRow.description,
-        'pt-BR'
-      );
+      return firstRow.description.localeCompare(secondRow.description, "pt-BR");
     });
-  }, [
-    filteredCashExpenses,
-    period,
-    receipts
-  ]);
+  }, [filteredCashExpenses, period, receipts]);
 
   const financialMovementIncomeTotal = useMemo(() => {
-    return financialMovementRows.reduce(
-      (sum, row) => sum + row.entryValue,
-      0
-    );
+    return financialMovementRows.reduce((sum, row) => sum + row.entryValue, 0);
   }, [financialMovementRows]);
 
   const financialMovementExpenseTotal = useMemo(() => {
-    return financialMovementRows.reduce(
-      (sum, row) => sum + row.exitValue,
-      0
-    );
+    return financialMovementRows.reduce((sum, row) => sum + row.exitValue, 0);
   }, [financialMovementRows]);
 
   const financialMovementBalance =
@@ -1817,32 +1894,32 @@ export function useFinanceViewModel({
 
   const financialMovementPaymentTotals = useMemo(() => {
     const paymentTypes: PaymentType[] = [
-      'dinheiro',
-      'pix',
-      'debito',
-      'credito',
-      'cortesia'
+      "dinheiro",
+      "pix",
+      "debito",
+      "credito",
+      "cortesia",
     ];
 
     return paymentTypes.map((paymentType) => ({
       paymentType,
       total: financialMovementRows
         .filter((row) => row.paymentType === paymentType)
-        .reduce((sum, row) => sum + row.entryValue, 0)
+        .reduce((sum, row) => sum + row.entryValue, 0),
     }));
   }, [financialMovementRows]);
 
   const cashBookRows = useMemo<CashBookRow[]>(() => {
     return financialMovementRows
-      .filter((row) => row.paymentType === 'dinheiro')
+      .filter((row) => row.paymentType === "dinheiro")
       .map<CashBookRow>((row) => ({
         date: row.date,
-        type: row.type === 'despesa' ? 'despesa' : 'recebimento',
+        type: row.type === "despesa" ? "despesa" : "recebimento",
         description: row.description,
         value:
-          row.type === 'despesa'
+          row.type === "despesa"
             ? -Math.abs(Number(row.exitValue) || 0)
-            : Number(row.entryValue) || 0
+            : Number(row.entryValue) || 0,
       }))
       .filter((row) => Math.abs(Number(row.value) || 0) > 0)
       .sort((firstRow, secondRow) => {
@@ -1852,20 +1929,20 @@ export function useFinanceViewModel({
 
         return firstRow.description.localeCompare(
           secondRow.description,
-          'pt-BR'
+          "pt-BR",
         );
       });
   }, [financialMovementRows]);
 
   const cashBookIncomeTotal = useMemo(() => {
     return cashBookRows
-      .filter((row) => row.type === 'recebimento')
+      .filter((row) => row.type === "recebimento")
       .reduce((sum, row) => sum + row.value, 0);
   }, [cashBookRows]);
 
   const cashBookExpenseTotal = useMemo(() => {
     return cashBookRows
-      .filter((row) => row.type === 'despesa')
+      .filter((row) => row.type === "despesa")
       .reduce((sum, row) => sum + Math.abs(row.value), 0);
   }, [cashBookRows]);
 
@@ -1875,14 +1952,14 @@ export function useFinanceViewModel({
   const handleChangeStartDate = (startDate: string) => {
     setDraftPeriod((currentPeriod) => ({
       ...currentPeriod,
-      startDate
+      startDate,
     }));
   };
 
   const handleChangeEndDate = (endDate: string) => {
     setDraftPeriod((currentPeriod) => ({
       ...currentPeriod,
-      endDate
+      endDate,
     }));
   };
 
@@ -1894,11 +1971,12 @@ export function useFinanceViewModel({
     setPeriod(draftPeriod);
     void onPeriodChange?.({
       startDate: draftPeriod.startDate,
-      endDate: draftPeriod.endDate
+      endDate: draftPeriod.endDate,
     });
 
-    const nextStoredValue =
-      localStorage.getItem(getCashBookStorageKey(draftPeriod));
+    const nextStoredValue = localStorage.getItem(
+      getCashBookStorageKey(draftPeriod),
+    );
 
     setInitialCashBalance(nextStoredValue ? Number(nextStoredValue) || 0 : 0);
   };
@@ -1911,8 +1989,9 @@ export function useFinanceViewModel({
   };
 
   const handlePrintCommissionsA4 = () => {
-    const rowsHtml = commissionRows.map((row) => {
-      return `
+    const rowsHtml = commissionRows
+      .map((row) => {
+        return `
         <tr>
           <td>${escapeHtml(row.professional.name)}</td>
           <td>${escapeHtml(getRemunerationLabel(row.professional))}</td>
@@ -1921,17 +2000,18 @@ export function useFinanceViewModel({
           <td class="right">${formatCurrency(row.commissionValue)}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     buildPrintWindow({
-      title: 'Relatório de Comissões',
+      title: "Relatório de Comissões",
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Comissões',
-          period
+          reportTitle: "Comissões",
+          period,
         })}
 
         <table>
@@ -1949,13 +2029,14 @@ export function useFinanceViewModel({
             ${rowsHtml}
           </tbody>
         </table>
-      `
+      `,
     });
   };
 
   const handlePrintCommissionsThermal = () => {
-    const rowsHtml = commissionRows.map((row) => {
-      return `
+    const rowsHtml = commissionRows
+      .map((row) => {
+        return `
         <div style="border-bottom:1px dashed #999;padding:7px 0;">
           <strong>${escapeHtml(row.professional.name)}</strong><br />
           Atend.: ${row.completedCount}<br />
@@ -1963,33 +2044,32 @@ export function useFinanceViewModel({
           Comissão: ${formatCurrency(row.commissionValue)}
         </div>
       `;
-    }).join('');
+      })
+      .join("");
 
     buildPrintWindow({
-      title: 'Filipeta de Comissões',
+      title: "Filipeta de Comissões",
       thermal: true,
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Comissões',
-          period
+          reportTitle: "Comissões",
+          period,
         })}
 
         ${rowsHtml}
-      `
+      `,
     });
   };
 
-  const handlePrintProfessionalCommission = (
-    row: {
-      professional: Professional;
-      completedCount: number;
-      totalProduced: number;
-      commissionValue: number;
-    }
-  ) => {
+  const handlePrintProfessionalCommission = (row: {
+    professional: Professional;
+    completedCount: number;
+    totalProduced: number;
+    commissionValue: number;
+  }) => {
     buildPrintWindow({
       title: `Fechamento - ${row.professional.name}`,
       body: `
@@ -1997,8 +2077,8 @@ export function useFinanceViewModel({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Fechamento de Comissão',
-          period
+          reportTitle: "Fechamento de Comissão",
+          period,
         })}
 
         <table>
@@ -2037,13 +2117,14 @@ export function useFinanceViewModel({
             <span>Data: ____/____/________</span>
           </div>
         </div>
-      `
+      `,
     });
   };
 
   const handlePrintCommissionHistory = () => {
-    const rowsHtml = filteredCommissionPayments.map((payment) => {
-      return `
+    const rowsHtml = filteredCommissionPayments
+      .map((payment) => {
+        return `
         <tr>
           <td>${formatDateBr(payment.paidAt)}</td>
           <td>${escapeHtml(payment.professionalName)}</td>
@@ -2055,34 +2136,35 @@ export function useFinanceViewModel({
           <td>${escapeHtml(getPaymentLabel(payment.paymentType))}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     const totalCalculated = filteredCommissionPayments.reduce(
       (sum, payment) => sum + payment.calculatedCommission,
-      0
+      0,
     );
     const totalExtra = filteredCommissionPayments.reduce(
       (sum, payment) => sum + payment.extraValue,
-      0
+      0,
     );
     const totalDiscount = filteredCommissionPayments.reduce(
       (sum, payment) => sum + payment.discountValue,
-      0
+      0,
     );
     const totalPaid = filteredCommissionPayments.reduce(
       (sum, payment) => sum + payment.amountPaid,
-      0
+      0,
     );
 
     buildPrintWindow({
-      title: 'Histórico de Comissões',
+      title: "Histórico de Comissões",
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Histórico de Comissões Pagas',
-          period
+          reportTitle: "Histórico de Comissões Pagas",
+          period,
         })}
 
         <table>
@@ -2121,13 +2203,27 @@ export function useFinanceViewModel({
             <span>${formatCurrency(totalPaid)}</span>
           </div>
         </div>
-      `
+      `,
     });
   };
 
   const handlePrintCommissionPaymentIndividual = (
-    payment: CommissionPaymentRecord
+    payment: CommissionPaymentRecord,
   ) => {
+    const itemRowsHtml = (payment.items || [])
+      .map((item) => {
+        return `
+        <tr>
+          <td>${formatDateBr(item.appointmentDate)}</td>
+          <td>${escapeHtml(item.clientName)}</td>
+          <td>${escapeHtml(item.serviceName)}</td>
+          <td class="right">${formatCurrency(item.serviceValue)}</td>
+          <td class="right">${formatCurrency(item.commissionValue)}</td>
+        </tr>
+      `;
+      })
+      .join("");
+
     buildPrintWindow({
       title: `Comissão - ${payment.professionalName}`,
       thermal: true,
@@ -2136,11 +2232,11 @@ export function useFinanceViewModel({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Comprovante Individual de Comissão',
+          reportTitle: "Comprovante Individual de Comissão",
           period: {
             startDate: payment.periodStart,
-            endDate: payment.periodEnd
-          }
+            endDate: payment.periodEnd,
+          },
         })}
 
         <table>
@@ -2175,13 +2271,34 @@ export function useFinanceViewModel({
             </tr>
           </tbody>
         </table>
-      `
+
+        ${
+          itemRowsHtml
+            ? `
+              <h2>Atendimentos do lote</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Cliente</th>
+                    <th>Serviço</th>
+                    <th class="right">Valor</th>
+                    <th class="right">Comissão</th>
+                  </tr>
+                </thead>
+                <tbody>${itemRowsHtml}</tbody>
+              </table>
+            `
+            : ""
+        }
+      `,
     });
   };
 
   const handlePrintRevenueReport = () => {
-    const serviceRowsHtml = serviceRevenueRows.map((row) => {
-      return `
+    const serviceRowsHtml = serviceRevenueRows
+      .map((row) => {
+        return `
         <tr>
           <td>${escapeHtml(row.serviceName)}</td>
           <td class="right">${row.quantity}</td>
@@ -2190,30 +2307,36 @@ export function useFinanceViewModel({
           <td class="right">${row.percentage}%</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
-    const paymentRowsHtml = paymentRevenueRows.map((row) => {
-      return `
+    const paymentRowsHtml = paymentRevenueRows
+      .map((row) => {
+        return `
         <tr>
           <td>${escapeHtml(getPaymentLabel(row.paymentType))}</td>
           <td class="right">${formatCurrency(row.total)}</td>
           <td class="right">${row.percentage}%</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
-    const professionalRowsHtml = professionalRevenueRows.map((row) => {
-      return `
+    const professionalRowsHtml = professionalRevenueRows
+      .map((row) => {
+        return `
         <tr>
           <td>${escapeHtml(row.professional.name)}</td>
           <td class="right">${formatCurrency(row.total)}</td>
           <td class="right">${row.percentage}%</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
-    const productRowsHtml = productRevenueRows.map((row) => {
-      return `
+    const productRowsHtml = productRevenueRows
+      .map((row) => {
+        return `
         <tr>
           <td>${escapeHtml(row.description)}</td>
           <td class="right">${row.quantity}</td>
@@ -2222,17 +2345,18 @@ export function useFinanceViewModel({
           <td class="right">${row.percentage}%</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     buildPrintWindow({
-      title: 'Relatório de Faturamento',
+      title: "Relatório de Faturamento",
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Relatório de Faturamento',
-          period
+          reportTitle: "Relatório de Faturamento",
+          period,
         })}
 
         <h2>Faturamento por tipo de serviço</h2>
@@ -2251,7 +2375,7 @@ export function useFinanceViewModel({
             <tr>
               <td colspan="3" class="right"><strong>Total de serviços</strong></td>
               <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
-              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? "100%" : "0%"}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -2272,7 +2396,7 @@ export function useFinanceViewModel({
             <tr>
               <td class="right"><strong>Total por formas de pagamento</strong></td>
               <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
-              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? "100%" : "0%"}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -2293,7 +2417,7 @@ export function useFinanceViewModel({
             <tr>
               <td class="right"><strong>Total produzido por colaboradores</strong></td>
               <td class="right"><strong>${formatCurrency(totalRevenue)}</strong></td>
-              <td class="right"><strong>${totalRevenue > 0 ? '100%' : '0%'}</strong></td>
+              <td class="right"><strong>${totalRevenue > 0 ? "100%" : "0%"}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -2316,7 +2440,7 @@ export function useFinanceViewModel({
             <tr>
               <td colspan="3" class="right"><strong>Total vendido em produtos</strong></td>
               <td class="right"><strong>${formatCurrency(totalProductsRevenue)}</strong></td>
-              <td class="right"><strong>${totalProductsRevenue > 0 ? '100%' : '0%'}</strong></td>
+              <td class="right"><strong>${totalProductsRevenue > 0 ? "100%" : "0%"}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -2343,52 +2467,56 @@ export function useFinanceViewModel({
             <span>${formatCurrency(totalGrossRevenue - totalCommissions)}</span>
           </div>
         </div>
-      `
+      `,
     });
   };
 
   const handlePrintFinancialMovement = () => {
-    const rowsHtml = financialMovementRows.map((row) => {
-      return `
+    const rowsHtml = financialMovementRows
+      .map((row) => {
+        return `
         <tr>
           <td>${formatDateBr(row.date)}</td>
           <td>${
-            row.type === 'despesa'
-              ? 'Saída'
-              : row.type === 'cortesia'
-                ? 'Cortesia'
-                : 'Entrada'
+            row.type === "despesa"
+              ? "Saída"
+              : row.type === "cortesia"
+                ? "Cortesia"
+                : "Entrada"
           }</td>
           <td>${escapeHtml(row.description)}</td>
           <td>${escapeHtml(getPaymentLabel(row.paymentType))}</td>
           <td class="right positive">${
-            row.entryValue > 0 ? formatCurrency(row.entryValue) : '-'
+            row.entryValue > 0 ? formatCurrency(row.entryValue) : "-"
           }</td>
           <td class="right negative">${
-            row.exitValue > 0 ? formatCurrency(row.exitValue) : '-'
+            row.exitValue > 0 ? formatCurrency(row.exitValue) : "-"
           }</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
-    const paymentTotalsHtml = financialMovementPaymentTotals.map((row) => {
-      return `
+    const paymentTotalsHtml = financialMovementPaymentTotals
+      .map((row) => {
+        return `
         <div class="summary-row">
           <span>${escapeHtml(getPaymentLabel(row.paymentType))}</span>
           <span>${formatCurrency(row.total)}</span>
         </div>
       `;
-    }).join('');
+      })
+      .join("");
 
     buildPrintWindow({
-      title: 'Movimentação Financeira',
+      title: "Movimentação Financeira",
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Movimentação Financeira',
-          period
+          reportTitle: "Movimentação Financeira",
+          period,
         })}
 
         <div class="summary">
@@ -2428,36 +2556,38 @@ export function useFinanceViewModel({
         <div class="summary">
           ${paymentTotalsHtml}
         </div>
-      `
+      `,
     });
   };
 
   const handlePrintCashBook = () => {
-    const rowsHtml = cashBookRows.map((row) => {
-      const formattedValue =
-        row.type === 'despesa'
-          ? `-${formatCurrency(Math.abs(row.value)).replace('R$', '').trim()}`
-          : formatCurrency(row.value);
+    const rowsHtml = cashBookRows
+      .map((row) => {
+        const formattedValue =
+          row.type === "despesa"
+            ? `-${formatCurrency(Math.abs(row.value)).replace("R$", "").trim()}`
+            : formatCurrency(row.value);
 
-      return `
+        return `
         <tr>
           <td>${formatDateBr(row.date)}</td>
-          <td>${row.type === 'despesa' ? 'Despesa' : 'Recebimento'}</td>
+          <td>${row.type === "despesa" ? "Despesa" : "Recebimento"}</td>
           <td>${escapeHtml(row.description)}</td>
-          <td class="right ${row.type === 'despesa' ? 'negative' : 'positive'}">${formattedValue}</td>
+          <td class="right ${row.type === "despesa" ? "negative" : "positive"}">${formattedValue}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     buildPrintWindow({
-      title: 'Livro Caixa',
+      title: "Livro Caixa",
       body: `
         ${buildEstablishmentPrintHeader({
           companyName,
           companyAddress,
           companyPhone,
-          reportTitle: 'Livro Caixa - Dinheiro',
-          period
+          reportTitle: "Livro Caixa - Dinheiro",
+          period,
         })}
 
         <div class="summary">
@@ -2471,7 +2601,7 @@ export function useFinanceViewModel({
           </div>
           <div class="summary-row">
             <span>Saídas em dinheiro</span>
-            <span class="negative">-${formatCurrency(cashBookExpenseTotal).replace('R$', '').trim()}</span>
+            <span class="negative">-${formatCurrency(cashBookExpenseTotal).replace("R$", "").trim()}</span>
           </div>
           <div class="summary-row">
             <span>Saldo final</span>
@@ -2495,7 +2625,7 @@ export function useFinanceViewModel({
             ${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b;">Nenhuma movimentação em dinheiro no período.</td></tr>'}
           </tbody>
         </table>
-      `
+      `,
     });
   };
 
@@ -2598,7 +2728,11 @@ export function useFinanceViewModel({
     commissionPaymentByProfessionalId,
     commissionPaymentType,
     commissionRows,
+    editedCommissionDiscountValue,
+    editedCommissionExtraValue,
+    editedCommissionNotes,
     editedCommissionPaidAt,
+    editedCommissionPaymentType,
     editingPaidCommission,
     filteredCommissionPayments,
     getRemunerationLabel,
@@ -2624,10 +2758,14 @@ export function useFinanceViewModel({
     setCommissionNotes,
     setCommissionPaidAt,
     setCommissionPaymentType,
+    setEditedCommissionDiscountValue,
+    setEditedCommissionExtraValue,
+    setEditedCommissionNotes,
     setEditedCommissionPaidAt,
+    setEditedCommissionPaymentType,
     setEditingPaidCommission,
     setPendingCommissionPrintHtml,
     setShowCommissionHistory,
-    showCommissionHistory
+    showCommissionHistory,
   };
 }
