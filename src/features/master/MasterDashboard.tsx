@@ -439,7 +439,7 @@ function createEmptyForm(): CreateTenantForm {
     trialStartDate,
     trialEndDate: addDaysToDate(trialStartDate, 21),
     dueDate: "",
-    monthlyPrice: "49.90",
+    monthlyPrice: "50.00",
     zipcode: "",
     street: "",
     number: "",
