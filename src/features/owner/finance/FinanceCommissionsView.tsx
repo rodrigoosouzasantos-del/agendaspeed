@@ -195,7 +195,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                           </span>
                         )}
                         {row.paidItems.length > 0 && (
-                          <span className="w-max rounded-md bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+                          <span className="w-max rounded-md bg-red-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-700">
                             {row.paidItems.length} pago{row.paidItems.length === 1 ? '' : 's'}
                           </span>
                         )}
@@ -606,20 +606,20 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
       )}
 
       {selectedCommissionRow && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-2 backdrop-blur-sm sm:px-4">
-          <div className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-7xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl sm:w-[94vw]">
-            <div className="h-1.5 bg-[#0f4c5c]" />
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-2 py-2 backdrop-blur-sm sm:px-4">
+          <div className="max-h-[96vh] w-[calc(100vw-1rem)] max-w-7xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl sm:w-[94vw]">
+            <div className="h-1 bg-[#0f4c5c]" />
 
-            <div className="p-5">
+            <div className="p-3 sm:p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f4c5c]">
                     Novo lote de comissão
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                  <h2 className="text-lg font-black leading-tight text-slate-950">
                     {selectedCommissionRow.professional.name}
                   </h2>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                  <p className="text-[11px] font-semibold text-slate-500">
                     Período de {formatDateBr(period.startDate)} a {formatDateBr(period.endDate)}
                   </p>
                 </div>
@@ -628,75 +628,102 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                   type="button"
                   onClick={resetCommissionPaymentForm}
                   disabled={isSavingCommissionPayment}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Fechar
                 </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <span className="text-[9px] font-black uppercase text-slate-400">
                     Produção do lote
                   </span>
-                  <p className="mt-1 text-base font-black text-slate-900">
+                  <p className="text-sm font-black text-slate-900 sm:text-base">
                     {formatCurrency(selectedCommissionRow.payableProduced)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <span className="text-[9px] font-black uppercase text-slate-400">
                     Atendimentos
                   </span>
-                  <p className="mt-1 text-base font-black text-slate-900">
+                  <p className="text-sm font-black text-slate-900 sm:text-base">
                     {selectedCommissionRow.payableCount}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 p-3">
+                <div className="rounded-xl border border-[#0f4c5c]/30 bg-[#0f4c5c]/5 px-3 py-2">
                   <span className="text-[9px] font-black uppercase text-[#0f4c5c]">
                     Comissão calculada
                   </span>
-                  <p className="mt-1 text-base font-black text-[#0f4c5c]">
+                  <p className="text-sm font-black text-[#0f4c5c] sm:text-base">
                     {formatCurrency(selectedCommissionRow.payableCommissionValue)}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2">
                   <div>
                     <p className="text-xs font-black text-slate-800">
-                      Atendimentos incluídos
+                      Atendimentos do período
                     </p>
                     <p className="text-[10px] font-semibold text-slate-500">
-                      Todos os atendimentos abaixo formarão este lote.
+                      Somente os itens A PAGAR entram neste lote. Os itens PAGOS aparecem apenas para conferência.
                     </p>
                   </div>
-                  <span className="rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-700">
-                    A pagar
-                  </span>
+                  <div className="flex shrink-0 gap-1.5">
+                    <span className="rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+                      {selectedCommissionRow.payableItems.length} a pagar
+                    </span>
+                    {selectedCommissionRow.paidItems.length > 0 && (
+                      <span className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-red-700">
+                        {selectedCommissionRow.paidItems.length} pago{selectedCommissionRow.paidItems.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="max-h-60 overflow-auto">
-                  <table className="w-full min-w-[680px] text-left text-xs">
+                <div className="max-h-56 overflow-auto">
+                  <table className="w-full min-w-[760px] text-left text-xs">
                     <thead className="sticky top-0 border-b bg-white text-[9px] font-black uppercase tracking-wider text-slate-500">
                       <tr>
-                        <th className="px-4 py-2.5">Data</th>
-                        <th className="px-4 py-2.5">Cliente</th>
-                        <th className="px-4 py-2.5">Serviço</th>
-                        <th className="px-4 py-2.5 text-right">Valor</th>
-                        <th className="px-4 py-2.5 text-right">Comissão</th>
+                        <th className="px-3 py-2">Data</th>
+                        <th className="px-3 py-2">Cliente</th>
+                        <th className="px-3 py-2">Serviço</th>
+                        <th className="px-3 py-2 text-right">Valor</th>
+                        <th className="px-3 py-2 text-right">Comissão</th>
+                        <th className="px-3 py-2 text-center">Situação</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {selectedCommissionRow.payableItems.map((item: CommissionPaymentItem) => (
                         <tr key={item.appointmentId}>
-                          <td className="px-4 py-2.5 font-semibold">{formatDateBr(item.appointmentDate)}</td>
-                          <td className="px-4 py-2.5 font-bold text-slate-900">{item.clientName}</td>
-                          <td className="px-4 py-2.5 font-semibold text-slate-600">{item.serviceName}</td>
-                          <td className="px-4 py-2.5 text-right font-bold">{formatCurrency(item.serviceValue)}</td>
-                          <td className="px-4 py-2.5 text-right font-bold text-[#0f4c5c]">{formatCurrency(item.commissionValue)}</td>
+                          <td className="px-3 py-2 font-semibold">{formatDateBr(item.appointmentDate)}</td>
+                          <td className="px-3 py-2 font-bold text-slate-900">{item.clientName}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-600">{item.serviceName}</td>
+                          <td className="px-3 py-2 text-right font-bold">{formatCurrency(item.serviceValue)}</td>
+                          <td className="px-3 py-2 text-right font-bold text-[#0f4c5c]">{formatCurrency(item.commissionValue)}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-700">
+                              A pagar
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {selectedCommissionRow.paidItems.map((item: CommissionPaymentItem) => (
+                        <tr key={`paid-${item.appointmentId}`} className="bg-red-50/70 text-red-700">
+                          <td className="px-3 py-2 font-semibold">{formatDateBr(item.appointmentDate)}</td>
+                          <td className="px-3 py-2 font-bold">{item.clientName}</td>
+                          <td className="px-3 py-2 font-semibold">{item.serviceName}</td>
+                          <td className="px-3 py-2 text-right font-bold">{formatCurrency(item.serviceValue)}</td>
+                          <td className="px-3 py-2 text-right font-bold">{formatCurrency(item.commissionValue)}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className="rounded-md bg-red-100 px-2 py-0.5 text-[9px] font-bold uppercase text-red-700">
+                              Pago
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -704,7 +731,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
                 <label className="space-y-1">
                   <span className="text-[10px] font-black uppercase text-slate-500">
                     Data do pagamento
@@ -713,7 +740,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                     type="date"
                     value={commissionPaidAt}
                     onChange={(event) => setCommissionPaidAt(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                   />
                 </label>
 
@@ -726,7 +753,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                     onChange={(event) =>
                       setCommissionPaymentType(event.target.value as PaymentType)
                     }
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                   >
                     <option value="dinheiro">Dinheiro</option>
                     <option value="pix">PIX</option>
@@ -748,7 +775,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                         parseCurrencyInput(event.target.value)
                       )
                     }
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                   />
                 </label>
 
@@ -765,45 +792,46 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                         parseCurrencyInput(event.target.value)
                       )
                     }
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-[#0f4c5c]"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold outline-none focus:border-[#0f4c5c]"
                   />
                 </label>
               </div>
 
-              <label className="mt-3 block space-y-1">
-                <span className="text-[10px] font-black uppercase text-slate-500">
-                  Observações
-                </span>
-                <textarea
-                  value={commissionNotes}
-                  onChange={(event) => setCommissionNotes(event.target.value)}
-                  rows={3}
-                  placeholder="Ex.: bônus, ajuste de faltas ou adiantamento."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0f4c5c]"
-                />
-              </label>
-
-              <div className="mt-4 rounded-2xl border border-[#0f4c5c]/25 bg-[#0f4c5c]/5 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs font-black uppercase text-[#0f4c5c]">
-                    Total a pagar
+              <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <label className="block space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Observações
                   </span>
-                  <strong className="text-xl font-black text-[#0f4c5c]">
-                    {formatCurrency(commissionAmountToPay)}
-                  </strong>
-                </div>
+                  <textarea
+                    value={commissionNotes}
+                    onChange={(event) => setCommissionNotes(event.target.value)}
+                    rows={2}
+                    placeholder="Ex.: bônus, ajuste de faltas ou adiantamento."
+                    className="min-h-[56px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold outline-none focus:border-[#0f4c5c]"
+                  />
+                </label>
 
-                <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                  Comissão + extra - desconto.
-                </p>
+                <div className="rounded-xl border border-[#0f4c5c]/25 bg-[#0f4c5c]/5 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-black uppercase text-[#0f4c5c]">
+                      Total a pagar
+                    </span>
+                    <strong className="text-lg font-black text-[#0f4c5c]">
+                      {formatCurrency(commissionAmountToPay)}
+                    </strong>
+                  </div>
+                  <p className="text-[10px] font-semibold text-slate-500">
+                    Comissão + extra - desconto.
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={resetCommissionPaymentForm}
                   disabled={isSavingCommissionPayment}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -812,7 +840,7 @@ export default function FinanceCommissionsView({ context }: FinanceCommissionsVi
                   type="button"
                   onClick={handleConfirmCommissionPayment}
                   disabled={isSavingCommissionPayment}
-                  className="rounded-xl bg-[#0f4c5c] px-5 py-2.5 text-sm font-black text-white hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-lg bg-[#0f4c5c] px-4 py-2 text-xs font-black text-white hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSavingCommissionPayment
                     ? 'Salvando pagamento...'
