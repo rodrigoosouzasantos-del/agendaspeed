@@ -301,7 +301,9 @@ export default function App() {
   const [ownerContext, setOwnerContext] = useState<OwnerContext | null>(null);
   const [professionalAccessToken] = useState<string>(() => getProfessionalAccessTokenFromPath());
   const [clientAppointmentsToken] = useState<string>(() => getClientAppointmentsTokenFromPath());
-  const [authChecking, setAuthChecking] = useState(true);
+  const [authChecking, setAuthChecking] = useState(
+    () => initialView !== 'client-booking' && initialView !== 'client-appointments'
+  );
 
   // Preseed helper for redirecting directly to specific screens from header/landing CTAs.
   const [preseedRole, setPreseedRole] = useState<'owner' | 'professional' | null>(null);
@@ -385,10 +387,23 @@ export default function App() {
     let isMounted = true;
 
     async function checkInitialAuth() {
-      setAuthChecking(true);
-
       const pathname = window.location.pathname;
       const currentProfessionalAccessToken = getProfessionalAccessTokenFromPath();
+      const isPublicClientRoute =
+        isPublicBookingPath() ||
+        pathname.startsWith('/meus-agendamentos/');
+
+      // Vitrines e links de agendamento do cliente são públicos.
+      // Não consultar sessão nem registrar listener de autenticação nessas rotas:
+      // isso evita chamadas desnecessárias ao Supabase no primeiro acesso.
+      if (isPublicClientRoute) {
+        setOwnerContext(null);
+        setSessionUser(null);
+        setAuthChecking(false);
+        return false;
+      }
+
+      setAuthChecking(true);
 
       if (pathname === '/redefinir-senha') {
         setOwnerContext(null);
@@ -399,7 +414,7 @@ export default function App() {
           setAuthChecking(false);
         }
 
-        return;
+        return true;
       }
 
       if (pathname.startsWith('/profissional-acesso/') && currentProfessionalAccessToken) {
@@ -415,7 +430,7 @@ export default function App() {
           setAuthChecking(false);
         }
 
-        return;
+        return false;
       }
 
       const user = await loadSupabaseOwnerSession();
@@ -451,38 +466,45 @@ export default function App() {
       }
 
       setAuthChecking(false);
+      return true;
     }
 
-    checkInitialAuth();
+    let unsubscribeAuthListener: (() => void) | null = null;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setOwnerContext(null);
-        setSessionUser(null);
-        navigateTo('reset-password', '/redefinir-senha');
-        setAuthChecking(false);
-        return;
-      }
+    void checkInitialAuth().then((shouldListenToAuth) => {
+      if (!isMounted || !shouldListenToAuth) return;
 
-      const currentProfessionalAccessToken = getProfessionalAccessTokenFromPath();
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setOwnerContext(null);
+          setSessionUser(null);
+          navigateTo('reset-password', '/redefinir-senha');
+          setAuthChecking(false);
+          return;
+        }
 
-      if (window.location.pathname.startsWith('/profissional-acesso/') && currentProfessionalAccessToken) {
-        setOwnerContext(null);
-        setSessionUser({
-          email: '',
-          role: 'professional',
-          name: 'Profissional',
-          professionalId: '',
-        });
-        return;
-      }
+        const currentProfessionalAccessToken = getProfessionalAccessTokenFromPath();
 
-      await loadSupabaseOwnerSession();
+        if (window.location.pathname.startsWith('/profissional-acesso/') && currentProfessionalAccessToken) {
+          setOwnerContext(null);
+          setSessionUser({
+            email: '',
+            role: 'professional',
+            name: 'Profissional',
+            professionalId: '',
+          });
+          return;
+        }
+
+        await loadSupabaseOwnerSession();
+      });
+
+      unsubscribeAuthListener = () => authListener.subscription.unsubscribe();
     });
 
     return () => {
       isMounted = false;
-      authListener.subscription.unsubscribe();
+      unsubscribeAuthListener?.();
     };
   }, []);
 
