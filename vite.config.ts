@@ -13,10 +13,31 @@ export default defineConfig(() => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+
+            if (id.includes('/react/') || id.includes('/react-dom/')) {
+              return 'react-vendor';
+            }
+
+            if (id.includes('/@supabase/')) {
+              return 'supabase-vendor';
+            }
+
+            if (id.includes('/lucide-react/')) {
+              return 'icons-vendor';
+            }
+          },
+        },
+      },
     },
   };
 });
