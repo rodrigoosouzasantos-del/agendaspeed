@@ -140,111 +140,72 @@ export default function ClientBooking({
       setLoadingRemoteContext(true);
       setRemoteContextError('');
 
-      const { data, error } = await supabase.rpc('get_public_booking_context', {
-        p_slug: publicSlug
-      });
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error('Tempo limite excedido ao carregar a vitrine.'));
+          }, 15000);
+        });
 
-      if (!isMounted) return;
+        const { data, error } = await Promise.race([
+          supabase.rpc('get_public_booking_context', {
+            p_slug: publicSlug
+          }),
+          timeoutPromise
+        ]);
 
-      if (error) {
-        setRemoteBookingContext(null);
-        setRemoteContextError(error.message || 'Não foi possível carregar a vitrine.');
-        setLoadingRemoteContext(false);
-        return;
-      }
+        if (!isMounted) return;
 
-      const firstRow = Array.isArray(data) ? data[0] : null;
-
-      if (!firstRow) {
-        setRemoteBookingContext(null);
-        setRemoteContextError('Vitrine não encontrada ou indisponível.');
-        setLoadingRemoteContext(false);
-        return;
-      }
-
-      const contextAgendaBlocks = Array.isArray(firstRow.agenda_blocks)
-        ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
-        : [];
-
-      const contextScheduleDays = Array.isArray(firstRow.schedule_days)
-        ? firstRow.schedule_days.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
-        : [];
-
-      setRemoteBookingContext({
-        config: firstRow.config || {},
-        services: Array.isArray(firstRow.services)
-          ? firstRow.services.map(normalizeRemoteService)
-          : [],
-        professionals: Array.isArray(firstRow.professionals)
-          ? firstRow.professionals.map(normalizeRemoteProfessional)
-          : [],
-        appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
-        agendaBlocks: contextAgendaBlocks,
-        scheduleDays: contextScheduleDays
-      });
-
-      setAgendaBlocks(contextAgendaBlocks);
-      setAgendaOpenDays(contextScheduleDays);
-
-      const { data: blocksData, error: blocksError } = await supabase.rpc(
-        'get_public_professional_schedule_blocks',
-        {
-          p_slug: publicSlug
+        if (error) {
+          setRemoteBookingContext(null);
+          setRemoteContextError('Não foi possível carregar a vitrine neste momento.');
+          setLoadingRemoteContext(false);
+          return;
         }
-      );
 
-      if (!isMounted) return;
+        const firstRow = Array.isArray(data) ? data[0] : null;
 
-      if (blocksError) {
-        console.error('Erro ao carregar bloqueios públicos da agenda:', blocksError.message);
-      }
-
-      if (Array.isArray(blocksData)) {
-        const normalizedBlocks = blocksData.map((block: Record<string, unknown>) =>
-          normalizeRemoteBlockedInterval(block)
-        );
-
-        setAgendaBlocks(normalizedBlocks);
-        setRemoteBookingContext((currentContext) =>
-          currentContext
-            ? {
-                ...currentContext,
-                agendaBlocks: normalizedBlocks
-              }
-            : currentContext
-        );
-      }
-
-      const { data: scheduleDaysData, error: scheduleDaysError } = await supabase.rpc(
-        'get_public_professional_schedule_days',
-        {
-          p_slug: publicSlug
+        if (!firstRow) {
+          setRemoteBookingContext(null);
+          setRemoteContextError('Vitrine não encontrada ou indisponível.');
+          setLoadingRemoteContext(false);
+          return;
         }
-      );
 
-      if (!isMounted) return;
+        const contextAgendaBlocks = Array.isArray(firstRow.agenda_blocks)
+          ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
+          : [];
 
-      if (scheduleDaysError) {
-        console.error('Erro ao carregar dias abertos da agenda pública:', scheduleDaysError.message);
-      }
+        const contextScheduleDays = Array.isArray(firstRow.schedule_days)
+          ? firstRow.schedule_days.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
+          : [];
 
-      if (Array.isArray(scheduleDaysData)) {
-        const normalizedScheduleDays = scheduleDaysData.map((day: Record<string, unknown>) =>
-          normalizeRemoteScheduleDay(day)
+        setRemoteBookingContext({
+          config: firstRow.config || {},
+          services: Array.isArray(firstRow.services)
+            ? firstRow.services.map(normalizeRemoteService)
+            : [],
+          professionals: Array.isArray(firstRow.professionals)
+            ? firstRow.professionals.map(normalizeRemoteProfessional)
+            : [],
+          appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
+          agendaBlocks: contextAgendaBlocks,
+          scheduleDays: contextScheduleDays
+        });
+
+        setAgendaBlocks(contextAgendaBlocks);
+        setAgendaOpenDays(contextScheduleDays);
+        setLoadingRemoteContext(false);
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error('Erro ao carregar a vitrine pública:', error);
+        setRemoteBookingContext(null);
+        setRemoteContextError(
+          'A conexão demorou mais do que o esperado. Verifique sua internet e tente novamente.'
         );
-
-        setAgendaOpenDays(normalizedScheduleDays);
-        setRemoteBookingContext((currentContext) =>
-          currentContext
-            ? {
-                ...currentContext,
-                scheduleDays: normalizedScheduleDays
-              }
-            : currentContext
-        );
+        setLoadingRemoteContext(false);
       }
-
-      setLoadingRemoteContext(false);
     }
 
     loadPublicBookingContext();
@@ -794,10 +755,10 @@ export default function ClientBooking({
           <p className="mt-2 text-sm leading-relaxed text-slate-600">{remoteContextError}</p>
           <button
             type="button"
-            onClick={onNavigateBack}
+            onClick={() => window.location.reload()}
             className="mt-6 rounded-2xl bg-[#E0A96D] px-5 py-3 text-sm font-black text-[#1A3038] hover:bg-[#D69B5F]"
           >
-            Voltar
+            Tentar novamente
           </button>
         </div>
       </div>
