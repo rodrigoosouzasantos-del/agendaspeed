@@ -147,14 +147,21 @@ export default function ClientBooking({
           }, 15000);
         });
 
-        const { data, error } = await Promise.race([
-          supabase.rpc('get_public_booking_context', {
-            p_slug: publicSlug
-          }),
+        const [contextResult, scheduleDaysResult] = await Promise.race([
+          Promise.all([
+            supabase.rpc('get_public_booking_context', {
+              p_slug: publicSlug
+            }),
+            supabase.rpc('get_public_professional_schedule_days', {
+              p_slug: publicSlug
+            })
+          ]),
           timeoutPromise
         ]);
 
         if (!isMounted) return;
+
+        const { data, error } = contextResult;
 
         if (error) {
           setRemoteBookingContext(null);
@@ -180,6 +187,21 @@ export default function ClientBooking({
           ? firstRow.schedule_days.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
           : [];
 
+        if (scheduleDaysResult.error) {
+          console.error(
+            'Erro ao carregar os dias abertos da vitrine:',
+            scheduleDaysResult.error
+          );
+        }
+
+        const remoteScheduleDays = Array.isArray(scheduleDaysResult.data)
+          ? scheduleDaysResult.data.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
+          : [];
+
+        const effectiveScheduleDays = remoteScheduleDays.length > 0
+          ? remoteScheduleDays
+          : contextScheduleDays;
+
         setRemoteBookingContext({
           config: firstRow.config || {},
           services: Array.isArray(firstRow.services)
@@ -190,11 +212,11 @@ export default function ClientBooking({
             : [],
           appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
           agendaBlocks: contextAgendaBlocks,
-          scheduleDays: contextScheduleDays
+          scheduleDays: effectiveScheduleDays
         });
 
         setAgendaBlocks(contextAgendaBlocks);
-        setAgendaOpenDays(contextScheduleDays);
+        setAgendaOpenDays(effectiveScheduleDays);
         setLoadingRemoteContext(false);
       } catch (error) {
         if (!isMounted) return;
