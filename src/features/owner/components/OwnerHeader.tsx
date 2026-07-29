@@ -4,19 +4,12 @@
  * Exibe:
  * - logo e nome do estabelecimento;
  * - link público da agenda;
- * - cópia rápida do link;
  * - compartilhamento;
  * - saída do painel.
  */
 
-import React, { useState } from 'react';
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  LogOut,
-  Share2,
-} from 'lucide-react';
+import React from "react";
+import { ExternalLink, LogOut, Share2 } from "lucide-react";
 
 interface OwnerHeaderProps {
   logoUrl: string;
@@ -33,35 +26,21 @@ export default function OwnerHeader({
   onNavigateToClient,
   onLogOut,
 }: OwnerHeaderProps) {
-  const [linkCopied, setLinkCopied] = useState(false);
-
-  const handleCopyLink = async () => {
-    if (!publicBookingUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(publicBookingUrl);
-      setLinkCopied(true);
-      window.setTimeout(() => setLinkCopied(false), 2200);
-    } catch {
-      window.prompt('Copie o link da sua agenda:', publicBookingUrl);
-    }
-  };
-
   const handleShare = () => {
     if (!publicBookingUrl) return;
 
     const shareText = [
-      `📅 Agendamento online — ${companyName || 'AgendaBless'}`,
-      '',
-      'Agende seu horário em poucos minutos:',
-      '',
+      `📅 Agendamento online — ${companyName || "AgendaBless"}`,
+      "",
+      "Agende seu horário em poucos minutos:",
+      "",
       publicBookingUrl,
-    ].join('\n');
+    ].join("\n");
 
     window.open(
       `https://wa.me/?text=${encodeURIComponent(shareText)}`,
-      '_blank',
-      'noopener,noreferrer',
+      "_blank",
+      "noopener,noreferrer",
     );
   };
 
@@ -93,7 +72,7 @@ export default function OwnerHeader({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-nowrap items-center justify-center gap-2">
           <button
             id="btn-goto-booking"
             type="button"
@@ -105,29 +84,15 @@ export default function OwnerHeader({
           </button>
 
           <button
-            id="btn-copy-booking-link"
-            type="button"
-            onClick={handleCopyLink}
-            disabled={!publicBookingUrl}
-            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2 text-xs font-bold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {linkCopied ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-            {linkCopied ? 'Link copiado' : 'Copiar link'}
-          </button>
-
-          <button
             id="btn-share-booking-link"
             type="button"
             onClick={handleShare}
             disabled={!publicBookingUrl}
-            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Compartilhar link da agenda"
+            title="Compartilhar link da agenda"
+            className="flex cursor-pointer items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Share2 className="h-3.5 w-3.5" />
-            Compartilhar
           </button>
 
           <button
@@ -137,7 +102,7 @@ export default function OwnerHeader({
             className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-neutral-800"
           >
             <LogOut className="h-3.5 w-3.5" />
-            Sair Administrador
+            Sair
           </button>
         </div>
       </div>
