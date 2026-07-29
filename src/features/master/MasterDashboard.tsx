@@ -199,6 +199,44 @@ const STATUS_FILTERS: Array<"all" | TenantStatus> = [
   "cancelled",
 ];
 
+const SUPABASE_REQUEST_TIMEOUT_MS = 20000;
+
+async function withRequestTimeout<T>(
+  request: PromiseLike<T>,
+  timeoutMessage: string,
+): Promise<T> {
+  let timeoutId: number | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error(timeoutMessage));
+        }, SUPABASE_REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function textValue(value: unknown, fallback = ""): string {
   if (value === null || value === undefined) return fallback;
   return String(value);
@@ -1095,79 +1133,100 @@ export default function MasterDashboard({
     setLoading(true);
     setErrorMessage("");
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const activeSession = sessionData.session;
+    try {
+      const { data: sessionData, error: sessionError } =
+        await withRequestTimeout(
+          supabase.auth.getSession(),
+          "A sessão demorou para responder. Atualize a página e tente novamente.",
+        );
 
-    if (!activeSession?.user) {
-      setSessionEmail("");
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const activeSession = sessionData.session;
+
+      if (!activeSession?.user) {
+        setSessionEmail("");
+        setTenants([]);
+        setErrorMessage(
+          "Faça login com um usuário desenvolvedor para acessar a Área Master.",
+        );
+        return;
+      }
+
+      setSessionEmail(activeSession.user.email || "");
+
+      const { data, error } = await withRequestTimeout(
+        supabase.rpc("get_master_tenants"),
+        "A lista de empresas demorou para responder. Tente atualizar novamente.",
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      setTenants(
+        rows
+          .map((row) => normalizeTenantRow(row as MasterTenantRow))
+          .sort((first, second) => first.companyCode - second.companyCode),
+      );
+    } catch (error) {
       setTenants([]);
       setErrorMessage(
-        "Faça login com um usuário desenvolvedor para acessar a Área Master.",
+        getErrorMessage(error, "Não foi possível carregar as empresas."),
       );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSessionEmail(activeSession.user.email || "");
-
-    const { data, error } = await supabase.rpc("get_master_tenants");
-
-    if (error) {
-      setTenants([]);
-      setErrorMessage(error.message || "Não foi possível carregar as empresas.");
-      setLoading(false);
-      return;
-    }
-
-    const rows = Array.isArray(data) ? data : [];
-    setTenants(
-      rows
-        .map((row) => normalizeTenantRow(row as MasterTenantRow))
-        .sort((first, second) => first.companyCode - second.companyCode),
-    );
-    setLoading(false);
   };
 
 
   const loadSaasInvoices = async () => {
     setIsLoadingSaasInvoices(true);
 
-    const { data, error } = await supabase.rpc("get_master_saas_invoices");
+    try {
+      const { data, error } = await withRequestTimeout(
+        supabase.rpc("get_master_saas_invoices"),
+        "As mensalidades demoraram para responder. Tente novamente.",
+      );
 
-    if (error) {
+      if (error) {
+        throw error;
+      }
+
+      const rows = (
+        Array.isArray(data) ? data : []
+      ) as MasterSaasInvoiceResponse[];
+
+      setSaasInvoices(
+        rows.map((row) => ({
+          invoiceId: row.invoice_id,
+          tenantId: row.tenant_id,
+          companyCode: Number(row.company_code) || 0,
+          tenantName: row.tenant_name || "Empresa",
+          referenceMonth: row.reference_month || "",
+          amount: Number(row.amount) || 0,
+          dueDate: row.due_date || "",
+          invoiceStatus: row.invoice_status || "pending",
+          paymentMethod: row.payment_method || "",
+          paidAt: row.paid_at || "",
+          paidAmount: Number(row.paid_amount) || 0,
+          provider: row.provider || "",
+          providerPaymentId: row.provider_payment_id || "",
+          createdAt: row.created_at || "",
+        })),
+      );
+    } catch (error) {
       setSaasInvoices([]);
-      setIsLoadingSaasInvoices(false);
       showToast(
         "error",
-        error.message || "Não foi possível carregar as mensalidades.",
+        getErrorMessage(error, "Não foi possível carregar as mensalidades."),
       );
-      return;
+    } finally {
+      setIsLoadingSaasInvoices(false);
     }
-
-    const rows = (
-      Array.isArray(data) ? data : []
-    ) as MasterSaasInvoiceResponse[];
-
-    setSaasInvoices(
-      rows.map((row) => ({
-        invoiceId: row.invoice_id,
-        tenantId: row.tenant_id,
-        companyCode: Number(row.company_code) || 0,
-        tenantName: row.tenant_name || "Empresa",
-        referenceMonth: row.reference_month || "",
-        amount: Number(row.amount) || 0,
-        dueDate: row.due_date || "",
-        invoiceStatus: row.invoice_status || "pending",
-        paymentMethod: row.payment_method || "",
-        paidAt: row.paid_at || "",
-        paidAmount: Number(row.paid_amount) || 0,
-        provider: row.provider || "",
-        providerPaymentId: row.provider_payment_id || "",
-        createdAt: row.created_at || "",
-      })),
-    );
-
-    setIsLoadingSaasInvoices(false);
   };
 
   const handleConfirmManualPix = async (invoice: MasterSaasInvoice) => {
@@ -1220,9 +1279,15 @@ export default function MasterDashboard({
 
   useEffect(() => {
     void loadTenants();
-    void loadSaasInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeView === "financial") {
+      void loadSaasInvoices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
 
   const filteredTenants = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -1489,52 +1554,67 @@ export default function MasterDashboard({
     setIsSavingTenant(true);
     const payload = buildCompanyRpcPayload();
 
-    if (companyModalMode === "create") {
-      const { data, error } = await supabase.rpc("master_create_tenant", payload);
+    try {
+      if (companyModalMode === "create") {
+        const { data, error } = await withRequestTimeout(
+          supabase.rpc("master_create_tenant", payload),
+          "O cadastro demorou para responder. Confira a lista antes de tentar novamente.",
+        );
 
-      if (error) {
-        setIsSavingTenant(false);
-        showToast("error", error.message || "Não foi possível criar a empresa.");
+        if (error) {
+          throw error;
+        }
+
+        const result = (
+          Array.isArray(data) ? data[0] : data
+        ) as CreatedTenantResult | null;
+        forceCloseCompanyModal();
+        await loadTenants();
+
+        if (result?.first_access_token) {
+          await copyText(
+            `${origin}/primeiro-acesso/${result.first_access_token}`,
+            "Empresa criada. Link de primeiro acesso copiado.",
+          );
+        } else {
+          showToast("success", "Empresa criada com sucesso.");
+        }
         return;
       }
 
-      const result = (Array.isArray(data) ? data[0] : data) as CreatedTenantResult | null;
-      forceCloseCompanyModal();
-      setIsSavingTenant(false);
-      await loadTenants();
-
-      if (result?.first_access_token) {
-        await copyText(
-          `${origin}/primeiro-acesso/${result.first_access_token}`,
-          "Empresa criada. Link de primeiro acesso copiado.",
-        );
-      } else {
-        showToast("success", "Empresa criada com sucesso.");
+      if (!editingTenantId) {
+        showToast("error", "Empresa não identificada para edição.");
+        return;
       }
-      return;
-    }
 
-    if (!editingTenantId) {
+      const { error } = await withRequestTimeout(
+        supabase.rpc("master_update_tenant", {
+          p_tenant_id: editingTenantId,
+          ...payload,
+        }),
+        "A atualização demorou para responder. Confira a lista antes de tentar novamente.",
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      forceCloseCompanyModal();
+      await loadTenants();
+      showToast("success", "Cadastro da empresa atualizado.");
+    } catch (error) {
+      showToast(
+        "error",
+        getErrorMessage(
+          error,
+          companyModalMode === "create"
+            ? "Não foi possível criar a empresa."
+            : "Não foi possível editar a empresa.",
+        ),
+      );
+    } finally {
       setIsSavingTenant(false);
-      showToast("error", "Empresa não identificada para edição.");
-      return;
     }
-
-    const { error } = await supabase.rpc("master_update_tenant", {
-      p_tenant_id: editingTenantId,
-      ...payload,
-    });
-
-    if (error) {
-      setIsSavingTenant(false);
-      showToast("error", error.message || "Não foi possível editar a empresa.");
-      return;
-    }
-
-    forceCloseCompanyModal();
-    setIsSavingTenant(false);
-    await loadTenants();
-    showToast("success", "Cadastro da empresa atualizado.");
   };
 
   const openDeleteTenantModal = (tenant: TenantCard) => {
