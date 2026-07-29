@@ -78,6 +78,27 @@ function readBooleanRpcResult(data: unknown): boolean {
   return false;
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 20_000;
+
+function withAuthTimeout<T>(request: PromiseLike<T>, operation: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`${operation} excedeu o tempo limite de 20 segundos.`));
+    }, AUTH_REQUEST_TIMEOUT_MS);
+
+    Promise.resolve(request).then(
+      (result) => {
+        window.clearTimeout(timeoutId);
+        resolve(result);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 
 function isProductionLikeEnvironment(): boolean {
   if (typeof window === 'undefined') {
@@ -316,71 +337,91 @@ export default function App() {
     }
   };
 
-  const loadSupabaseOwnerSession = async () => {
-    const sessionResult = await supabase.auth.getSession();
-    const activeSession = sessionResult.data.session;
+  const loadSupabaseOwnerSession = async (): Promise<SessionUser | null> => {
+    try {
+      const sessionResult = await withAuthTimeout(
+        supabase.auth.getSession(),
+        'A consulta da sessão',
+      );
 
-    if (!activeSession?.user) {
-      setOwnerContext(null);
-      setSessionUser((current) => {
-        if (current?.role === 'professional') return current;
+      if (sessionResult.error) {
+        throw sessionResult.error;
+      }
+
+      const activeSession = sessionResult.data.session;
+
+      if (!activeSession?.user) {
+        setOwnerContext(null);
+        setSessionUser((current) => {
+          if (current?.role === 'professional') return current;
+          return null;
+        });
         return null;
-      });
-      return null;
-    }
+      }
 
-    const { data: masterAccessData, error: masterAccessError } =
-      await supabase.rpc('is_master_user');
+      const { data: masterAccessData, error: masterAccessError } =
+        await withAuthTimeout(
+          supabase.rpc('is_master_user'),
+          'A validação do acesso master',
+        );
 
-    if (masterAccessError) {
-      console.error('Erro ao validar acesso do desenvolvedor:', masterAccessError.message);
+      if (masterAccessError) {
+        throw masterAccessError;
+      }
+
+      if (readBooleanRpcResult(masterAccessData)) {
+        const developerUser: SessionUser = {
+          email: activeSession.user.email || '',
+          role: 'developer',
+          name: 'Rodrigo Souza',
+        };
+
+        setOwnerContext(null);
+        setSessionUser(developerUser);
+        return developerUser;
+      }
+
+      const { data, error } = await withAuthTimeout(
+        supabase.rpc('get_my_owner_context'),
+        'A consulta do contexto do proprietário',
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      const firstContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
+
+      const ownerIsActive =
+        firstContext?.user_active === true || firstContext?.is_active === true;
+
+      if (!firstContext?.tenant_id || !ownerIsActive) {
+        setOwnerContext(null);
+        setSessionUser(null);
+        return null;
+      }
+
+      setOwnerContext(firstContext);
+
+      const user: SessionUser = {
+        email: firstContext.email || activeSession.user.email || '',
+        role: 'owner',
+        name: firstContext.full_name || firstContext.tenant_name || 'Dono',
+        tenantId: firstContext.tenant_id,
+        tenantSlug: firstContext.tenant_slug,
+      };
+
+      setSessionUser(user);
+      return user;
+    } catch (error) {
+      console.error(
+        'Erro ao carregar a sessão protegida:',
+        error instanceof Error ? error.message : error,
+      );
       setOwnerContext(null);
       setSessionUser(null);
       return null;
     }
-
-    if (readBooleanRpcResult(masterAccessData)) {
-      const developerUser: SessionUser = {
-        email: activeSession.user.email || '',
-        role: 'developer',
-        name: 'Rodrigo Souza',
-      };
-
-      setOwnerContext(null);
-      setSessionUser(developerUser);
-      return developerUser;
-    }
-
-    const { data, error } = await supabase.rpc('get_my_owner_context');
-
-    if (error) {
-      console.error('Erro ao buscar contexto do dono:', error.message);
-      setOwnerContext(null);
-      return null;
-    }
-
-    const firstContext = (Array.isArray(data) ? data[0] : null) as OwnerContext | null;
-
-    const ownerIsActive =
-      firstContext?.user_active === true || firstContext?.is_active === true;
-
-    if (!firstContext?.tenant_id || !ownerIsActive) {
-      setOwnerContext(null);
-      return null;
-    }
-
-    setOwnerContext(firstContext);
-
-    const user: SessionUser = {
-      email: firstContext.email || activeSession.user.email || '',
-      role: 'owner',
-      name: firstContext.full_name || firstContext.tenant_name || 'Dono',
-      tenantId: firstContext.tenant_id,
-      tenantSlug: firstContext.tenant_slug,
-    };
-
-    setSessionUser(user);
-    return user;
   };
 
   useEffect(() => {
@@ -433,40 +474,51 @@ export default function App() {
         return false;
       }
 
-      const user = await loadSupabaseOwnerSession();
+      try {
+        const user = await loadSupabaseOwnerSession();
 
-      if (!isMounted) return;
+        if (!isMounted) return false;
 
-      if (pathname === '/master' && user?.role !== 'developer') {
-        navigateTo('login', '/login');
-      }
-
-      if ((pathname === '/painel' || pathname === '/owner') && user?.role !== 'owner') {
-        if (user?.role === 'developer') {
-          navigateTo('master-dashboard', '/master');
-        } else {
+        if (pathname === '/master' && user?.role !== 'developer') {
           navigateTo('login', '/login');
         }
-      }
 
-      if (pathname === '/owner' && user?.role === 'owner') {
-        navigateTo('owner-dashboard', '/painel');
-      }
+        if ((pathname === '/painel' || pathname === '/owner') && user?.role !== 'owner') {
+          if (user?.role === 'developer') {
+            navigateTo('master-dashboard', '/master');
+          } else {
+            navigateTo('login', '/login');
+          }
+        }
 
-      if (pathname === '/master' && user?.role === 'developer') {
-        navigateTo('master-dashboard', '/master');
-      }
-
-      if (pathname === '/login' || pathname === '/cadastro') {
-        if (user?.role === 'developer') {
-          navigateTo('master-dashboard', '/master');
-        } else if (user?.role === 'owner') {
+        if (pathname === '/owner' && user?.role === 'owner') {
           navigateTo('owner-dashboard', '/painel');
         }
-      }
 
-      setAuthChecking(false);
-      return true;
+        if (pathname === '/master' && user?.role === 'developer') {
+          navigateTo('master-dashboard', '/master');
+        }
+
+        if (pathname === '/login' || pathname === '/cadastro') {
+          if (user?.role === 'developer') {
+            navigateTo('master-dashboard', '/master');
+          } else if (user?.role === 'owner') {
+            navigateTo('owner-dashboard', '/painel');
+          }
+        }
+
+        return true;
+      } catch (error) {
+        console.error(
+          'Erro inesperado durante a verificação inicial de acesso:',
+          error instanceof Error ? error.message : error,
+        );
+        return false;
+      } finally {
+        if (isMounted) {
+          setAuthChecking(false);
+        }
+      }
     }
 
     let unsubscribeAuthListener: (() => void) | null = null;
@@ -474,7 +526,7 @@ export default function App() {
     void checkInitialAuth().then((shouldListenToAuth) => {
       if (!isMounted || !shouldListenToAuth) return;
 
-      const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
         if (event === 'PASSWORD_RECOVERY') {
           setOwnerContext(null);
           setSessionUser(null);
@@ -496,7 +548,12 @@ export default function App() {
           return;
         }
 
-        await loadSupabaseOwnerSession();
+        // A consulta deve começar depois que o callback de autenticação terminar.
+        // Isso evita disputar o bloqueio interno da sessão do Supabase.
+        window.setTimeout(() => {
+          if (!isMounted) return;
+          void loadSupabaseOwnerSession();
+        }, 0);
       });
 
       unsubscribeAuthListener = () => authListener.subscription.unsubscribe();
@@ -633,11 +690,22 @@ export default function App() {
   };
 
   const handleLogOut = async () => {
-    await supabase.auth.signOut();
-    setSessionUser(null);
-    setOwnerContext(null);
-    setPreseedRole(null);
-    navigateTo('login', '/login');
+    try {
+      await withAuthTimeout(
+        supabase.auth.signOut(),
+        'A saída da conta',
+      );
+    } catch (error) {
+      console.error(
+        'Erro ao encerrar a sessão:',
+        error instanceof Error ? error.message : error,
+      );
+    } finally {
+      setSessionUser(null);
+      setOwnerContext(null);
+      setPreseedRole(null);
+      navigateTo('login', '/login');
+    }
   };
 
   const getActiveTenantSlug = (): string => {
