@@ -200,9 +200,20 @@ export default function ProfessionalModal({
   }
 
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const normalizedRemunerationType = remunerationType === 'commission_fixed'
-    ? 'commission_fixed'
-    : 'commission_percent';
+  const normalizedRemunerationType =
+    String(remunerationType) === 'commission_fixed'
+      ? 'commission_fixed'
+      : String(remunerationType) === 'no_commission'
+        ? 'no_commission'
+        : 'commission_percent';
+
+  const handleChangeRemunerationType = (value: string) => {
+    onChangeRemunerationType(value as RemunerationType);
+
+    if (value === 'no_commission') {
+      onChangeRemunerationValue(0);
+    }
+  };
 
   const handleToggleWorkDay = (dayIndex: number) => {
     const isWorking = workDays.includes(dayIndex);
@@ -436,28 +447,42 @@ export default function ProfessionalModal({
                 <select
                   id="select-prof-rem-type"
                   value={normalizedRemunerationType}
-                  onChange={(event) => onChangeRemunerationType(event.target.value as RemunerationType)}
+                  onChange={(event) => handleChangeRemunerationType(event.target.value)}
                   className="w-full bg-white border rounded-lg p-2 outline-none font-sans focus:border-[#0f4c5c]"
                 >
                   <option value="commission_percent">Percentual (%)</option>
                   <option value="commission_fixed">Valor fixo (R$)</option>
+                  <option value="no_commission">Sem comissão</option>
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="font-bold text-neutral-700">
-                  {normalizedRemunerationType === 'commission_fixed'
-                    ? 'Valor fixo por atendimento'
-                    : 'Percentual de comissão'}
-                </label>
+              {normalizedRemunerationType === 'no_commission' ? (
+                <div className="rounded-lg border border-[#0f4c5c]/15 bg-white px-3 py-2">
+                  <span className="block font-bold text-neutral-700">
+                    Sem valor de comissão
+                  </span>
 
-                <input
-                  type="number"
-                  value={remunerationValue}
-                  onChange={(event) => onChangeRemunerationValue(Number(event.target.value))}
-                  className="w-full bg-white border rounded-lg p-2 outline-none focus:border-[#0f4c5c]"
-                />
-              </div>
+                  <span className="block mt-1 text-[10px] leading-relaxed text-neutral-500">
+                    Os atendimentos e o faturamento continuarão aparecendo nas estatísticas.
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">
+                    {normalizedRemunerationType === 'commission_fixed'
+                      ? 'Valor fixo por atendimento'
+                      : 'Percentual de comissão'}
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={remunerationValue || ''}
+                    onChange={(event) => onChangeRemunerationValue(Number(event.target.value))}
+                    className="w-full bg-white border rounded-lg p-2 outline-none focus:border-[#0f4c5c]"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

@@ -278,9 +278,10 @@ export function mapSupabaseProfessionalToAppProfessional(
   professional: SupabaseProfessionalResponse,
 ): Professional {
   const normalizedRemType =
-    professional.rem_type === "commission_fixed"
-      ? "commission_fixed"
-      : "commission_percent";
+    professional.rem_type === "commission_fixed" ||
+    professional.rem_type === "commission_percent"
+      ? professional.rem_type
+      : "no_commission";
 
   return {
     id: professional.id,
@@ -320,7 +321,10 @@ export function mapSupabaseProfessionalToAppProfessional(
       ) || 30,
     services: Array.isArray(professional.services) ? professional.services : [],
     remType: normalizedRemType as RemunerationType,
-    remValue: Number(professional.rem_value) || 0,
+    remValue:
+      normalizedRemType === "no_commission"
+        ? 0
+        : Number(professional.rem_value) || 0,
     chairRentalValue: Number(professional.chair_rental_value) || 0,
     chairRentalStatus:
       professional.chair_rental_status === "active" ? "active" : "inactive",
@@ -354,10 +358,14 @@ export function buildProfessionalPayload(professional: Professional) {
       Number(professional.defaultAppointmentDuration) || 30,
     services: professional.services,
     rem_type:
-      professional.remType === "commission_fixed"
-        ? "commission_fixed"
-        : "commission_percent",
-    rem_value: Number(professional.remValue) || 0,
+      professional.remType === "commission_fixed" ||
+      professional.remType === "commission_percent"
+        ? professional.remType
+        : "no_commission",
+    rem_value:
+      professional.remType === "no_commission"
+        ? 0
+        : Number(professional.remValue) || 0,
     chair_rental_value: Number(professional.chairRentalValue) || 0,
     chair_rental_status: professional.chairRentalStatus || "inactive",
     permissions: normalizeProfessionalPermissions(professional.permissions),

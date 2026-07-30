@@ -80,8 +80,8 @@ export function useOwnerProfessionals({
     useState(30);
   const [profServicesIds, setProfServicesIds] = useState<string[]>([]);
   const [profRemType, setProfRemType] =
-    useState<RemunerationType>("commission_percent");
-  const [profRemValue, setProfRemValue] = useState(40);
+    useState<RemunerationType>("no_commission");
+  const [profRemValue, setProfRemValue] = useState(0);
   const [profChairRental, setProfChairRental] = useState(0);
 
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(false);
@@ -145,8 +145,8 @@ export function useOwnerProfessionals({
     setProfNoLunchBreak(false);
     setProfDefaultAppointmentDuration(30);
     setProfServicesIds([]);
-    setProfRemType("commission_percent");
-    setProfRemValue(40);
+    setProfRemType("no_commission");
+    setProfRemValue(0);
     setProfChairRental(0);
   };
 
@@ -183,12 +183,14 @@ export function useOwnerProfessionals({
     setProfRemType(
       professional.remType === "commission_fixed"
         ? "commission_fixed"
+        : professional.remType === "no_commission"
+          ? "no_commission"
         : "commission_percent",
     );
     setProfRemValue(
-      professional.remType === "commission_fixed"
-        ? professional.remValue
-        : professional.remValue || 40,
+      professional.remType === "no_commission"
+        ? 0
+        : Number(professional.remValue) || 0,
     );
     setProfChairRental(0);
     setShowProfModal(true);
@@ -241,8 +243,11 @@ export function useOwnerProfessionals({
         services: profServicesIds,
         remType: (profRemType === "commission_fixed"
           ? "commission_fixed"
-          : "commission_percent") as RemunerationType,
-        remValue: Number(profRemValue) || 0,
+          : profRemType === "no_commission"
+            ? "no_commission"
+            : "commission_percent") as RemunerationType,
+        remValue:
+          profRemType === "no_commission" ? 0 : Number(profRemValue) || 0,
         chairRentalValue: editingProf?.chairRentalValue || 0,
         chairRentalStatus: editingProf?.chairRentalStatus || "inactive",
         permissions: normalizeProfessionalPermissions(
