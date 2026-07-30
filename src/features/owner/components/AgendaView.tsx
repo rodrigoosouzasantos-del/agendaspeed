@@ -978,6 +978,7 @@ export default function AgendaView({
     setClientNotes,
     setClientPhone,
     setCurrentStep,
+    setBlockedIntervals,
     setOpenDays,
     setOutsideScaleConfirmRequest,
     setProfessionalSearch,

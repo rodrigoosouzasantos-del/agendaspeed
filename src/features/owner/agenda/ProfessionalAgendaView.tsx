@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ChevronRight,
@@ -38,6 +38,14 @@ interface ProfessionalAgendaViewProps {
 export default function ProfessionalAgendaView({
   context
 }: ProfessionalAgendaViewProps) {
+  const [scheduleBlockActionLoading, setScheduleBlockActionLoading] = useState(false);
+  const [scheduleBlockRequest, setScheduleBlockRequest] = useState<{
+    action: "block" | "unblock";
+    start: number;
+    end: number;
+    blockId?: string;
+  } | null>(null);
+
   const {
     agendaLookaheadDays,
     appointments,
@@ -55,6 +63,7 @@ export default function ProfessionalAgendaView({
     setClientNotes,
     setClientPhone,
     setCurrentStep,
+    setBlockedIntervals,
     setOpenDays,
     setOutsideScaleConfirmRequest,
     setScheduleDayActionLoading,
@@ -467,6 +476,97 @@ const renderProfessionalAgenda = () => {
       setCurrentStep("selectService");
     };
 
+    const submitScheduleBlockAction = async () => {
+      if (!scheduleBlockRequest || scheduleBlockActionLoading) {
+        return;
+      }
+
+      const request = scheduleBlockRequest;
+
+      if (!isValidUuid(selectedProfessional.id)) {
+        alert("Não foi possível identificar o profissional para alterar o bloqueio.");
+        return;
+      }
+
+      setScheduleBlockActionLoading(true);
+
+      if (request.action === "unblock") {
+        if (!request.blockId) {
+          setScheduleBlockActionLoading(false);
+          setScheduleBlockRequest(null);
+          return;
+        }
+
+        const { error } = await supabase.rpc("delete_my_professional_schedule_block", {
+          p_block_id: request.blockId,
+        });
+
+        setScheduleBlockActionLoading(false);
+
+        if (error) {
+          alert(error.message || "Não foi possível desbloquear este horário.");
+          return;
+        }
+
+        setBlockedIntervals((currentIntervals: AgendaBlockedInterval[]) => {
+          return currentIntervals.filter((interval) => {
+            return interval.id !== request.blockId;
+          });
+        });
+        setScheduleBlockRequest(null);
+        return;
+      }
+
+      const startTime = minutesToTime(request.start);
+      const endTime = minutesToTime(request.end);
+      const reason = "Bloqueio manual";
+
+      const { data, error } = await supabase.rpc(
+        "upsert_my_professional_schedule_block",
+        {
+          p_professional_id: selectedProfessional.id,
+          p_date: selectedDateSafe,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_reason: reason,
+        },
+      );
+
+      setScheduleBlockActionLoading(false);
+
+      if (error) {
+        alert(error.message || "Não foi possível bloquear este horário.");
+        return;
+      }
+
+      const firstRow = Array.isArray(data) ? data[0] : data;
+
+      if (!firstRow?.id) {
+        alert("O bloqueio foi processado, mas o banco não retornou o registro criado.");
+        return;
+      }
+
+      const savedInterval: AgendaBlockedInterval = {
+        id: String(firstRow.id),
+        professionalId: String(
+          firstRow.professional_id || selectedProfessional.id,
+        ),
+        date: String(firstRow.date || selectedDateSafe),
+        startTime: String(firstRow.start_time || startTime).slice(0, 5),
+        endTime: String(firstRow.end_time || endTime).slice(0, 5),
+        reason: String(firstRow.reason || reason),
+      };
+
+      setBlockedIntervals((currentIntervals: AgendaBlockedInterval[]) => {
+        const nextIntervals = currentIntervals.filter((interval) => {
+          return interval.id !== savedInterval.id;
+        });
+
+        return [...nextIntervals, savedInterval];
+      });
+      setScheduleBlockRequest(null);
+    };
+
     const renderHistoricalAppointments = (historyItems: Appointment[] = []) => {
       if (historyItems.length === 0) {
         return null;
@@ -771,8 +871,11 @@ const renderProfessionalAgenda = () => {
 
 
             if (slot.type === "blocked") {
+              const blockId = String(slot.blockedInterval?.id || "");
+              const canUnblock = Boolean(blockId) && !blockId.startsWith("closed-");
+
               return (
-                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-3">
+                <div key={slot.key} className="grid grid-cols-[90px_1fr] gap-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-3 sm:grid-cols-[90px_1fr_auto] sm:items-center">
                   <div className="font-mono">
                     <strong className="block text-lg text-neutral-700">{minutesToTime(slot.start)}</strong>
                     <span className="text-[11px] text-neutral-500">até {minutesToTime(slot.end)}</span>
@@ -784,6 +887,23 @@ const renderProfessionalAgenda = () => {
                     </p>
                     {renderHistoricalAppointments(slot.historicalAppointments || [])}
                   </div>
+                  {canUnblock && (
+                    <button
+                      type="button"
+                      disabled={scheduleBlockActionLoading}
+                      onClick={() => {
+                        setScheduleBlockRequest({
+                          action: "unblock",
+                          start: slot.start,
+                          end: slot.end,
+                          blockId,
+                        });
+                      }}
+                      className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-extrabold text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Desbloquear
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -843,8 +963,15 @@ const renderProfessionalAgenda = () => {
 
                   <button
                     type="button"
+                    disabled={scheduleBlockActionLoading}
+                    onClick={() => {
+                      setScheduleBlockRequest({
+                        action: "block",
+                        start: slot.start,
+                        end: slot.end,
+                      });
+                    }}
                     className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-extrabold text-neutral-700 transition hover:bg-neutral-50"
-                    title="Bloqueio manual de horário será ligado à regra definitiva de agenda aberta/fechada."
                   >
                     <span className="inline-flex items-center gap-1.5">
                       <Lock className="h-3.5 w-3.5" /> Bloquear
@@ -855,6 +982,48 @@ const renderProfessionalAgenda = () => {
             );
           })}
         </div>
+
+        {scheduleBlockRequest && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-sm rounded-3xl border border-[#0f4c5c]/15 bg-white p-5 text-center shadow-2xl">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0f4c5c]/5 text-[#0f4c5c]">
+                <Lock className="h-7 w-7" />
+              </div>
+
+              <h4 className="mt-4 text-lg font-extrabold text-neutral-950">
+                {scheduleBlockRequest.action === "block"
+                  ? "Bloquear este horário?"
+                  : "Desbloquear este horário?"}
+              </h4>
+
+              <p className="mt-2 text-sm font-medium text-neutral-600">
+                {formatDateBr(selectedDateSafe)} ·{" "}
+                {minutesToTime(scheduleBlockRequest.start)} às{" "}
+                {minutesToTime(scheduleBlockRequest.end)}
+              </p>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={scheduleBlockActionLoading}
+                  onClick={submitScheduleBlockAction}
+                  className="rounded-2xl bg-[#0f4c5c] px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#123945] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {scheduleBlockActionLoading ? "Processando..." : "Sim"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={scheduleBlockActionLoading}
+                  onClick={() => setScheduleBlockRequest(null)}
+                  className="rounded-2xl bg-neutral-200 px-4 py-3 text-sm font-extrabold text-neutral-700 transition hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Não
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {outsideScaleConfirmRequest && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
