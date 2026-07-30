@@ -43,6 +43,11 @@ export function useOwnerClients({
   const loadClientsFromSupabase = async (
     showLoading = true,
   ): Promise<Client[]> => {
+    if (!tenantId) {
+      setClientsLoadError("");
+      return [];
+    }
+
     if (showLoading) {
       setIsLoadingClients(true);
     }
@@ -52,6 +57,7 @@ export function useOwnerClients({
     const { data, error } = await supabase
       .from("clients")
       .select(SUPABASE_CLIENTS_SELECT)
+      .eq("tenant_id", tenantId)
       .order("updated_at", { ascending: false });
 
     if (error) {

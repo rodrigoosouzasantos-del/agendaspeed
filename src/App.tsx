@@ -5,14 +5,9 @@
 
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
-  getLocalState,
   saveLocalState,
   resetLocalState,
-  INITIAL_CONFIG,
-  INITIAL_SERVICES,
-  INITIAL_PROFESSIONALS,
-  INITIAL_CLIENTS,
-  INITIAL_APPOINTMENTS,
+  EMPTY_CONFIG,
   LocalState,
 } from './data';
 import { supabase } from './lib/supabase';
@@ -111,19 +106,9 @@ function isProductionLikeEnvironment(): boolean {
   return Boolean(import.meta.env.PROD && !isLocalHost);
 }
 
-function getFallbackLocalState(): LocalState {
-  return {
-    config: { ...INITIAL_CONFIG },
-    services: [...INITIAL_SERVICES],
-    professionals: [...INITIAL_PROFESSIONALS],
-    clients: [...INITIAL_CLIENTS],
-    appointments: [...INITIAL_APPOINTMENTS],
-  };
-}
-
 function getProductionInitialState(): LocalState {
   return {
-    config: { ...INITIAL_CONFIG },
+    config: { ...EMPTY_CONFIG },
     services: [],
     professionals: [],
     clients: [],
@@ -131,12 +116,13 @@ function getProductionInitialState(): LocalState {
   };
 }
 
+// O app SEMPRE começa neutro (sem nome/endereço/foto/serviços de
+// demonstração), em qualquer ambiente. Dados de demonstração não devem
+// nunca ser usados como semente do estado real, pois podem acabar sendo
+// gravados no Supabase (ex.: foto de capa "pré-configurada" ou serviços
+// fictícios) antes dos dados reais do tenant terminarem de carregar.
 function getInitialAppState(): LocalState {
-  if (isProductionLikeEnvironment()) {
-    return getProductionInitialState();
-  }
-
-  return getLocalState();
+  return getProductionInitialState();
 }
 
 function normalizePhone(value: string): string {

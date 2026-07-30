@@ -15,6 +15,33 @@ export function getRelativeDateStr(offsetDays: number): string {
   return date.toISOString().split('T')[0];
 }
 
+// Configuração "neutra", sem nenhum dado fictício de demonstração.
+// Usada como estado inicial real do app: nunca deve conter nome de
+// estabelecimento, foto de capa/logo ou textos de demonstração, pois
+// esses valores podem acabar sendo salvos no Supabase antes dos dados
+// reais do tenant terminarem de carregar.
+export const EMPTY_CONFIG: EstablishmentConfig = {
+  name: "",
+  logo: "",
+  coverImage: "",
+  address: "",
+  phone: "",
+  instagram: "",
+  workDays: [1, 2, 3, 4, 5, 6],
+  workHoursStart: "08:00",
+  workHoursEnd: "19:00",
+  minLeadTimeMinutes: 30,
+  maxFutureDays: 30,
+  cancellationPolicy: "",
+  autoApprove: true,
+  requireDepositGlobal: false,
+  defaultMsgTemplate: "",
+};
+
+// ATENÇÃO: INITIAL_CONFIG contém dados fictícios de demonstração
+// (nome, endereço, foto de capa etc.). Não deve mais ser usado como
+// estado inicial do app em produção — use EMPTY_CONFIG. Mantido aqui
+// apenas para eventual uso em modo de demonstração/local isolado.
 export const INITIAL_CONFIG: EstablishmentConfig = {
   name: "Studio Beleza Viva & Barbearia",
   logo: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=150&h=150&fit=crop",

@@ -90,36 +90,40 @@ export function useOwnerSettings({
         Array.isArray(data) ? data[0] : null
       ) as TenantSettingsResponse | null;
 
-      if (!firstSettings) return;
+      if (firstSettings) {
+        setTenantId(firstSettings.tenant_id || "");
 
-      setTenantId(firstSettings.tenant_id || "");
+        const settingsSlug = String(
+          firstSettings.tenant_slug || firstSettings.slug || "",
+        ).trim();
 
-      const settingsSlug = String(
-        firstSettings.tenant_slug || firstSettings.slug || "",
-      ).trim();
-
-      if (settingsSlug) {
-        setTenantSlug(settingsSlug);
-      } else {
-        const { data: ownerContextData, error: ownerContextError } =
-          await supabase.rpc("get_my_owner_context");
-
-        if (ownerContextError) {
-          console.error(
-            "Erro ao carregar o link público da agenda:",
-            ownerContextError.message,
-          );
+        if (settingsSlug) {
+          setTenantSlug(settingsSlug);
         } else {
-          const ownerContext = Array.isArray(ownerContextData)
-            ? ownerContextData[0]
-            : ownerContextData;
+          const { data: ownerContextData, error: ownerContextError } =
+            await supabase.rpc("get_my_owner_context");
 
-          setTenantSlug(
-            String(ownerContext?.tenant_slug || ownerContext?.slug || "").trim(),
-          );
+          if (ownerContextError) {
+            console.error(
+              "Erro ao carregar o link público da agenda:",
+              ownerContextError.message,
+            );
+          } else {
+            const ownerContext = Array.isArray(ownerContextData)
+              ? ownerContextData[0]
+              : ownerContextData;
+
+            setTenantSlug(
+              String(ownerContext?.tenant_slug || ownerContext?.slug || "").trim(),
+            );
+          }
         }
       }
 
+      // Mesmo sem settings ainda (tenant novo), normalizamos os campos
+      // locais para valores neutros — nunca deixamos texto/foto antigos
+      // (de demonstração ou de sessão anterior) prontos para serem salvos
+      // de volta no Supabase caso o usuário clique em "Salvar".
       const nextConfig = mapTenantSettingsToConfig(config, firstSettings);
 
       setConfigName(nextConfig.name);
@@ -131,28 +135,28 @@ export function useOwnerSettings({
       setConfigDefaultTemplate(nextConfig.defaultMsgTemplate);
       setBookingMinLeadTimeMinutes(nextConfig.minLeadTimeMinutes || 0);
       setBookingMinCancelLeadTimeMinutes(
-        Number(firstSettings.booking_min_cancel_lead_time_minutes ?? 120),
+        Number(firstSettings?.booking_min_cancel_lead_time_minutes ?? 120),
       );
       setBookingMinRescheduleLeadTimeMinutes(
-        Number(firstSettings.booking_min_reschedule_lead_time_minutes ?? 120),
+        Number(firstSettings?.booking_min_reschedule_lead_time_minutes ?? 120),
       );
       setBookingAllowClientConfirmation(
-        Boolean(firstSettings.booking_allow_client_confirmation ?? true),
+        Boolean(firstSettings?.booking_allow_client_confirmation ?? true),
       );
       setBookingAllowClientCancellation(
-        Boolean(firstSettings.booking_allow_client_cancellation ?? true),
+        Boolean(firstSettings?.booking_allow_client_cancellation ?? true),
       );
       setBookingAllowClientReschedule(
-        Boolean(firstSettings.booking_allow_client_reschedule ?? true),
+        Boolean(firstSettings?.booking_allow_client_reschedule ?? true),
       );
       setBookingSlotIntervalMinutes(
-        Number(firstSettings.booking_slot_interval_minutes ?? 30),
+        Number(firstSettings?.booking_slot_interval_minutes ?? 30),
       );
       setBookingMaxFutureDays(nextConfig.maxFutureDays || 14);
       setBookingWorkHoursStart(nextConfig.workHoursStart || "08:00");
       setBookingWorkHoursEnd(nextConfig.workHoursEnd || "19:00");
-      setBookingLunchStart(firstSettings.booking_lunch_start || "12:00");
-      setBookingLunchEnd(firstSettings.booking_lunch_end || "13:00");
+      setBookingLunchStart(firstSettings?.booking_lunch_start || "12:00");
+      setBookingLunchEnd(firstSettings?.booking_lunch_end || "13:00");
 
       onUpdateState({
         ...state,

@@ -183,32 +183,41 @@ export async function uploadTenantPublicImage(params: {
 
 export function mapTenantSettingsToConfig(
   currentConfig: EstablishmentConfig,
-  settings: TenantSettingsResponse,
+  settings: TenantSettingsResponse | null,
 ): EstablishmentConfig {
+  // Sem settings ainda no Supabase (tenant novo): retorna config neutra,
+  // nunca os valores que possam ter sobrado em currentConfig (que podem
+  // ser dados de demonstração ou de um tenant carregado anteriormente).
+  if (!settings) {
+    return {
+      ...currentConfig,
+      name: "",
+      address: "",
+      phone: "",
+      instagram: "",
+      logo: "",
+      coverImage: "",
+      defaultMsgTemplate: "",
+      minLeadTimeMinutes: 30,
+      maxFutureDays: 30,
+      workHoursStart: "08:00",
+      workHoursEnd: "19:00",
+    };
+  }
+
   return {
     ...currentConfig,
-    name: settings.name || currentConfig.name,
-    address: settings.address || currentConfig.address,
-    phone: settings.phone || settings.whatsapp || currentConfig.phone,
-    instagram: settings.instagram || currentConfig.instagram,
+    name: settings.name || "",
+    address: settings.address || "",
+    phone: settings.phone || settings.whatsapp || "",
+    instagram: settings.instagram || "",
     logo: settings.logo_url || "",
     coverImage: settings.cover_url || "",
-    defaultMsgTemplate:
-      settings.default_msg_template || currentConfig.defaultMsgTemplate,
-    minLeadTimeMinutes: Number(
-      settings.booking_min_lead_time_minutes ??
-        currentConfig.minLeadTimeMinutes ??
-        0,
-    ),
-    maxFutureDays: Number(
-      settings.booking_max_future_days ?? currentConfig.maxFutureDays ?? 14,
-    ),
-    workHoursStart:
-      settings.booking_work_hours_start ||
-      currentConfig.workHoursStart ||
-      "08:00",
-    workHoursEnd:
-      settings.booking_work_hours_end || currentConfig.workHoursEnd || "19:00",
+    defaultMsgTemplate: settings.default_msg_template || "",
+    minLeadTimeMinutes: Number(settings.booking_min_lead_time_minutes ?? 30),
+    maxFutureDays: Number(settings.booking_max_future_days ?? 30),
+    workHoursStart: settings.booking_work_hours_start || "08:00",
+    workHoursEnd: settings.booking_work_hours_end || "19:00",
   };
 }
 
