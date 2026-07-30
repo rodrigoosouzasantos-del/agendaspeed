@@ -147,12 +147,15 @@ export default function ClientBooking({
           }, 15000);
         });
 
-        const [contextResult, scheduleDaysResult] = await Promise.race([
+        const [contextResult, scheduleDaysResult, scheduleBlocksResult] = await Promise.race([
           Promise.all([
             supabase.rpc('get_public_booking_context', {
               p_slug: publicSlug
             }),
             supabase.rpc('get_public_professional_schedule_days', {
+              p_slug: publicSlug
+            }),
+            supabase.rpc('get_public_professional_schedule_blocks', {
               p_slug: publicSlug
             })
           ]),
@@ -179,8 +182,17 @@ export default function ClientBooking({
           return;
         }
 
-        const contextAgendaBlocks = Array.isArray(firstRow.agenda_blocks)
-          ? firstRow.agenda_blocks.map((block: Record<string, unknown>) => normalizeRemoteBlockedInterval(block))
+        if (scheduleBlocksResult.error) {
+          console.error(
+            'Erro ao carregar os bloqueios da vitrine:',
+            scheduleBlocksResult.error
+          );
+        }
+
+        const contextAgendaBlocks = Array.isArray(scheduleBlocksResult.data)
+          ? scheduleBlocksResult.data.map((block: Record<string, unknown>) =>
+              normalizeRemoteBlockedInterval(block)
+            )
           : [];
 
         const contextScheduleDays = Array.isArray(firstRow.schedule_days)
