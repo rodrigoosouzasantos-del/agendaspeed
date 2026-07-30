@@ -191,8 +191,8 @@ export function mapTenantSettingsToConfig(
     address: settings.address || currentConfig.address,
     phone: settings.phone || settings.whatsapp || currentConfig.phone,
     instagram: settings.instagram || currentConfig.instagram,
-    logo: settings.logo_url || currentConfig.logo,
-    coverImage: settings.cover_url || currentConfig.coverImage,
+    logo: settings.logo_url || "",
+    coverImage: settings.cover_url || "",
     defaultMsgTemplate:
       settings.default_msg_template || currentConfig.defaultMsgTemplate,
     minLeadTimeMinutes: Number(

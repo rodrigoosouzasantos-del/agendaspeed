@@ -56,16 +56,14 @@ export function useOwnerServices({
   });
 
   const [servName, setServName] = useState("");
-  const [servCategory, setServCategory] = useState(() => {
-    return getInitialServiceCategories(services)[0] || "CABELO";
-  });
-  const [servDuration, setServDuration] = useState(30);
-  const [servDisplayOrder, setServDisplayOrder] = useState(1);
-  const [servPrice, setServPrice] = useState(50);
+  const [servCategory, setServCategory] = useState("");
+  const [servDuration, setServDuration] = useState(0);
+  const [servDisplayOrder, setServDisplayOrder] = useState(0);
+  const [servPrice, setServPrice] = useState(0);
   const [servDescription, setServDescription] = useState("");
   const [servActive, setServActive] = useState(true);
   const [servRequireDeposit, setServRequireDeposit] = useState(false);
-  const [servDepositValue, setServDepositValue] = useState<number>(10);
+  const [servDepositValue, setServDepositValue] = useState<number>(0);
 
   const [isLoadingServices, setIsLoadingServices] = useState(false);
 
@@ -154,12 +152,6 @@ export function useOwnerServices({
       setServiceCategoryOrders(nextCategoryOrders);
       setServiceCategoryStatuses(nextCategoryStatuses);
 
-      if (
-        !nextCategories.includes(normalizeServiceCategoryName(servCategory))
-      ) {
-        setServCategory(nextCategories[0] || "CABELO");
-      }
-
       onUpdateState({
         ...state,
         services: nextServices,
@@ -179,14 +171,14 @@ export function useOwnerServices({
 
   const resetServiceForm = () => {
     setServName("");
-    setServCategory(serviceCategories[0] || "CABELO");
-    setServDuration(30);
-    setServDisplayOrder(1);
-    setServPrice(50);
+    setServCategory("");
+    setServDuration(0);
+    setServDisplayOrder(0);
+    setServPrice(0);
     setServDescription("");
     setServActive(true);
     setServRequireDeposit(false);
-    setServDepositValue(10);
+    setServDepositValue(0);
   };
 
 
@@ -206,14 +198,20 @@ export function useOwnerServices({
     setServDescription(service.description);
     setServActive(service.active);
     setServRequireDeposit(service.requireDeposit);
-    setServDepositValue(service.depositValue || 10);
+    setServDepositValue(service.depositValue || 0);
     setShowServiceModal(true);
   };
 
   const handleAddNewService = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!servName || !servCategory || !servPrice || !servDuration) {
+    if (
+      !servName ||
+      !servCategory ||
+      servPrice <= 0 ||
+      servDuration <= 0 ||
+      servDisplayOrder <= 0
+    ) {
       showOwnerFeedback("Favor preencher os dados do serviço.");
       return;
     }
@@ -227,9 +225,9 @@ export function useOwnerServices({
       name: servName,
       category: normalizedCategory,
       categoryOrder: nextCategoryOrder,
-      displayOrder: Number(servDisplayOrder) || 999,
-      duration: Number(servDuration) || 30,
-      price: Number(servPrice) || 0,
+      displayOrder: Number(servDisplayOrder),
+      duration: Number(servDuration),
+      price: Number(servPrice),
       description: servDescription,
       professionals: editingService?.professionals || [],
       specificCommission: null,
@@ -663,7 +661,7 @@ export function useOwnerServices({
       });
 
       if (servCategory === normalizedCategory) {
-        setServCategory(nextCategories[0] || "");
+        setServCategory("");
       }
 
       return nextCategories;

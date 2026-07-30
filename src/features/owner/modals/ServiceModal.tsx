@@ -158,6 +158,10 @@ export default function ServiceModal({
               className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none font-semibold"
               required
             >
+              <option value="" disabled>
+                Selecione uma categoria
+              </option>
+
               {normalizedCategories.map((item) => (
                 <option
                   key={item}
@@ -179,7 +183,7 @@ export default function ServiceModal({
                 id="input-service-duration"
                 type="number" 
                 min={1}
-                value={duration}
+                value={duration > 0 ? duration : ''}
                 onChange={(event) => onChangeDuration(Number(event.target.value))}
                 className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
                 required
@@ -195,7 +199,7 @@ export default function ServiceModal({
                 id="input-service-display-order"
                 type="number" 
                 min={1}
-                value={displayOrder}
+                value={displayOrder > 0 ? displayOrder : ''}
                 onChange={(event) => onChangeDisplayOrder(Number(event.target.value))}
                 className="w-full bg-neutral-50 border rounded-xl py-2 px-3 text-xs outline-none"
                 required
@@ -274,6 +278,7 @@ export default function ServiceModal({
                   inputMode="numeric"
                   value={formatCurrencyInput(depositValue)}
                   onChange={(event) => onChangeDepositValue(parseCurrencyInput(event.target.value))}
+                  placeholder="R$ 0,00"
                   className="w-full bg-white border p-2 rounded-lg text-xs outline-none font-bold"
                 />
               </div>
