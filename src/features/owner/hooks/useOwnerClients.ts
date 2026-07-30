@@ -45,6 +45,7 @@ export function useOwnerClients({
   ): Promise<Client[]> => {
     if (!tenantId) {
       setClientsLoadError("");
+      setIsLoadingClients(false);
       return [];
     }
 
@@ -54,29 +55,45 @@ export function useOwnerClients({
 
     setClientsLoadError("");
 
-    const { data, error } = await supabase
-      .from("clients")
-      .select(SUPABASE_CLIENTS_SELECT)
-      .eq("tenant_id", tenantId)
-      .order("updated_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .select(SUPABASE_CLIENTS_SELECT)
+        .eq("tenant_id", tenantId)
+        .order("updated_at", { ascending: false });
 
-    if (error) {
-      console.error("Erro ao carregar clientes:", error.message);
-      setClientsLoadError(error.message || "Erro ao carregar clientes.");
-      setIsLoadingClients(false);
+      if (error) {
+        console.error("Erro ao carregar clientes:", error.message);
+        setClientsLoadError(error.message || "Erro ao carregar clientes.");
+        return [];
+      }
+
+      const rows = (Array.isArray(data) ? data : []) as SupabaseClientResponse[];
+      const nextClients = rows.map(mapSupabaseClientToAppClient);
+
+      setClients(nextClients);
+
+      return nextClients;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao carregar clientes.";
+
+      console.error("Erro ao carregar clientes:", message);
+      setClientsLoadError(message);
       return [];
+    } finally {
+      setIsLoadingClients(false);
     }
-
-    const rows = (Array.isArray(data) ? data : []) as SupabaseClientResponse[];
-    const nextClients = rows.map(mapSupabaseClientToAppClient);
-
-    setClients(nextClients);
-    setIsLoadingClients(false);
-
-    return nextClients;
   };
 
   useEffect(() => {
+    if (!tenantId) {
+      setClients([]);
+      setClientsLoadError("");
+      setIsLoadingClients(false);
+      return;
+    }
+
     let isMounted = true;
 
     async function loadInitialClients() {
@@ -96,7 +113,7 @@ export function useOwnerClients({
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tenantId]);
 
   const handleAddManualClient = (clientData: {
     name: string;
