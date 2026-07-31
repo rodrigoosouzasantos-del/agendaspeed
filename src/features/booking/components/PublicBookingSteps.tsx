@@ -2,7 +2,7 @@
  * Componentes visuais das etapas da Vitrine pública.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Clock, Instagram,
   MapPin, MessageCircle, Phone, User, Users, Zap
@@ -14,6 +14,48 @@ import {
   formatDateBr, formatPublicCurrency, formatPublicDuration, formatPublicPhone,
   getFirstName, normalizePublicAddress
 } from '../publicBooking.data';
+
+// Quantidade de caracteres exibidos na descrição do serviço antes de "ver mais".
+const DESCRIPTION_PREVIEW_LIMIT = 110;
+
+function truncateDescription(text: string, limit: number): string {
+  if (text.length <= limit) {
+    return text;
+  }
+
+  const sliced = text.slice(0, limit);
+  const lastSpaceIndex = sliced.lastIndexOf(' ');
+  const safeSlice = lastSpaceIndex > 40 ? sliced.slice(0, lastSpaceIndex) : sliced;
+
+  return `${safeSlice.trimEnd()}...`;
+}
+
+function formatInstagramHandle(value?: string): { label: string; href: string } | null {
+  const trimmedValue = String(value || '').trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  let handle = trimmedValue;
+
+  // Remove protocolo e domínio, se o dono tiver colado a URL completa.
+  handle = handle.replace(/^https?:\/\//i, '');
+  handle = handle.replace(/^(www\.)?instagram\.com\//i, '');
+
+  // Remove parâmetros de rastreamento (ex.: ?igsh=...) e barra final.
+  handle = handle.split('?')[0].split('/')[0];
+  handle = handle.replace(/^@/, '').trim();
+
+  if (!handle) {
+    return null;
+  }
+
+  return {
+    label: `@${handle}`,
+    href: `https://www.instagram.com/${handle}`
+  };
+}
 
 function BookingStepShell({
   title,
@@ -72,6 +114,7 @@ export function BookingHeader({
   onNavigateBack: () => void;
 }) {
   const formattedAddress = normalizePublicAddress(companyAddress);
+  const instagramInfo = formatInstagramHandle(instagram);
 
   return (
     <header className="bg-[#F4F6F6] pb-4">
@@ -110,7 +153,7 @@ export function BookingHeader({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h1 className="truncate text-xl font-semibold tracking-tight text-[#1A3038] sm:text-2xl">
+                <h1 className="min-w-0 break-words [overflow-wrap:anywhere] text-xl font-semibold tracking-tight text-[#1A3038] sm:text-2xl">
                   {companyName || 'AgendaBless'}
                 </h1>
 
@@ -129,7 +172,9 @@ export function BookingHeader({
                 {formattedAddress && (
                   <p className="flex items-start gap-1.5">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1A3038]" />
-                    <span>{formattedAddress}</span>
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                      {formattedAddress}
+                    </span>
                   </p>
                 )}
 
@@ -140,10 +185,17 @@ export function BookingHeader({
                   </p>
                 )}
 
-                {instagram && (
+                {instagramInfo && (
                   <p className="flex items-center gap-1.5">
                     <Instagram className="h-3.5 w-3.5 shrink-0 text-[#1A3038]" />
-                    <span>{instagram}</span>
+                    <a
+                      href={instagramInfo.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="min-w-0 break-all [overflow-wrap:anywhere] hover:underline"
+                    >
+                      {instagramInfo.label}
+                    </a>
                   </p>
                 )}
               </div>
@@ -168,6 +220,22 @@ export function ServiceSelectionStep({
   onChangeCategory: (category: string) => void;
   onSelectService: (service: Service) => void;
 }) {
+  const [expandedServiceIds, setExpandedServiceIds] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (serviceId: string) => {
+    setExpandedServiceIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+
+      return next;
+    });
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl px-3 pb-8 sm:px-4">
       <div className="sticky top-0 z-20 -mx-3 border-y border-slate-200 bg-[#F4F6F6]/95 px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4">
@@ -194,7 +262,15 @@ export function ServiceSelectionStep({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {services.map((service) => (
+        {services.map((service) => {
+          const fullDescription = service.description || 'Serviço disponível para agendamento.';
+          const isExpanded = expandedServiceIds.has(service.id);
+          const isTruncatable = fullDescription.length > DESCRIPTION_PREVIEW_LIMIT;
+          const visibleDescription = isExpanded
+            ? fullDescription
+            : truncateDescription(fullDescription, DESCRIPTION_PREVIEW_LIMIT);
+
+          return (
           <article
             key={service.id}
             className="group relative overflow-hidden rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-[0_14px_38px_rgba(26,48,56,0.055)] transition hover:border-[#E0A96D]/60 hover:shadow-[0_20px_48px_rgba(26,48,56,0.085)]"
@@ -233,8 +309,20 @@ export function ServiceSelectionStep({
               )}
             </div>
 
-            <p className="mt-3 line-clamp-2 min-h-[38px] text-sm font-medium leading-relaxed text-slate-600">
-              {service.description || 'Serviço disponível para agendamento.'}
+            <p className="mt-3 min-h-[38px] whitespace-pre-line break-words text-sm font-medium leading-relaxed text-slate-600">
+              {visibleDescription}
+              {isTruncatable && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleDescription(service.id);
+                  }}
+                  className="ml-1.5 inline font-black text-[#8A663F] underline decoration-[#E0A96D] underline-offset-2 hover:text-[#1A3038]"
+                >
+                  {isExpanded ? 'ver menos' : 'ver mais'}
+                </button>
+              )}
             </p>
 
             <button
@@ -246,7 +334,8 @@ export function ServiceSelectionStep({
               <ChevronRight className="h-4 w-4" />
             </button>
           </article>
-        ))}
+          );
+        })}
 
         {services.length === 0 && (
           <div className="col-span-full rounded-[1.6rem] border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-600">
