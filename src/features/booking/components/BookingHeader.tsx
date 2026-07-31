@@ -38,6 +38,33 @@ function normalizeImageUrl(value?: string): string {
   return trimmedValue;
 }
 
+function formatInstagramHandle(value?: string): { label: string; href: string } | null {
+  const trimmedValue = String(value || '').trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  let handle = trimmedValue;
+
+  // Remove protocolo e domínio, se o dono tiver colado a URL completa.
+  handle = handle.replace(/^https?:\/\//i, '');
+  handle = handle.replace(/^(www\.)?instagram\.com\//i, '');
+
+  // Remove parâmetros de rastreamento (ex.: ?igsh=...) e barra final.
+  handle = handle.split('?')[0].split('/')[0];
+  handle = handle.replace(/^@/, '').trim();
+
+  if (!handle) {
+    return null;
+  }
+
+  return {
+    label: `@${handle}`,
+    href: `https://www.instagram.com/${handle}`
+  };
+}
+
 function getInitials(value: string): string {
   const words = value
     .trim()
@@ -71,8 +98,10 @@ export default function BookingHeader({
   const shouldShowCoverImage = Boolean(safeCoverUrl && !coverHasError);
   const shouldShowLogoImage = Boolean(safeLogoUrl && !logoHasError);
 
+  const instagramInfo = useMemo(() => formatInstagramHandle(instagram), [instagram]);
+
   return (
-    <header className="bg-neutral-50 border-b border-neutral-200">
+    <header className="bg-neutral-50 border-b border-neutral-200 overflow-x-hidden">
       <div className="relative bg-neutral-950">
         <div className="h-40 overflow-hidden sm:h-52 md:h-64">
           {shouldShowCoverImage ? (
@@ -112,15 +141,17 @@ export default function BookingHeader({
             </div>
 
             <div className="min-w-0 flex-1">
-              <h1 className="break-words text-xl font-extrabold leading-tight tracking-[-0.03em] text-neutral-800 sm:text-2xl">
+              <h1 className="break-words [overflow-wrap:anywhere] text-lg font-extrabold leading-snug tracking-[-0.02em] text-neutral-800 sm:text-2xl">
                 {companyName}
               </h1>
 
               <div className="mt-2 grid gap-1.5 text-[11px] font-bold leading-snug text-neutral-500 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1.5 sm:text-xs">
                 {companyAddress && (
-                  <span className="inline-flex items-start gap-1.5">
+                  <span className="inline-flex min-w-0 items-start gap-1.5">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600" />
-                    <span>{companyAddress}</span>
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                      {companyAddress}
+                    </span>
                   </span>
                 )}
 
@@ -131,11 +162,18 @@ export default function BookingHeader({
                   </span>
                 )}
 
-                {instagram && (
-                  <span className="inline-flex items-center gap-1.5">
+                {instagramInfo && (
+                  <a
+                    href={instagramInfo.href}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex min-w-0 max-w-full items-center gap-1.5 hover:text-orange-700"
+                  >
                     <Instagram className="h-3.5 w-3.5 shrink-0 text-orange-600" />
-                    <span>{instagram}</span>
-                  </span>
+                    <span className="min-w-0 break-all [overflow-wrap:anywhere]">
+                      {instagramInfo.label}
+                    </span>
+                  </a>
                 )}
               </div>
             </div>

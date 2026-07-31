@@ -7,7 +7,7 @@
  * - avançar diretamente para escolha do profissional.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import {
   ChevronRight,
@@ -19,8 +19,24 @@ import {
   ServiceSelectionStepProps
 } from '../booking.types';
 
+// Quantidade de caracteres exibidos antes de mostrar "ver mais".
+const DESCRIPTION_PREVIEW_LIMIT = 110;
+
 function formatCurrency(value: number): string {
   return `R$ ${value.toFixed(2)}`;
+}
+
+function truncateDescription(text: string, limit: number): string {
+  if (text.length <= limit) {
+    return text;
+  }
+
+  const sliced = text.slice(0, limit);
+  const lastSpaceIndex = sliced.lastIndexOf(' ');
+
+  const safeSlice = lastSpaceIndex > 40 ? sliced.slice(0, lastSpaceIndex) : sliced;
+
+  return `${safeSlice.trimEnd()}...`;
 }
 
 function formatDuration(minutes: number): string {
@@ -45,6 +61,22 @@ export default function ServiceSelectionStep({
   onChangeCategory,
   onSelectService
 }: ServiceSelectionStepProps) {
+  const [expandedServiceIds, setExpandedServiceIds] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (serviceId: string) => {
+    setExpandedServiceIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+
+      return next;
+    });
+  };
+
   return (
     <section className="mx-auto max-w-5xl px-4 py-3 sm:px-6 sm:py-4">
       <div className="sticky top-0 z-20 -mx-4 border-b border-neutral-200/80 bg-neutral-50/95 px-4 pb-3 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
@@ -82,12 +114,28 @@ export default function ServiceSelectionStep({
             </p>
           </div>
         ) : (
-          services.map((service) => (
-            <button
+          services.map((service) => {
+            const fullDescription =
+              service.description || 'Serviço disponível para agendamento.';
+            const isExpanded = expandedServiceIds.has(service.id);
+            const isTruncatable = fullDescription.length > DESCRIPTION_PREVIEW_LIMIT;
+            const visibleDescription = isExpanded
+              ? fullDescription
+              : truncateDescription(fullDescription, DESCRIPTION_PREVIEW_LIMIT);
+
+            return (
+            <div
               key={service.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectService(service)}
-              className="group w-full rounded-[1.75rem] border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-xl hover:shadow-orange-950/5 sm:p-5"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelectService(service);
+                }
+              }}
+              className="group w-full cursor-pointer rounded-[1.75rem] border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-xl hover:shadow-orange-950/5 sm:p-5"
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -113,8 +161,20 @@ export default function ServiceSelectionStep({
                     )}
                   </div>
 
-                  <p className="mt-3 line-clamp-2 text-sm font-medium leading-relaxed text-neutral-500">
-                    {service.description || 'Serviço disponível para agendamento.'}
+                  <p className="mt-3 whitespace-pre-line break-words text-sm font-medium leading-relaxed text-neutral-500">
+                    {visibleDescription}
+                    {isTruncatable && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleDescription(service.id);
+                        }}
+                        className="ml-1.5 inline font-bold text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-800"
+                      >
+                        {isExpanded ? 'ver menos' : 'ver mais'}
+                      </button>
+                    )}
                   </p>
                 </div>
 
@@ -134,8 +194,9 @@ export default function ServiceSelectionStep({
                   </span>
                 </div>
               </div>
-            </button>
-          ))
+            </div>
+            );
+          })
         )}
       </div>
     </section>
