@@ -147,18 +147,21 @@ export default function ClientBooking({
           }, 15000);
         });
 
-        const [contextResult, scheduleDaysResult, scheduleBlocksResult] = await Promise.race([
-          Promise.all([
-            supabase.rpc('get_public_booking_context', {
-              p_slug: publicSlug
-            }),
-            supabase.rpc('get_public_professional_schedule_days', {
-              p_slug: publicSlug
-            }),
-            supabase.rpc('get_public_professional_schedule_blocks', {
-              p_slug: publicSlug
-            })
-          ]),
+        // Disparamos tudo junto, mas somente o contexto principal bloqueia a
+        // primeira exibição da vitrine. Dias e bloqueios são necessários apenas
+        // nas etapas seguintes e continuam carregando em segundo plano.
+        const contextRequest = supabase.rpc('get_public_booking_context', {
+          p_slug: publicSlug
+        });
+        const scheduleDaysRequest = supabase.rpc('get_public_professional_schedule_days', {
+          p_slug: publicSlug
+        });
+        const scheduleBlocksRequest = supabase.rpc('get_public_professional_schedule_blocks', {
+          p_slug: publicSlug
+        });
+
+        const contextResult = await Promise.race([
+          contextRequest,
           timeoutPromise
         ]);
 
@@ -182,37 +185,9 @@ export default function ClientBooking({
           return;
         }
 
-        if (scheduleBlocksResult.error) {
-          console.error(
-            'Erro ao carregar os bloqueios da vitrine:',
-            scheduleBlocksResult.error
-          );
-        }
-
-        const contextAgendaBlocks = Array.isArray(scheduleBlocksResult.data)
-          ? scheduleBlocksResult.data.map((block: Record<string, unknown>) =>
-              normalizeRemoteBlockedInterval(block)
-            )
-          : [];
-
         const contextScheduleDays = Array.isArray(firstRow.schedule_days)
           ? firstRow.schedule_days.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
           : [];
-
-        if (scheduleDaysResult.error) {
-          console.error(
-            'Erro ao carregar os dias abertos da vitrine:',
-            scheduleDaysResult.error
-          );
-        }
-
-        const remoteScheduleDays = Array.isArray(scheduleDaysResult.data)
-          ? scheduleDaysResult.data.map((day: Record<string, unknown>) => normalizeRemoteScheduleDay(day))
-          : [];
-
-        const effectiveScheduleDays = remoteScheduleDays.length > 0
-          ? remoteScheduleDays
-          : contextScheduleDays;
 
         setRemoteBookingContext({
           config: firstRow.config || {},
@@ -223,13 +198,65 @@ export default function ClientBooking({
             ? firstRow.professionals.map(normalizeRemoteProfessional)
             : [],
           appointments: Array.isArray(firstRow.appointments) ? firstRow.appointments : [],
-          agendaBlocks: contextAgendaBlocks,
-          scheduleDays: effectiveScheduleDays
+          agendaBlocks: [],
+          scheduleDays: contextScheduleDays
         });
 
-        setAgendaBlocks(contextAgendaBlocks);
-        setAgendaOpenDays(effectiveScheduleDays);
+        setAgendaOpenDays(contextScheduleDays);
         setLoadingRemoteContext(false);
+
+        try {
+          const [scheduleDaysResult, scheduleBlocksResult] = await Promise.all([
+            scheduleDaysRequest,
+            scheduleBlocksRequest
+          ]);
+
+          if (!isMounted) return;
+
+          if (scheduleDaysResult.error) {
+            console.error(
+              'Erro ao carregar os dias abertos da vitrine:',
+              scheduleDaysResult.error
+            );
+          }
+
+          if (scheduleBlocksResult.error) {
+            console.error(
+              'Erro ao carregar os bloqueios da vitrine:',
+              scheduleBlocksResult.error
+            );
+          }
+
+          const remoteScheduleDays = Array.isArray(scheduleDaysResult.data)
+            ? scheduleDaysResult.data.map((day: Record<string, unknown>) =>
+                normalizeRemoteScheduleDay(day)
+              )
+            : [];
+          const effectiveScheduleDays = remoteScheduleDays.length > 0
+            ? remoteScheduleDays
+            : contextScheduleDays;
+          const contextAgendaBlocks = Array.isArray(scheduleBlocksResult.data)
+            ? scheduleBlocksResult.data.map((block: Record<string, unknown>) =>
+                normalizeRemoteBlockedInterval(block)
+              )
+            : [];
+
+          setAgendaBlocks(contextAgendaBlocks);
+          setAgendaOpenDays(effectiveScheduleDays);
+          setRemoteBookingContext((currentContext) => currentContext
+            ? {
+                ...currentContext,
+                agendaBlocks: contextAgendaBlocks,
+                scheduleDays: effectiveScheduleDays
+              }
+            : currentContext
+          );
+        } catch (secondaryLoadError) {
+          console.error(
+            'Erro ao complementar os dados da agenda pública:',
+            secondaryLoadError
+          );
+        }
       } catch (error) {
         if (!isMounted) return;
 
@@ -770,11 +797,16 @@ export default function ClientBooking({
 
   if (loadingRemoteContext) {
     return (
-      <div className="min-h-screen bg-[#F4F6F6] flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#1A3038]/10 border-t-[#E0A96D]" />
-          <h1 className="text-xl font-black text-[#1A3038]">Carregando vitrine...</h1>
-          <p className="mt-2 text-sm text-slate-600">Buscando dados reais do estabelecimento.</p>
+      <div className="min-h-screen animate-pulse bg-[#F4F6F6]">
+        <div className="h-48 w-full bg-slate-200 sm:h-56" />
+        <div className="mx-auto -mt-10 w-full max-w-5xl px-4 pb-10">
+          <div className="h-20 rounded-3xl border border-slate-200 bg-white shadow-sm" />
+          <div className="mt-8 h-7 w-44 rounded-lg bg-slate-200" />
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-32 rounded-3xl border border-slate-200 bg-white" />
+            ))}
+          </div>
         </div>
       </div>
     );
