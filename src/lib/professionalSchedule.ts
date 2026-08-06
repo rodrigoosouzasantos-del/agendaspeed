@@ -25,6 +25,7 @@ export interface ProfessionalDaySchedule {
   enabled: boolean;
   start: string; // "HH:mm"
   end: string; // "HH:mm"
+  hasLunchBreak: boolean; // false = agenda corrida nesse dia (ex: Sábado)
 }
 
 // Índice 0 = Domingo, 1 = Segunda, ..., 6 = Sábado (mesma convenção de Date#getDay()).
@@ -55,14 +56,17 @@ function readRecordValue<T = unknown>(source: unknown, keys: string[]): T | unde
 export function createEmptyWeeklySchedule(params?: {
   start?: string;
   end?: string;
+  hasLunchBreak?: boolean;
 }): ProfessionalWeeklySchedule {
   const start = normalizeTime(params?.start, DEFAULT_DAY_START);
   const end = normalizeTime(params?.end, DEFAULT_DAY_END);
+  const hasLunchBreak = params?.hasLunchBreak ?? true;
 
   return Array.from({ length: 7 }, () => ({
     enabled: false,
     start,
     end,
+    hasLunchBreak,
   }));
 }
 
@@ -70,16 +74,19 @@ export function buildWeeklyScheduleFromLegacyFields(params: {
   workDays: number[] | null | undefined;
   workHoursStart: string | null | undefined;
   workHoursEnd: string | null | undefined;
+  noLunchBreak?: boolean | null;
 }): ProfessionalWeeklySchedule {
-  const { workDays, workHoursStart, workHoursEnd } = params;
+  const { workDays, workHoursStart, workHoursEnd, noLunchBreak } = params;
   const start = normalizeTime(workHoursStart, DEFAULT_DAY_START);
   const end = normalizeTime(workHoursEnd, DEFAULT_DAY_END);
   const enabledDays = Array.isArray(workDays) ? workDays.map(Number) : [];
+  const hasLunchBreak = !noLunchBreak;
 
   return Array.from({ length: 7 }, (_unused, dayIndex) => ({
     enabled: enabledDays.includes(dayIndex),
     start,
     end,
+    hasLunchBreak,
   }));
 }
 
@@ -120,6 +127,12 @@ export function getProfessionalWeeklySchedule(
       enabled: Boolean(day.enabled),
       start: normalizeTime(day.start, professional.workHoursStart || DEFAULT_DAY_START),
       end: normalizeTime(day.end, professional.workHoursEnd || DEFAULT_DAY_END),
+      // Cadastros salvos antes do almoço por dia não têm hasLunchBreak: cai
+      // no interruptor global antigo (noLunchBreak) como fallback.
+      hasLunchBreak:
+        typeof day.hasLunchBreak === 'boolean'
+          ? day.hasLunchBreak
+          : !professional.noLunchBreak,
     }));
   }
 
@@ -127,6 +140,7 @@ export function getProfessionalWeeklySchedule(
     workDays: professional.workDays,
     workHoursStart: professional.workHoursStart,
     workHoursEnd: professional.workHoursEnd,
+    noLunchBreak: professional.noLunchBreak,
   });
 }
 
@@ -141,6 +155,7 @@ export function getProfessionalDaySchedule(
       enabled: false,
       start: DEFAULT_DAY_START,
       end: DEFAULT_DAY_END,
+      hasLunchBreak: true,
     }
   );
 }
@@ -150,7 +165,12 @@ export function getProfessionalScheduleForDateStr(
   dateStr: string,
 ): ProfessionalDaySchedule {
   if (!dateStr) {
-    return { enabled: false, start: DEFAULT_DAY_START, end: DEFAULT_DAY_END };
+    return {
+      enabled: false,
+      start: DEFAULT_DAY_START,
+      end: DEFAULT_DAY_END,
+      hasLunchBreak: true,
+    };
   }
 
   const weekDay = new Date(`${dateStr}T00:00:00`).getDay();
@@ -185,17 +205,19 @@ export function getWorkDaysFromWeeklySchedule(
 }
 
 /**
- * Deriva os campos legados (`workDays`, `workHoursStart`, `workHoursEnd`) a
- * partir da escala semanal, para telas/integrações que ainda não foram
- * atualizadas para ler `weeklySchedule` diretamente. `workHoursStart` /
- * `workHoursEnd` viram a faixa mais ampla (menor entrada, maior saída) entre
- * os dias ativos - útil apenas como referência/exibição, nunca para calcular
- * disponibilidade real de horário.
+ * Deriva os campos legados (`workDays`, `workHoursStart`, `workHoursEnd`,
+ * `noLunchBreak`) a partir da escala semanal, para telas/integrações que
+ * ainda não foram atualizadas para ler `weeklySchedule` diretamente.
+ * `workHoursStart`/`workHoursEnd` viram a faixa mais ampla (menor entrada,
+ * maior saída) entre os dias ativos, e `noLunchBreak` só fica `true` se
+ * nenhum dia ativo tiver almoço - útil apenas como referência/exibição,
+ * nunca para calcular disponibilidade real de horário.
  */
 export function deriveLegacyScheduleFields(weeklySchedule: ProfessionalWeeklySchedule): {
   workDays: number[];
   workHoursStart: string;
   workHoursEnd: string;
+  noLunchBreak: boolean;
 } {
   const workDays = getWorkDaysFromWeeklySchedule(weeklySchedule);
   const enabledDays = weeklySchedule.filter((day) => day.enabled);
@@ -205,6 +227,7 @@ export function deriveLegacyScheduleFields(weeklySchedule: ProfessionalWeeklySch
       workDays,
       workHoursStart: DEFAULT_DAY_START,
       workHoursEnd: DEFAULT_DAY_END,
+      noLunchBreak: false,
     };
   }
 
@@ -216,7 +239,9 @@ export function deriveLegacyScheduleFields(weeklySchedule: ProfessionalWeeklySch
     return day.end > latest ? day.end : latest;
   }, enabledDays[0].end);
 
-  return { workDays, workHoursStart, workHoursEnd };
+  const noLunchBreak = enabledDays.every((day) => !day.hasLunchBreak);
+
+  return { workDays, workHoursStart, workHoursEnd, noLunchBreak };
 }
 
 export function formatWeeklyScheduleSummary(

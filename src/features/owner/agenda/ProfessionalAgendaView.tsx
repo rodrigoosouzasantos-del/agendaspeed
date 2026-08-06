@@ -212,7 +212,6 @@ const renderProfessionalAgenda = () => {
     };
 
     const professionalRecord = selectedProfessional as Professional & {
-      noLunchBreak?: boolean;
       defaultAppointmentDuration?: number;
     };
     const slotStepMinutes = Math.max(
@@ -227,7 +226,7 @@ const renderProfessionalAgenda = () => {
     const workEnd = timeToMinutes(selectedDaySchedule.end);
     const lunchStart = timeToMinutes(selectedProfessional.lunchStart);
     const lunchEnd = timeToMinutes(selectedProfessional.lunchEnd);
-    const hasLunchBreak = !professionalRecord.noLunchBreak;
+    const hasLunchBreak = selectedDaySchedule.hasLunchBreak;
 
     const professionalAppointments = appointments
       .filter((appointment: any) => {

@@ -283,7 +283,8 @@ function isProfessionalAvailableForSlot(params: {
     return false;
   }
 
-  const overlapsLunch = slotStart < lunchEnd && slotEnd > lunchStart;
+  const overlapsLunch =
+    daySchedule.hasLunchBreak && slotStart < lunchEnd && slotEnd > lunchStart;
 
   if (overlapsLunch) {
     return false;

@@ -302,6 +302,49 @@ export function mapSupabaseProfessionalToAppProfessional(
       ? professional.rem_type
       : "no_commission";
 
+  const legacyNoLunchBreak = Boolean(
+    professional.no_lunch_break ||
+    professional.has_no_lunch_break ||
+    professional.without_lunch_break ||
+    professional.noLunchBreak,
+  );
+
+  const rawWeeklySchedule = professional.weekly_schedule || professional.weeklySchedule;
+
+  // Cadastros salvos antes do "almoço por dia" têm weekly_schedule sem
+  // hasLunchBreak: cada dia cai no interruptor global antigo (no_lunch_break)
+  // como fallback, em vez de assumir "sem almoço" por padrão.
+  const weeklySchedule = isValidWeeklySchedule(rawWeeklySchedule)
+    ? rawWeeklySchedule.map((day) => ({
+        enabled: Boolean(day.enabled),
+        start: normalizeProfessionalTime(
+          day.start,
+          professional.work_hours_start || "09:00",
+        ),
+        end: normalizeProfessionalTime(
+          day.end,
+          professional.work_hours_end || "19:00",
+        ),
+        hasLunchBreak:
+          typeof day.hasLunchBreak === "boolean"
+            ? day.hasLunchBreak
+            : !legacyNoLunchBreak,
+      }))
+    : buildWeeklyScheduleFromLegacyFields({
+        workDays: Array.isArray(professional.work_days)
+          ? professional.work_days
+          : [1, 2, 3, 4, 5, 6],
+        workHoursStart: normalizeProfessionalTime(
+          professional.work_hours_start,
+          "09:00",
+        ),
+        workHoursEnd: normalizeProfessionalTime(
+          professional.work_hours_end,
+          "19:00",
+        ),
+        noLunchBreak: legacyNoLunchBreak,
+      });
+
   return {
     id: professional.id,
     name: professional.name || "",
@@ -311,24 +354,7 @@ export function mapSupabaseProfessionalToAppProfessional(
     displayOrder: Number(professional.display_order) || 999,
     avatar: professional.avatar || "",
     active: professional.active !== false,
-    weeklySchedule: isValidWeeklySchedule(
-      professional.weekly_schedule || professional.weeklySchedule,
-    )
-      ? ((professional.weekly_schedule ||
-          professional.weeklySchedule) as ProfessionalWeeklySchedule)
-      : buildWeeklyScheduleFromLegacyFields({
-          workDays: Array.isArray(professional.work_days)
-            ? professional.work_days
-            : [1, 2, 3, 4, 5, 6],
-          workHoursStart: normalizeProfessionalTime(
-            professional.work_hours_start,
-            "09:00",
-          ),
-          workHoursEnd: normalizeProfessionalTime(
-            professional.work_hours_end,
-            "19:00",
-          ),
-        }),
+    weeklySchedule,
     workDays: Array.isArray(professional.work_days)
       ? professional.work_days
       : [1, 2, 3, 4, 5, 6],
@@ -342,12 +368,7 @@ export function mapSupabaseProfessionalToAppProfessional(
     ),
     lunchStart: normalizeProfessionalTime(professional.lunch_start, "12:00"),
     lunchEnd: normalizeProfessionalTime(professional.lunch_end, "13:00"),
-    noLunchBreak: Boolean(
-      professional.no_lunch_break ||
-      professional.has_no_lunch_break ||
-      professional.without_lunch_break ||
-      professional.noLunchBreak,
-    ),
+    noLunchBreak: legacyNoLunchBreak,
     defaultAppointmentDuration:
       Number(
         professional.default_appointment_duration ??
@@ -394,7 +415,7 @@ export function buildProfessionalPayload(professional: Professional) {
     work_hours_end: legacyScheduleFields.workHoursEnd,
     lunch_start: professional.lunchStart,
     lunch_end: professional.lunchEnd,
-    no_lunch_break: Boolean(professional.noLunchBreak),
+    no_lunch_break: legacyScheduleFields.noLunchBreak,
     default_appointment_duration:
       Number(professional.defaultAppointmentDuration) || 30,
     services: professional.services,

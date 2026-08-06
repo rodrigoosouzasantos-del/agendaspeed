@@ -499,10 +499,7 @@ export function checkProfessionalSlotAvailability(params: {
 
   const workStart = timeToMinutes(daySchedule.start);
   const workEnd = timeToMinutes(daySchedule.end);
-  const professionalRecord = professional as Professional & {
-    noLunchBreak?: boolean;
-  };
-  const hasLunchBreak = !professionalRecord.noLunchBreak;
+  const hasLunchBreak = daySchedule.hasLunchBreak;
   const lunchStart = timeToMinutes(professional.lunchStart);
   const lunchEnd = timeToMinutes(professional.lunchEnd);
 

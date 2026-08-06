@@ -41,7 +41,6 @@ interface ProfessionalModalProps {
   weeklySchedule: ProfessionalWeeklySchedule;
   lunchStart: string;
   lunchEnd: string;
-  noLunchBreak: boolean;
   defaultAppointmentDuration: number;
   servicesIds: string[];
   remunerationType: RemunerationType;
@@ -57,7 +56,6 @@ interface ProfessionalModalProps {
   onChangeWeeklySchedule: (value: ProfessionalWeeklySchedule) => void;
   onChangeLunchStart: (value: string) => void;
   onChangeLunchEnd: (value: string) => void;
-  onChangeNoLunchBreak: (value: boolean) => void;
   onChangeDefaultAppointmentDuration: (value: number) => void;
   onChangeServicesIds: (value: string[]) => void;
   onChangeRemunerationType: (value: RemunerationType) => void;
@@ -88,7 +86,6 @@ export default function ProfessionalModal({
   weeklySchedule,
   lunchStart,
   lunchEnd,
-  noLunchBreak,
   defaultAppointmentDuration,
   servicesIds,
   remunerationType,
@@ -103,7 +100,6 @@ export default function ProfessionalModal({
   onChangeWeeklySchedule,
   onChangeLunchStart,
   onChangeLunchEnd,
-  onChangeNoLunchBreak,
   onChangeDefaultAppointmentDuration,
   onChangeServicesIds,
   onChangeRemunerationType,
@@ -230,6 +226,16 @@ export default function ProfessionalModal({
     onChangeWeeklySchedule(
       weeklySchedule.map((day, index) => {
         return index === dayIndex ? { ...day, end: value } : day;
+      })
+    );
+  };
+
+  const handleToggleDayLunchBreak = (dayIndex: number) => {
+    onChangeWeeklySchedule(
+      weeklySchedule.map((day, index) => {
+        return index === dayIndex
+          ? { ...day, hasLunchBreak: !day.hasLunchBreak }
+          : day;
       })
     );
   };
@@ -504,83 +510,128 @@ export default function ProfessionalModal({
                 Entrada e saída por dia da semana:
               </label>
 
-              <div className="overflow-hidden rounded-2xl border bg-white">
-                <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-2 border-b bg-neutral-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                  <span>Dia</span>
-                  <span className="text-center">Trabalha</span>
-                  <span>Entrada</span>
-                  <span>Saída</span>
-                </div>
+              <div className="overflow-hidden rounded-2xl border bg-white divide-y">
+                {weeklySchedule.map((day, index) => {
+                  const isWorking = day.enabled;
+                  const hasLunch = day.hasLunchBreak;
 
-                <div className="divide-y">
-                  {weeklySchedule.map((day, index) => {
-                    const isWorking = day.enabled;
-
-                    return (
-                      <div
-                        key={WEEK_DAY_SHORT_LABELS[index]}
-                        className={`grid grid-cols-[1fr_auto_1fr_1fr] items-center gap-2 px-3 py-2 ${
-                          isWorking ? '' : 'bg-neutral-50/60'
-                        }`}
-                      >
+                  return (
+                    <div
+                      key={WEEK_DAY_SHORT_LABELS[index]}
+                      className={`space-y-2 px-3 py-2.5 ${isWorking ? '' : 'bg-neutral-50/60'}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
                         <span className={`font-bold ${isWorking ? 'text-neutral-800' : 'text-neutral-400'}`}>
                           {WEEK_DAY_SHORT_LABELS[index]}
                         </span>
 
-                        <div className="flex justify-center">
+                        <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => handleToggleDayEnabled(index)}
                             aria-pressed={isWorking}
-                            className={`relative h-5 w-9 shrink-0 rounded-full transition cursor-pointer ${
-                              isWorking ? 'bg-[#0f4c5c]' : 'bg-neutral-300'
+                            className="flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
+                              Trabalha
+                            </span>
+
+                            <span
+                              className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+                                isWorking ? 'bg-[#0f4c5c]' : 'bg-neutral-300'
+                              }`}
+                            >
+                              <span
+                                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                                  isWorking ? 'left-4' : 'left-0.5'
+                                }`}
+                              />
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDayLunchBreak(index)}
+                            disabled={!isWorking}
+                            title={
+                              hasLunch
+                                ? 'Com horário de almoço neste dia'
+                                : 'Sem horário de almoço neste dia (agenda corrida)'
+                            }
+                            aria-pressed={hasLunch}
+                            className={`flex items-center gap-1.5 ${
+                              isWorking ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
                             }`}
                           >
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
+                              Almoço
+                            </span>
+
                             <span
-                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                                isWorking ? 'left-4' : 'left-0.5'
+                              className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+                                hasLunch ? 'bg-[#0f4c5c]' : 'bg-neutral-300'
                               }`}
-                            />
+                            >
+                              <span
+                                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                                  hasLunch ? 'left-4' : 'left-0.5'
+                                }`}
+                              />
+                            </span>
                           </button>
                         </div>
-
-                        <input
-                          type="time"
-                          value={day.start}
-                          onChange={(event) => handleChangeDayStart(index, event.target.value)}
-                          disabled={!isWorking}
-                          className={`border rounded p-1.5 w-full text-center ${
-                            isWorking
-                              ? 'bg-white focus:border-[#0f4c5c]'
-                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                          }`}
-                        />
-
-                        <input
-                          type="time"
-                          value={day.end}
-                          onChange={(event) => handleChangeDayEnd(index, event.target.value)}
-                          disabled={!isWorking}
-                          className={`border rounded p-1.5 w-full text-center ${
-                            isWorking
-                              ? 'bg-white focus:border-[#0f4c5c]'
-                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                          }`}
-                        />
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                            Entrada
+                          </label>
+
+                          <input
+                            type="time"
+                            value={day.start}
+                            onChange={(event) => handleChangeDayStart(index, event.target.value)}
+                            disabled={!isWorking}
+                            className={`border rounded p-1.5 w-full text-center ${
+                              isWorking
+                                ? 'bg-white focus:border-[#0f4c5c]'
+                                : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                            }`}
+                          />
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                            Saída
+                          </label>
+
+                          <input
+                            type="time"
+                            value={day.end}
+                            onChange={(event) => handleChangeDayEnd(index, event.target.value)}
+                            disabled={!isWorking}
+                            className={`border rounded p-1.5 w-full text-center ${
+                              isWorking
+                                ? 'bg-white focus:border-[#0f4c5c]'
+                                : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <p className="text-[10px] text-neutral-500 leading-relaxed">
-                Cada dia pode ter um horário diferente. Desmarque "Trabalha" para os dias em que o profissional não atende.
+                Cada dia pode ter um horário diferente. Desmarque "Trabalha" para os dias em que o profissional não atende. No "Almoço", desmarque nos dias em que a agenda deve rodar corrida, sem bloquear o intervalo (ex: Sábado, dia de maior movimento).
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className={`font-semibold block ${noLunchBreak ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                <label className="font-semibold block text-neutral-500">
                   Almoço Início
                 </label>
 
@@ -588,17 +639,12 @@ export default function ProfessionalModal({
                   type="time"
                   value={lunchStart}
                   onChange={(event) => onChangeLunchStart(event.target.value)}
-                  disabled={noLunchBreak}
-                  className={`border rounded p-1.5 w-full text-center ${
-                    noLunchBreak
-                      ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                      : 'bg-white focus:border-[#0f4c5c]'
-                  }`}
+                  className="border rounded p-1.5 w-full text-center bg-white focus:border-[#0f4c5c]"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className={`font-semibold block ${noLunchBreak ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                <label className="font-semibold block text-neutral-500">
                   Almoço Fim
                 </label>
 
@@ -606,15 +652,14 @@ export default function ProfessionalModal({
                   type="time"
                   value={lunchEnd}
                   onChange={(event) => onChangeLunchEnd(event.target.value)}
-                  disabled={noLunchBreak}
-                  className={`border rounded p-1.5 w-full text-center ${
-                    noLunchBreak
-                      ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                      : 'bg-white focus:border-[#0f4c5c]'
-                  }`}
+                  className="border rounded p-1.5 w-full text-center bg-white focus:border-[#0f4c5c]"
                 />
               </div>
             </div>
+
+            <p className="text-[10px] text-neutral-500 leading-relaxed">
+              Este horário de almoço vale para todos os dias marcados com "Almoço" ativo na tabela acima.
+            </p>
 
             <div className="rounded-2xl border bg-white p-3 space-y-1">
               <label className="font-bold block text-neutral-800">
@@ -640,25 +685,6 @@ export default function ProfessionalModal({
                 Este tempo monta a grade padrão da agenda. A duração do serviço escolhido continua sendo respeitada para verificar se cabe até o fim do expediente.
               </p>
             </div>
-
-            <label className="flex items-start gap-3 rounded-2xl border bg-white p-3 cursor-pointer hover:bg-neutral-50 transition">
-              <input
-                type="checkbox"
-                checked={noLunchBreak}
-                onChange={(event) => onChangeNoLunchBreak(event.target.checked)}
-                className="mt-0.5 w-4 h-4 text-[#0f4c5c] rounded"
-              />
-
-              <span className="space-y-0.5">
-                <strong className="block text-neutral-800 font-bold">
-                  Sem horário de almoço definido
-                </strong>
-
-                <span className="block text-[10px] text-neutral-500 leading-relaxed">
-                  Marque quando o profissional atende sem intervalo fixo. Neste caso, a agenda não bloqueará horário de almoço.
-                </span>
-              </span>
-            </label>
           </div>
 
           <div className="space-y-1.5 pt-1">

@@ -198,6 +198,7 @@ interface RawDaySchedule {
   enabled: boolean;
   start: string;
   end: string;
+  hasLunchBreak?: boolean;
 }
 
 function isValidRawWeeklySchedule(value: unknown): value is RawDaySchedule[] {
@@ -217,11 +218,12 @@ function isValidRawWeeklySchedule(value: unknown): value is RawDaySchedule[] {
 function getProfessionalDayScheduleLocal(
   professional: Professional | null,
   dateStr: string
-): { enabled: boolean; start: string; end: string } {
+): { enabled: boolean; start: string; end: string; hasLunchBreak: boolean } {
   const fallback = {
     enabled: false,
     start: getProfessionalWorkHoursStart(professional),
     end: getProfessionalWorkHoursEnd(professional),
+    hasLunchBreak: professional ? !professionalHasNoLunchBreak(professional) : true,
   };
 
   if (!professional || !dateStr) {
@@ -248,6 +250,10 @@ function getProfessionalDayScheduleLocal(
     enabled: Boolean(daySchedule.enabled),
     start: daySchedule.start ? String(daySchedule.start).slice(0, 5) : fallback.start,
     end: daySchedule.end ? String(daySchedule.end).slice(0, 5) : fallback.end,
+    hasLunchBreak:
+      typeof daySchedule.hasLunchBreak === 'boolean'
+        ? daySchedule.hasLunchBreak
+        : fallback.hasLunchBreak,
   };
 }
 
@@ -774,15 +780,17 @@ export function isTimeInsideProfessionalWorkingHours(params: {
 export function isTimeInsideLunchInterval(params: {
   time: string;
   professional: Professional;
+  selectedDate: string;
   selectedService?: Service | null;
 }): boolean {
   const {
     time,
     professional,
+    selectedDate,
     selectedService = null
   } = params;
 
-  if (professionalHasNoLunchBreak(professional)) {
+  if (!getProfessionalDayScheduleLocal(professional, selectedDate).hasLunchBreak) {
     return false;
   }
 
@@ -883,6 +891,7 @@ export function generateTimeSlots(params: {
       isTimeInsideLunchInterval({
         time,
         professional: selectedProfessional,
+        selectedDate,
         selectedService
       })
     ) {

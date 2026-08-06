@@ -86,7 +86,6 @@ export function useOwnerProfessionals({
     useState<ProfessionalWeeklySchedule>(buildDefaultProfessionalWeeklySchedule());
   const [profLunchStart, setProfLunchStart] = useState("12:00");
   const [profLunchEnd, setProfLunchEnd] = useState("13:00");
-  const [profNoLunchBreak, setProfNoLunchBreak] = useState(false);
   const [profDefaultAppointmentDuration, setProfDefaultAppointmentDuration] =
     useState(30);
   const [profServicesIds, setProfServicesIds] = useState<string[]>([]);
@@ -151,7 +150,6 @@ export function useOwnerProfessionals({
     setProfWeeklySchedule(buildDefaultProfessionalWeeklySchedule());
     setProfLunchStart("12:00");
     setProfLunchEnd("13:00");
-    setProfNoLunchBreak(false);
     setProfDefaultAppointmentDuration(30);
     setProfServicesIds([]);
     setProfRemType("no_commission");
@@ -182,7 +180,6 @@ export function useOwnerProfessionals({
     setProfWeeklySchedule(getProfessionalWeeklySchedule(professional));
     setProfLunchStart(professional.lunchStart);
     setProfLunchEnd(professional.lunchEnd);
-    setProfNoLunchBreak(Boolean(professional.noLunchBreak));
     setProfDefaultAppointmentDuration(
       Number(professional.defaultAppointmentDuration) || 30,
     );
@@ -246,7 +243,7 @@ export function useOwnerProfessionals({
         workHoursEnd: legacyScheduleFields.workHoursEnd,
         lunchStart: profLunchStart,
         lunchEnd: profLunchEnd,
-        noLunchBreak: profNoLunchBreak,
+        noLunchBreak: legacyScheduleFields.noLunchBreak,
         defaultAppointmentDuration:
           Number(profDefaultAppointmentDuration) || 30,
         services: profServicesIds,
@@ -810,7 +807,6 @@ ${professionalAccessLink}`);
     profWeeklySchedule,
     profLunchStart,
     profLunchEnd,
-    profNoLunchBreak,
     profDefaultAppointmentDuration,
     profServicesIds,
     profRemType,
@@ -825,7 +821,6 @@ ${professionalAccessLink}`);
     setProfWeeklySchedule,
     setProfLunchStart,
     setProfLunchEnd,
-    setProfNoLunchBreak,
     setProfDefaultAppointmentDuration,
     setProfServicesIds,
     setProfRemType,

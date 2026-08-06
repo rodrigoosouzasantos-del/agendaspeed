@@ -103,14 +103,6 @@ function getProfessionalDefaultSlotMinutes(professional: Professional): number {
   return Math.max(15, defaultDuration);
 }
 
-function professionalHasLunchBreak(professional: Professional): boolean {
-  const professionalRecord = professional as Professional & {
-    noLunchBreak?: boolean;
-  };
-
-  return !professionalRecord.noLunchBreak;
-}
-
 export function getStatusLabel(status: AppointmentStatus): string {
   const labels: Record<AppointmentStatus, string> = {
     scheduled: 'Não confirmado',
@@ -366,13 +358,17 @@ export function generateBaseTimes(params: {
 export function isInsideLunch(params: {
   time: string;
   professional: Professional;
+  selectedDate: string;
 }): boolean {
   const {
     time,
-    professional
+    professional,
+    selectedDate
   } = params;
 
-  if (!professionalHasLunchBreak(professional)) {
+  const daySchedule = getProfessionalScheduleForDateStr(professional, selectedDate);
+
+  if (!daySchedule.hasLunchBreak) {
     return false;
   }
 
@@ -485,7 +481,8 @@ export function buildInitialSlots(params: {
 
     const isLunch = isInsideLunch({
       time,
-      professional
+      professional,
+      selectedDate
     });
 
     return {

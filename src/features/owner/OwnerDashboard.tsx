@@ -214,7 +214,6 @@ export default function OwnerDashboard({
     profWeeklySchedule,
     profLunchStart,
     profLunchEnd,
-    profNoLunchBreak,
     profDefaultAppointmentDuration,
     profServicesIds,
     profRemType,
@@ -229,7 +228,6 @@ export default function OwnerDashboard({
     setProfWeeklySchedule,
     setProfLunchStart,
     setProfLunchEnd,
-    setProfNoLunchBreak,
     setProfDefaultAppointmentDuration,
     setProfServicesIds,
     setProfRemType,
@@ -798,7 +796,6 @@ export default function OwnerDashboard({
         weeklySchedule={profWeeklySchedule}
         lunchStart={profLunchStart}
         lunchEnd={profLunchEnd}
-        noLunchBreak={profNoLunchBreak}
         defaultAppointmentDuration={profDefaultAppointmentDuration}
         servicesIds={profServicesIds}
         remunerationType={profRemType}
@@ -813,7 +810,6 @@ export default function OwnerDashboard({
         onChangeWeeklySchedule={setProfWeeklySchedule}
         onChangeLunchStart={setProfLunchStart}
         onChangeLunchEnd={setProfLunchEnd}
-        onChangeNoLunchBreak={setProfNoLunchBreak}
         onChangeDefaultAppointmentDuration={setProfDefaultAppointmentDuration}
         onChangeServicesIds={setProfServicesIds}
         onChangeRemunerationType={setProfRemType}

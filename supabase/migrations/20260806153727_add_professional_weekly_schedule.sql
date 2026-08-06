@@ -11,7 +11,11 @@
 --
 -- Formato de weekly_schedule: array com 7 posições, índice 0 = Domingo,
 -- 1 = Segunda, ..., 6 = Sábado. Cada posição:
---   { "enabled": boolean, "start": "HH:MM", "end": "HH:MM" }
+--   { "enabled": boolean, "start": "HH:MM", "end": "HH:MM", "hasLunchBreak": boolean }
+--
+-- hasLunchBreak controla, por dia, se a agenda bloqueia o intervalo de
+-- almoço (lunch_start/lunch_end, que continuam sendo um único horário para
+-- o profissional todo). Ex: false aos sábados = agenda corrida nesse dia.
 --
 -- IMPORTANTE - passo manual necessário:
 -- Esta migração não tem acesso ao corpo atual das functions
@@ -32,4 +36,4 @@ alter table public.professionals
   add column if not exists weekly_schedule jsonb;
 
 comment on column public.professionals.weekly_schedule is
-  'Escala semanal do profissional: array de 7 posições (0=Domingo..6=Sábado) com {enabled, start, end}. Ver migração 20260806153727.';
+  'Escala semanal do profissional: array de 7 posições (0=Domingo..6=Sábado) com {enabled, start, end, hasLunchBreak}. Ver migração 20260806153727.';

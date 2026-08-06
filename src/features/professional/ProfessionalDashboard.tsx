@@ -975,10 +975,7 @@ export default function ProfessionalDashboard({
       manualFormState.date
     );
     const professionalEndMinutes = timeToMinutes(daySchedule.end);
-    const professionalRecord = currentProfessional as Professional & {
-      noLunchBreak?: boolean;
-    };
-    const hasLunchBreak = !professionalRecord.noLunchBreak;
+    const hasLunchBreak = daySchedule.hasLunchBreak;
     const lunchStartMinutes = timeToMinutes(
       currentProfessional.lunchStart
     );

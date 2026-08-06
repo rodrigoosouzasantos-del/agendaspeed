@@ -24,6 +24,7 @@ export interface ProfessionalDaySchedule {
   enabled: boolean;
   start: string; // "HH:mm"
   end: string; // "HH:mm"
+  hasLunchBreak: boolean; // false = agenda corrida nesse dia (ex: Sábado)
 }
 
 // Índice 0 = Domingo, 1 = Segunda, ..., 6 = Sábado (mesma convenção de Date#getDay()).
@@ -48,7 +49,9 @@ export interface Professional {
   workHoursEnd: string; // "19:00"
   lunchStart: string; // "12:00"
   lunchEnd: string; // "13:00"
-  noLunchBreak?: boolean; // true quando o profissional não possui intervalo fixo de almoço
+  // Legado: usado apenas como fallback quando weeklySchedule ainda não tem
+  // hasLunchBreak definido por dia (ver ProfessionalDaySchedule.hasLunchBreak).
+  noLunchBreak?: boolean;
   defaultAppointmentDuration?: number; // tempo padrão da grade do profissional em minutos
   services: string[]; // Service IDs
   remType: RemunerationType;
