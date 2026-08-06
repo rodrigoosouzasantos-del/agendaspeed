@@ -37,6 +37,11 @@ import ProfessionalCalendarAgendaView from './agenda/ProfessionalCalendarAgendaV
 import ManualAppointmentModal from './modals/ManualAppointmentModal';
 
 import { supabase } from '../../lib/supabase';
+import {
+  buildWeeklyScheduleFromLegacyFields,
+  getProfessionalScheduleForDateStr,
+  isValidWeeklySchedule
+} from '../../lib/professionalSchedule';
 
 import {
   ProfessionalAgendaConfirmModal,
@@ -295,6 +300,18 @@ function mapPublicProfessional(rawProfessional: Record<string, unknown>): Profes
     displayOrder: Number(rawProfessional.displayOrder || rawProfessional.display_order || 999),
     avatar: String(rawProfessional.avatar || rawProfessional.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=120&h=120&fit=crop'),
     active: rawProfessional.active !== false,
+    weeklySchedule: isValidWeeklySchedule(
+      rawProfessional.weeklySchedule || rawProfessional.weekly_schedule
+    )
+      ? ((rawProfessional.weeklySchedule ||
+          rawProfessional.weekly_schedule) as Professional['weeklySchedule'])
+      : buildWeeklyScheduleFromLegacyFields({
+          workDays: Array.isArray(rawProfessional.workDays)
+            ? (rawProfessional.workDays as number[])
+            : [1, 2, 3, 4, 5, 6],
+          workHoursStart: String(rawProfessional.workHoursStart || rawProfessional.work_hours_start || '09:00'),
+          workHoursEnd: String(rawProfessional.workHoursEnd || rawProfessional.work_hours_end || '19:00'),
+        }),
     workDays: Array.isArray(rawProfessional.workDays) ? rawProfessional.workDays as number[] : [1, 2, 3, 4, 5, 6],
     workHoursStart: String(rawProfessional.workHoursStart || rawProfessional.work_hours_start || '09:00'),
     workHoursEnd: String(rawProfessional.workHoursEnd || rawProfessional.work_hours_end || '19:00'),
@@ -953,9 +970,11 @@ export default function ProfessionalDashboard({
     const serviceEndMinutes =
       serviceStartMinutes +
       Math.max(1, Number(selectedService.duration) || 30);
-    const professionalEndMinutes = timeToMinutes(
-      currentProfessional.workHoursEnd
+    const daySchedule = getProfessionalScheduleForDateStr(
+      currentProfessional,
+      manualFormState.date
     );
+    const professionalEndMinutes = timeToMinutes(daySchedule.end);
     const professionalRecord = currentProfessional as Professional & {
       noLunchBreak?: boolean;
     };
@@ -976,7 +995,7 @@ export default function ProfessionalDashboard({
         type: 'overtime',
         appointment: newAppointment,
         serviceEndTime: minutesToTime(serviceEndMinutes),
-        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5),
+        workHoursEnd: daySchedule.end.slice(0, 5),
         lunchStart: currentProfessional.lunchStart.slice(0, 5),
         lunchEnd: currentProfessional.lunchEnd.slice(0, 5)
       });
@@ -988,7 +1007,7 @@ export default function ProfessionalDashboard({
         type: 'lunch_overlap',
         appointment: newAppointment,
         serviceEndTime: minutesToTime(serviceEndMinutes),
-        workHoursEnd: currentProfessional.workHoursEnd.slice(0, 5),
+        workHoursEnd: daySchedule.end.slice(0, 5),
         lunchStart: currentProfessional.lunchStart.slice(0, 5),
         lunchEnd: currentProfessional.lunchEnd.slice(0, 5)
       });

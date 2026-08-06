@@ -20,6 +20,15 @@ export interface ProfessionalPermissions {
   manageOwnCalendar: ProfessionalPermissionsClass;
 }
 
+export interface ProfessionalDaySchedule {
+  enabled: boolean;
+  start: string; // "HH:mm"
+  end: string; // "HH:mm"
+}
+
+// Índice 0 = Domingo, 1 = Segunda, ..., 6 = Sábado (mesma convenção de Date#getDay()).
+export type ProfessionalWeeklySchedule = ProfessionalDaySchedule[];
+
 export interface Professional {
   id: string;
   name: string;
@@ -29,6 +38,11 @@ export interface Professional {
   displayOrder?: number;
   avatar: string;
   active: boolean;
+  // Escala semanal (entrada/saída por dia). Fonte de verdade para disponibilidade.
+  // Ex: Ter-Sex 08:00-19:00 e Sáb 07:00-20:00 podem conviver no mesmo cadastro.
+  weeklySchedule?: ProfessionalWeeklySchedule;
+  // Campos legados, mantidos por compatibilidade (derivados de weeklySchedule ao salvar):
+  // workHoursStart/workHoursEnd deixam de ser usados para calcular disponibilidade real.
   workDays: number[]; // 0 for Sunday, 1 Monday, etc.
   workHoursStart: string; // "09:00"
   workHoursEnd: string; // "19:00"

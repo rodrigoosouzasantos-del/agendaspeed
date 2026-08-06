@@ -17,6 +17,8 @@ import {
   ProfessionalAgendaTimeSlot
 } from './professionalAgenda.types';
 
+import { getProfessionalScheduleForDateStr } from '../../../lib/professionalSchedule';
+
 const WEEK_DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export const PROFESSIONAL_AGENDA_STATUS_OPTIONS: ProfessionalAgendaStatusOption[] = [
@@ -348,9 +350,9 @@ export function generateBaseTimes(params: {
     return [];
   }
 
-
-  const startMinutes = timeToMinutes(professional.workHoursStart);
-  const endMinutes = timeToMinutes(professional.workHoursEnd);
+  const daySchedule = getProfessionalScheduleForDateStr(professional, selectedDate);
+  const startMinutes = timeToMinutes(daySchedule.start);
+  const endMinutes = timeToMinutes(daySchedule.end);
 
   const times: string[] = [];
 

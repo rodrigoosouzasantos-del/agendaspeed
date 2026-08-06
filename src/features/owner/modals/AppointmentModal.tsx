@@ -35,6 +35,8 @@ import {
   Service
 } from '../../../types';
 
+import { getProfessionalScheduleForDateStr } from '../../../lib/professionalSchedule';
+
 interface AppointmentModalProps {
   isOpen: boolean;
   services: Service[];
@@ -259,9 +261,9 @@ function isProfessionalAvailableForSlot(params: {
     appointments
   } = params;
 
-  const weekDay = parseLocalDate(date).getDay();
+  const daySchedule = getProfessionalScheduleForDateStr(professional, date);
 
-  if (!professional.active || !professional.workDays.includes(weekDay)) {
+  if (!professional.active || !daySchedule.enabled) {
     return false;
   }
 
@@ -272,8 +274,8 @@ function isProfessionalAvailableForSlot(params: {
   const slotStart = timeToMinutes(time);
   const slotEnd = slotStart + service.duration;
 
-  const workStart = timeToMinutes(professional.workHoursStart);
-  const workEnd = timeToMinutes(professional.workHoursEnd);
+  const workStart = timeToMinutes(daySchedule.start);
+  const workEnd = timeToMinutes(daySchedule.end);
   const lunchStart = timeToMinutes(professional.lunchStart);
   const lunchEnd = timeToMinutes(professional.lunchEnd);
 
@@ -341,8 +343,9 @@ function generateTimeOptions(params: {
   const slots: AvailableSlot[] = [];
 
   targetProfessionals.forEach((professional) => {
-    const start = timeToMinutes(professional.workHoursStart);
-    const end = timeToMinutes(professional.workHoursEnd);
+    const daySchedule = getProfessionalScheduleForDateStr(professional, date);
+    const start = timeToMinutes(daySchedule.start);
+    const end = timeToMinutes(daySchedule.end);
 
     for (let minute = start; minute < end; minute += 30) {
       const time = minutesToTime(minute);

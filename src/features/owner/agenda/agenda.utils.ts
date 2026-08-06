@@ -7,6 +7,11 @@ import {
   Service
 } from '../../../types';
 
+import {
+  getProfessionalScheduleForDateStr,
+  isProfessionalWorkingOnWeekDay
+} from '../../../lib/professionalSchedule';
+
 export interface AgendaCreateAppointmentPayload {
   clientName: string;
   clientPhone: string;
@@ -389,7 +394,7 @@ export function isDateOutsideProfessionalRegularSchedule(params: {
 }): boolean {
   const { professional, date } = params;
 
-  return !professional.workDays.includes(parseLocalDate(date).getDay());
+  return !isProfessionalWorkingOnWeekDay(professional, parseLocalDate(date).getDay());
 }
 
 export function slotOverlapsBlockedInterval(params: {
@@ -473,7 +478,9 @@ export function checkProfessionalSlotAvailability(params: {
     };
   }
 
-  if (!professional.workDays.includes(weekDay) && !scheduleDayOpen) {
+  const daySchedule = getProfessionalScheduleForDateStr(professional, date);
+
+  if (!daySchedule.enabled && !scheduleDayOpen) {
     return {
       available: false,
       reason: "Este profissional não possui escala regular nesta data.",
@@ -490,8 +497,8 @@ export function checkProfessionalSlotAvailability(params: {
   const slotStart = timeToMinutes(time);
   const slotEnd = slotStart + service.duration;
 
-  const workStart = timeToMinutes(professional.workHoursStart);
-  const workEnd = timeToMinutes(professional.workHoursEnd);
+  const workStart = timeToMinutes(daySchedule.start);
+  const workEnd = timeToMinutes(daySchedule.end);
   const professionalRecord = professional as Professional & {
     noLunchBreak?: boolean;
   };
@@ -505,7 +512,7 @@ export function checkProfessionalSlotAvailability(params: {
       exceptionType: 'overtime',
       slotStart,
       slotEnd,
-      reason: `Este serviço termina às ${minutesToTime(slotEnd)}, fora do expediente do profissional (${professional.workHoursStart} às ${professional.workHoursEnd}).`,
+      reason: `Este serviço termina às ${minutesToTime(slotEnd)}, fora do expediente do profissional neste dia (${daySchedule.start} às ${daySchedule.end}).`,
     };
   }
 
@@ -602,8 +609,9 @@ export function generateSlotsForSelection(params: {
   const { professional, service, date, services, appointments, blockedIntervals = [], openDays = [] } = params;
 
   const slots: AvailableSlot[] = [];
-  const start = timeToMinutes(professional.workHoursStart);
-  const end = timeToMinutes(professional.workHoursEnd);
+  const daySchedule = getProfessionalScheduleForDateStr(professional, date);
+  const start = timeToMinutes(daySchedule.start);
+  const end = timeToMinutes(daySchedule.end);
 
   for (let minute = start; minute < end; minute += 30) {
     const time = minutesToTime(minute);

@@ -211,9 +211,7 @@ export default function OwnerDashboard({
     profAvatar,
     profActive,
     profDisplayOrder,
-    profWorkDays,
-    profHoursStart,
-    profHoursEnd,
+    profWeeklySchedule,
     profLunchStart,
     profLunchEnd,
     profNoLunchBreak,
@@ -228,9 +226,7 @@ export default function OwnerDashboard({
     setProfAvatar,
     setProfActive,
     setProfDisplayOrder,
-    setProfWorkDays,
-    setProfHoursStart,
-    setProfHoursEnd,
+    setProfWeeklySchedule,
     setProfLunchStart,
     setProfLunchEnd,
     setProfNoLunchBreak,
@@ -799,9 +795,7 @@ export default function OwnerDashboard({
         avatar={profAvatar}
         active={profActive}
         displayOrder={profDisplayOrder}
-        workDays={profWorkDays}
-        workHoursStart={profHoursStart}
-        workHoursEnd={profHoursEnd}
+        weeklySchedule={profWeeklySchedule}
         lunchStart={profLunchStart}
         lunchEnd={profLunchEnd}
         noLunchBreak={profNoLunchBreak}
@@ -816,9 +810,7 @@ export default function OwnerDashboard({
         onChangeAvatar={setProfAvatar}
         onChangeActive={setProfActive}
         onChangeDisplayOrder={setProfDisplayOrder}
-        onChangeWorkDays={setProfWorkDays}
-        onChangeWorkHoursStart={setProfHoursStart}
-        onChangeWorkHoursEnd={setProfHoursEnd}
+        onChangeWeeklySchedule={setProfWeeklySchedule}
         onChangeLunchStart={setProfLunchStart}
         onChangeLunchEnd={setProfLunchEnd}
         onChangeNoLunchBreak={setProfNoLunchBreak}

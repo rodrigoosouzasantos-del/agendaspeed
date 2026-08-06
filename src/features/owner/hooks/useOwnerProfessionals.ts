@@ -18,6 +18,20 @@ import {
   normalizeProfessionalPermissions,
   uploadTenantPublicImage,
 } from "../owner.data";
+import {
+  buildWeeklyScheduleFromLegacyFields,
+  deriveLegacyScheduleFields,
+  getProfessionalWeeklySchedule,
+} from "../../../lib/professionalSchedule";
+import type { ProfessionalWeeklySchedule } from "../../../lib/professionalSchedule";
+
+function buildDefaultProfessionalWeeklySchedule(): ProfessionalWeeklySchedule {
+  return buildWeeklyScheduleFromLegacyFields({
+    workDays: [1, 2, 3, 4, 5, 6],
+    workHoursStart: "09:00",
+    workHoursEnd: "19:00",
+  });
+}
 
 interface ConfirmationRequest {
   title: string;
@@ -68,11 +82,8 @@ export function useOwnerProfessionals({
   const [profAvatar, setProfAvatar] = useState("");
   const [profActive, setProfActive] = useState(true);
   const [profDisplayOrder, setProfDisplayOrder] = useState(1);
-  const [profWorkDays, setProfWorkDays] = useState<number[]>([
-    1, 2, 3, 4, 5, 6,
-  ]);
-  const [profHoursStart, setProfHoursStart] = useState("09:00");
-  const [profHoursEnd, setProfHoursEnd] = useState("19:00");
+  const [profWeeklySchedule, setProfWeeklySchedule] =
+    useState<ProfessionalWeeklySchedule>(buildDefaultProfessionalWeeklySchedule());
   const [profLunchStart, setProfLunchStart] = useState("12:00");
   const [profLunchEnd, setProfLunchEnd] = useState("13:00");
   const [profNoLunchBreak, setProfNoLunchBreak] = useState(false);
@@ -137,9 +148,7 @@ export function useOwnerProfessionals({
     setProfAvatar("");
     setProfActive(true);
     setProfDisplayOrder(1);
-    setProfWorkDays([1, 2, 3, 4, 5, 6]);
-    setProfHoursStart("09:00");
-    setProfHoursEnd("19:00");
+    setProfWeeklySchedule(buildDefaultProfessionalWeeklySchedule());
     setProfLunchStart("12:00");
     setProfLunchEnd("13:00");
     setProfNoLunchBreak(false);
@@ -170,9 +179,7 @@ export function useOwnerProfessionals({
         (professional as unknown as Record<string, unknown>).displayOrder,
       ) || 999,
     );
-    setProfWorkDays(professional.workDays);
-    setProfHoursStart(professional.workHoursStart);
-    setProfHoursEnd(professional.workHoursEnd);
+    setProfWeeklySchedule(getProfessionalWeeklySchedule(professional));
     setProfLunchStart(professional.lunchStart);
     setProfLunchEnd(professional.lunchEnd);
     setProfNoLunchBreak(Boolean(professional.noLunchBreak));
@@ -222,6 +229,7 @@ export function useOwnerProfessionals({
     try {
       const existingAvatar = editingProf?.avatar || profAvatar.trim();
       const initialAvatar = media.removeAvatar ? "" : existingAvatar;
+      const legacyScheduleFields = deriveLegacyScheduleFields(profWeeklySchedule);
 
       const professionalToSave: Professional = {
         id: editingProf?.id || "",
@@ -232,9 +240,10 @@ export function useOwnerProfessionals({
         displayOrder: Number(profDisplayOrder) || 999,
         avatar: initialAvatar,
         active: editingProf ? profActive : true,
-        workDays: profWorkDays,
-        workHoursStart: profHoursStart,
-        workHoursEnd: profHoursEnd,
+        weeklySchedule: profWeeklySchedule,
+        workDays: legacyScheduleFields.workDays,
+        workHoursStart: legacyScheduleFields.workHoursStart,
+        workHoursEnd: legacyScheduleFields.workHoursEnd,
         lunchStart: profLunchStart,
         lunchEnd: profLunchEnd,
         noLunchBreak: profNoLunchBreak,
@@ -798,9 +807,7 @@ ${professionalAccessLink}`);
     profAvatar,
     profActive,
     profDisplayOrder,
-    profWorkDays,
-    profHoursStart,
-    profHoursEnd,
+    profWeeklySchedule,
     profLunchStart,
     profLunchEnd,
     profNoLunchBreak,
@@ -815,9 +822,7 @@ ${professionalAccessLink}`);
     setProfAvatar,
     setProfActive,
     setProfDisplayOrder,
-    setProfWorkDays,
-    setProfHoursStart,
-    setProfHoursEnd,
+    setProfWeeklySchedule,
     setProfLunchStart,
     setProfLunchEnd,
     setProfNoLunchBreak,

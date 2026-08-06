@@ -21,6 +21,10 @@ import {
 } from '../../../types';
 
 import { prepareImageForStorage } from '../../../lib/imageUpload';
+import {
+  ProfessionalWeeklySchedule,
+  WEEK_DAY_SHORT_LABELS
+} from '../../../lib/professionalSchedule';
 
 interface ProfessionalModalProps {
   isOpen: boolean;
@@ -34,9 +38,7 @@ interface ProfessionalModalProps {
   avatar: string;
   active: boolean;
   displayOrder: number;
-  workDays: number[];
-  workHoursStart: string;
-  workHoursEnd: string;
+  weeklySchedule: ProfessionalWeeklySchedule;
   lunchStart: string;
   lunchEnd: string;
   noLunchBreak: boolean;
@@ -52,9 +54,7 @@ interface ProfessionalModalProps {
   onChangeAvatar: (value: string) => void;
   onChangeActive: (value: boolean) => void;
   onChangeDisplayOrder: (value: number) => void;
-  onChangeWorkDays: (value: number[]) => void;
-  onChangeWorkHoursStart: (value: string) => void;
-  onChangeWorkHoursEnd: (value: string) => void;
+  onChangeWeeklySchedule: (value: ProfessionalWeeklySchedule) => void;
   onChangeLunchStart: (value: string) => void;
   onChangeLunchEnd: (value: string) => void;
   onChangeNoLunchBreak: (value: boolean) => void;
@@ -85,9 +85,7 @@ export default function ProfessionalModal({
   avatar,
   active,
   displayOrder,
-  workDays,
-  workHoursStart,
-  workHoursEnd,
+  weeklySchedule,
   lunchStart,
   lunchEnd,
   noLunchBreak,
@@ -102,9 +100,7 @@ export default function ProfessionalModal({
   onChangeAvatar,
   onChangeActive,
   onChangeDisplayOrder,
-  onChangeWorkDays,
-  onChangeWorkHoursStart,
-  onChangeWorkHoursEnd,
+  onChangeWeeklySchedule,
   onChangeLunchStart,
   onChangeLunchEnd,
   onChangeNoLunchBreak,
@@ -199,7 +195,6 @@ export default function ProfessionalModal({
     return null;
   }
 
-  const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const normalizedRemunerationType =
     String(remunerationType) === 'commission_fixed'
       ? 'commission_fixed'
@@ -215,15 +210,28 @@ export default function ProfessionalModal({
     }
   };
 
-  const handleToggleWorkDay = (dayIndex: number) => {
-    const isWorking = workDays.includes(dayIndex);
+  const handleToggleDayEnabled = (dayIndex: number) => {
+    onChangeWeeklySchedule(
+      weeklySchedule.map((day, index) => {
+        return index === dayIndex ? { ...day, enabled: !day.enabled } : day;
+      })
+    );
+  };
 
-    if (isWorking) {
-      onChangeWorkDays(workDays.filter((item) => item !== dayIndex));
-      return;
-    }
+  const handleChangeDayStart = (dayIndex: number, value: string) => {
+    onChangeWeeklySchedule(
+      weeklySchedule.map((day, index) => {
+        return index === dayIndex ? { ...day, start: value } : day;
+      })
+    );
+  };
 
-    onChangeWorkDays([...workDays, dayIndex]);
+  const handleChangeDayEnd = (dayIndex: number, value: string) => {
+    onChangeWeeklySchedule(
+      weeklySchedule.map((day, index) => {
+        return index === dayIndex ? { ...day, end: value } : day;
+      })
+    );
   };
 
   const handleToggleService = (serviceId: string) => {
@@ -491,33 +499,86 @@ export default function ProfessionalModal({
               Horários e Escala semanal
             </h4>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="space-y-1">
-                <label className="font-semibold block text-neutral-500">
-                  Entrada
-                </label>
+            <div className="space-y-1.5">
+              <label className="font-bold block text-neutral-700">
+                Entrada e saída por dia da semana:
+              </label>
 
-                <input
-                  type="time"
-                  value={workHoursStart}
-                  onChange={(event) => onChangeWorkHoursStart(event.target.value)}
-                  className="bg-white border rounded p-1.5 w-full text-center focus:border-[#0f4c5c]"
-                />
+              <div className="overflow-hidden rounded-2xl border bg-white">
+                <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-2 border-b bg-neutral-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                  <span>Dia</span>
+                  <span className="text-center">Trabalha</span>
+                  <span>Entrada</span>
+                  <span>Saída</span>
+                </div>
+
+                <div className="divide-y">
+                  {weeklySchedule.map((day, index) => {
+                    const isWorking = day.enabled;
+
+                    return (
+                      <div
+                        key={WEEK_DAY_SHORT_LABELS[index]}
+                        className={`grid grid-cols-[1fr_auto_1fr_1fr] items-center gap-2 px-3 py-2 ${
+                          isWorking ? '' : 'bg-neutral-50/60'
+                        }`}
+                      >
+                        <span className={`font-bold ${isWorking ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                          {WEEK_DAY_SHORT_LABELS[index]}
+                        </span>
+
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDayEnabled(index)}
+                            aria-pressed={isWorking}
+                            className={`relative h-5 w-9 shrink-0 rounded-full transition cursor-pointer ${
+                              isWorking ? 'bg-[#0f4c5c]' : 'bg-neutral-300'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                                isWorking ? 'left-4' : 'left-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <input
+                          type="time"
+                          value={day.start}
+                          onChange={(event) => handleChangeDayStart(index, event.target.value)}
+                          disabled={!isWorking}
+                          className={`border rounded p-1.5 w-full text-center ${
+                            isWorking
+                              ? 'bg-white focus:border-[#0f4c5c]'
+                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                          }`}
+                        />
+
+                        <input
+                          type="time"
+                          value={day.end}
+                          onChange={(event) => handleChangeDayEnd(index, event.target.value)}
+                          disabled={!isWorking}
+                          className={`border rounded p-1.5 w-full text-center ${
+                            isWorking
+                              ? 'bg-white focus:border-[#0f4c5c]'
+                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                          }`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold block text-neutral-500">
-                  Saída
-                </label>
+              <p className="text-[10px] text-neutral-500 leading-relaxed">
+                Cada dia pode ter um horário diferente. Desmarque "Trabalha" para os dias em que o profissional não atende.
+              </p>
+            </div>
 
-                <input
-                  type="time"
-                  value={workHoursEnd}
-                  onChange={(event) => onChangeWorkHoursEnd(event.target.value)}
-                  className="bg-white border rounded p-1.5 w-full text-center focus:border-[#0f4c5c]"
-                />
-              </div>
-
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className={`font-semibold block ${noLunchBreak ? 'text-neutral-400' : 'text-neutral-500'}`}>
                   Almoço Início
@@ -598,33 +659,6 @@ export default function ProfessionalModal({
                 </span>
               </span>
             </label>
-
-            <div className="space-y-1 pt-1">
-              <label className="font-bold block text-neutral-700 mb-1">
-                Dias da semana em que atende:
-              </label>
-
-              <div className="flex flex-wrap gap-1.5">
-                {weekDays.map((day, index) => {
-                  const isWorking = workDays.includes(index);
-
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => handleToggleWorkDay(index)}
-                      className={`px-2 py-1 rounded text-[11px] font-bold border transition cursor-pointer ${
-                        isWorking
-                          ? 'bg-[#0f4c5c] border-[#0f4c5c] text-white'
-                          : 'bg-white hover:bg-neutral-100 text-neutral-600'
-                      }`}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
 
           <div className="space-y-1.5 pt-1">

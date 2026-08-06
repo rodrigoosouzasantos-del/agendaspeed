@@ -293,11 +293,17 @@ export function normalizeRemoteProfessional(professional: Professional): Profess
     readRemoteValue(professional, ['noLunchBreak', 'no_lunch_break']) ?? false
   );
 
+  const weeklySchedule = readRemoteValue<Professional['weeklySchedule']>(professional, [
+    'weeklySchedule',
+    'weekly_schedule'
+  ]);
+
   return {
     ...professional,
     phone: String(readRemoteValue(professional, ['phone', 'whatsapp']) || professional.phone || ''),
     avatar: String(readRemoteValue(professional, ['avatar', 'avatarUrl', 'avatar_url']) || professional.avatar || ''),
     displayOrder: Number.isFinite(displayOrder) ? displayOrder : professional.displayOrder,
+    weeklySchedule: weeklySchedule || professional.weeklySchedule,
     workDays: Array.isArray(workDays) ? workDays.map(Number) : professional.workDays || [],
     workHoursStart: normalizeRemoteTime(
       readRemoteValue(professional, ['workHoursStart', 'work_hours_start']),

@@ -13,6 +13,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 
 import { formatDateBr } from '../owner.utils';
+import { getProfessionalScheduleForDateStr } from '../../../lib/professionalSchedule';
 
 import {
   AgendaBlockedInterval,
@@ -218,8 +219,12 @@ const renderProfessionalAgenda = () => {
       15,
       Number(professionalRecord.defaultAppointmentDuration) || 30,
     );
-    const workStart = timeToMinutes(selectedProfessional.workHoursStart);
-    const workEnd = timeToMinutes(selectedProfessional.workHoursEnd);
+    const selectedDaySchedule = getProfessionalScheduleForDateStr(
+      selectedProfessional,
+      selectedDateSafe,
+    );
+    const workStart = timeToMinutes(selectedDaySchedule.start);
+    const workEnd = timeToMinutes(selectedDaySchedule.end);
     const lunchStart = timeToMinutes(selectedProfessional.lunchStart);
     const lunchEnd = timeToMinutes(selectedProfessional.lunchEnd);
     const hasLunchBreak = !professionalRecord.noLunchBreak;
@@ -759,7 +764,7 @@ const renderProfessionalAgenda = () => {
                     )}
 
                     <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
-                      {selectedProfessional.workHoursStart} às {selectedProfessional.workHoursEnd}
+                      {selectedDaySchedule.start} às {selectedDaySchedule.end}
                     </span>
                   </div>
                 </div>

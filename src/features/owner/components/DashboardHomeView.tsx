@@ -39,6 +39,8 @@ import {
   OwnerTab
 } from '../owner.types';
 
+import { getProfessionalScheduleForDateStr } from '../../../lib/professionalSchedule';
+
 import {
   getAppointmentTime
 } from '../owner.utils';
@@ -482,14 +484,14 @@ function countProfessionalSlotsForDate(params: {
     onlyFutureSlots = false
   } = params;
 
-  const weekDay = parseLocalDate(dateStr).getDay();
+  const daySchedule = getProfessionalScheduleForDateStr(professional, dateStr);
 
-  if (!professional.active || !professional.workDays.includes(weekDay)) {
+  if (!professional.active || !daySchedule.enabled) {
     return 0;
   }
 
-  const start = timeToMinutes(professional.workHoursStart);
-  const end = timeToMinutes(professional.workHoursEnd);
+  const start = timeToMinutes(daySchedule.start);
+  const end = timeToMinutes(daySchedule.end);
   const lunchStart = timeToMinutes(professional.lunchStart);
   const lunchEnd = timeToMinutes(professional.lunchEnd);
 

@@ -21,6 +21,14 @@ import type {
 
 import { calculateCommissionValue } from "./owner.utils";
 
+import {
+  buildWeeklyScheduleFromLegacyFields,
+  deriveLegacyScheduleFields,
+  getProfessionalWeeklySchedule,
+  isValidWeeklySchedule,
+  type ProfessionalWeeklySchedule,
+} from "../../lib/professionalSchedule";
+
 import type {
   CommissionPaymentRecord,
   ExpensePaymentRecord,
@@ -230,6 +238,8 @@ export type SupabaseProfessionalResponse = {
   display_order: number;
   avatar: string;
   active: boolean;
+  weekly_schedule?: ProfessionalWeeklySchedule | null;
+  weeklySchedule?: ProfessionalWeeklySchedule | null;
   work_days: number[];
   work_hours_start: string;
   work_hours_end: string;
@@ -301,6 +311,24 @@ export function mapSupabaseProfessionalToAppProfessional(
     displayOrder: Number(professional.display_order) || 999,
     avatar: professional.avatar || "",
     active: professional.active !== false,
+    weeklySchedule: isValidWeeklySchedule(
+      professional.weekly_schedule || professional.weeklySchedule,
+    )
+      ? ((professional.weekly_schedule ||
+          professional.weeklySchedule) as ProfessionalWeeklySchedule)
+      : buildWeeklyScheduleFromLegacyFields({
+          workDays: Array.isArray(professional.work_days)
+            ? professional.work_days
+            : [1, 2, 3, 4, 5, 6],
+          workHoursStart: normalizeProfessionalTime(
+            professional.work_hours_start,
+            "09:00",
+          ),
+          workHoursEnd: normalizeProfessionalTime(
+            professional.work_hours_end,
+            "19:00",
+          ),
+        }),
     workDays: Array.isArray(professional.work_days)
       ? professional.work_days
       : [1, 2, 3, 4, 5, 6],
@@ -342,6 +370,9 @@ export function mapSupabaseProfessionalToAppProfessional(
 }
 
 export function buildProfessionalPayload(professional: Professional) {
+  const weeklySchedule = getProfessionalWeeklySchedule(professional);
+  const legacyScheduleFields = deriveLegacyScheduleFields(weeklySchedule);
+
   return {
     id:
       professional.id && !professional.id.startsWith("prof-")
@@ -357,9 +388,10 @@ export function buildProfessionalPayload(professional: Professional) {
       ) || 999,
     avatar: professional.avatar || "",
     active: professional.active,
-    work_days: professional.workDays,
-    work_hours_start: professional.workHoursStart,
-    work_hours_end: professional.workHoursEnd,
+    weekly_schedule: weeklySchedule,
+    work_days: legacyScheduleFields.workDays,
+    work_hours_start: legacyScheduleFields.workHoursStart,
+    work_hours_end: legacyScheduleFields.workHoursEnd,
     lunch_start: professional.lunchStart,
     lunch_end: professional.lunchEnd,
     no_lunch_break: Boolean(professional.noLunchBreak),

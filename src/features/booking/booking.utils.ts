@@ -194,6 +194,63 @@ function getProfessionalWorkHoursEnd(professional: Professional | null): string 
   );
 }
 
+interface RawDaySchedule {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+function isValidRawWeeklySchedule(value: unknown): value is RawDaySchedule[] {
+  return (
+    Array.isArray(value) &&
+    value.length === 7 &&
+    value.every((day) => day && typeof day === 'object' && 'enabled' in (day as object))
+  );
+}
+
+/**
+ * Horário de entrada/saída do profissional para um dia específico. Usa
+ * `weeklySchedule` (entrada/saída por dia da semana) quando o cadastro já
+ * tiver essa informação; caso contrário, cai no par único
+ * workHoursStart/workHoursEnd usado por cadastros antigos.
+ */
+function getProfessionalDayScheduleLocal(
+  professional: Professional | null,
+  dateStr: string
+): { enabled: boolean; start: string; end: string } {
+  const fallback = {
+    enabled: false,
+    start: getProfessionalWorkHoursStart(professional),
+    end: getProfessionalWorkHoursEnd(professional),
+  };
+
+  if (!professional || !dateStr) {
+    return fallback;
+  }
+
+  const weekDay = new Date(`${dateStr}T00:00:00`).getDay();
+  const workDays = getProfessionalWorkDays(professional);
+  fallback.enabled = workDays.includes(weekDay);
+
+  const rawWeeklySchedule = readRecordValue(professional, ['weeklySchedule', 'weekly_schedule']);
+
+  if (!isValidRawWeeklySchedule(rawWeeklySchedule)) {
+    return fallback;
+  }
+
+  const daySchedule = rawWeeklySchedule[weekDay];
+
+  if (!daySchedule) {
+    return fallback;
+  }
+
+  return {
+    enabled: Boolean(daySchedule.enabled),
+    start: daySchedule.start ? String(daySchedule.start).slice(0, 5) : fallback.start,
+    end: daySchedule.end ? String(daySchedule.end).slice(0, 5) : fallback.end,
+  };
+}
+
 function getProfessionalLunchStart(professional: Professional | null): string {
   return getProfessionalStringValue(
     professional,
@@ -375,20 +432,20 @@ export function isProfessionalWorkingOnDate(params: {
     return false;
   }
 
-  const dateObj = new Date(`${dateStr}T00:00:00`);
-  const dayOfWeek = dateObj.getDay();
-  const workDays = getProfessionalWorkDays(professional);
-
-  return workDays.includes(dayOfWeek);
+  return getProfessionalDayScheduleLocal(professional, dateStr).enabled;
 }
 
-function getProfessionalBaseTimeSlots(professional: Professional | null): string[] {
+function getProfessionalBaseTimeSlots(
+  professional: Professional | null,
+  dateStr: string
+): string[] {
   if (!professional) {
     return DEFAULT_TIME_SLOTS;
   }
 
-  const startMinutes = getMinutesFromTime(getProfessionalWorkHoursStart(professional));
-  const endMinutes = getMinutesFromTime(getProfessionalWorkHoursEnd(professional));
+  const daySchedule = getProfessionalDayScheduleLocal(professional, dateStr);
+  const startMinutes = getMinutesFromTime(daySchedule.start);
+  const endMinutes = getMinutesFromTime(daySchedule.end);
   const intervalMinutes = getProfessionalDefaultAppointmentDuration(professional);
 
   if (
@@ -694,21 +751,24 @@ export function hasAppointmentConflict(params: {
 export function isTimeInsideProfessionalWorkingHours(params: {
   time: string;
   professional: Professional;
+  selectedDate: string;
   selectedService?: Service | null;
 }): boolean {
   const {
     time,
     professional,
+    selectedDate,
     selectedService = null
   } = params;
 
   const startMinutes = getMinutesFromTime(time);
   const serviceDuration = getServiceDurationMinutes(selectedService, professional);
   const endMinutes = startMinutes + serviceDuration;
-  const worksStart = getMinutesFromTime(getProfessionalWorkHoursStart(professional));
-  const worksEnd = getMinutesFromTime(getProfessionalWorkHoursEnd(professional));
+  const daySchedule = getProfessionalDayScheduleLocal(professional, selectedDate);
+  const worksStart = getMinutesFromTime(daySchedule.start);
+  const worksEnd = getMinutesFromTime(daySchedule.end);
 
-  return startMinutes >= worksStart && endMinutes <= worksEnd;
+  return daySchedule.enabled && startMinutes >= worksStart && endMinutes <= worksEnd;
 }
 
 export function isTimeInsideLunchInterval(params: {
@@ -790,7 +850,7 @@ export function generateTimeSlots(params: {
     return [];
   }
 
-  return getProfessionalBaseTimeSlots(selectedProfessional).filter((time) => {
+  return getProfessionalBaseTimeSlots(selectedProfessional, selectedDate).filter((time) => {
     if (!selectedDate) {
       return false;
     }
@@ -812,6 +872,7 @@ export function generateTimeSlots(params: {
       !isTimeInsideProfessionalWorkingHours({
         time,
         professional: selectedProfessional,
+        selectedDate,
         selectedService
       })
     ) {

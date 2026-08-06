@@ -54,6 +54,10 @@ import {
 } from './ProfessionalAgendaModals';
 
 import { supabase } from '../../../lib/supabase';
+import {
+  getProfessionalScheduleForDateStr,
+  isProfessionalWorkingOnWeekDay
+} from '../../../lib/professionalSchedule';
 
 
 function getSelectedDateAsDate(dateStr: string): Date {
@@ -109,7 +113,7 @@ function isDateOutsideProfessionalRegularSchedule(params: {
   const { professional, date } = params;
   const dateObject = new Date(`${date}T00:00:00`);
 
-  return !professional.workDays.includes(dateObject.getDay());
+  return !isProfessionalWorkingOnWeekDay(professional, dateObject.getDay());
 }
 
 function getCalendarDayClassName(day: ProfessionalAgendaCalendarDay, selectedDate: string): string {
